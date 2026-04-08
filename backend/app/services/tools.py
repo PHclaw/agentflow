@@ -81,6 +81,22 @@ class ToolService:
             },
             function=self._http_request,
         ))
+
+        # 浏览器自动化工具
+        self.register(ToolDefinition(
+            name="browser_control",
+            description="控制浏览器执行自动化任务，如打开网页、点击、输入、截图",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "任务描述，自然语言"},
+                    "max_steps": {"type": "integer", "description": "最大步数，默认10", "default": 10},
+                    "session_id": {"type": "string", "description": "会话ID，可选", "default": "default"},
+                },
+                "required": ["task"]
+            },
+            function=self._browser_control,
+        ))
     
     def register(self, tool: ToolDefinition):
         """注册工具"""
@@ -165,6 +181,26 @@ class ToolService:
                 "status_code": response.status_code,
                 "body": response.text[:1000],  # 限制长度
             }
+
+
+    async def _browser_control(self, task: str, max_steps: int = 10, session_id: str = "default") -> dict:
+        """浏览器自动化"""
+        try:
+            from .browser import browser_tool_service
+            result = await browser_tool_service.execute_browser_task(
+                task=task,
+                max_steps=max_steps,
+                session_id=session_id,
+            )
+            return {
+                "success": result.success,
+                "steps": result.steps_executed,
+                "result": result.final_result,
+                "screenshots": result.screenshots,
+                "error": result.error,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "result": "", "steps": 0}
 
 
 # 全局工具服务实例

@@ -32,6 +32,7 @@
 | **多模型支持** | OpenAI GPT-4 / Anthropic Claude / DeepSeek 一键切换 | ✅ |
 | **知识库 RAG** | 上传文档自动分块、嵌入向量，精准检索增强生成 | ✅ |
 | **工具调用** | 内置搜索/计算/天气等工具，支持自定义 API 扩展 | ✅ |
+| **🌐 浏览器自动化** | 内置 Browser-Use 引擎，让 Agent 控制浏览器执行复杂任务 | ✅ |
 | **多渠道接入** | 一键部署到网站/微信/钉钉/企业微信/API | 🚧 |
 | **实时数据分析** | 对话统计、意图分析、用户反馈追踪 | ✅ |
 
@@ -116,6 +117,22 @@
 | **ReactFlow** | 11+ | 拖拽式工作流编辑器 |
 | **Tailwind CSS** | 3.4 | 原子化 CSS 框架 |
 | **React Router** | 6+ | 客户端路由 |
+
+#### 🌐 浏览器自动化 (Browser-Use)
+
+AgentFlow 内置 Browser-Use 引擎，Agent 可以像人一样操作浏览器：
+
+```
+用户: "帮我去 GitHub 找一个 AI Agent 相关的热门项目"
+     ↓
+AgentFlow 触发 Browser Tool
+     ↓
+Browser-Use 控制浏览器 → 打开 GitHub → 搜索 → 分析 → 截图
+     ↓
+返回结果 + 截图给用户
+```
+
+**支持操作**：打开网页、点击元素、输入文字、滚动页面、截图、数据采集、表单填写、多标签页管理
 
 #### AI/LLM 集成
 | 模型 | 提供商 | 支持功能 |
@@ -245,7 +262,8 @@ agentflow/
 │   │   ├── services/                 # 业务逻辑层
 │   │   │   ├── llm.py               # LLM 服务
 │   │   │   ├── knowledge.py          # 知识库服务
-│   │   │   ├── tools.py              # 工具服务
+│   │   │   ├── tools.py              # 工具服务（含浏览器自动化）
+│   │   │   ├── browser.py            # Browser-Use 浏览器控制
 │   │   │   ├── runtime.py            # Agent 运行时
 │   │   │   └── templates.py          # 模板服务
 │   │   ├── workflows/                # 工作流引擎
@@ -318,7 +336,8 @@ agentflow/
 |:---------|:-----|:---------|
 | **LLM** | 🤖 | 调用 LLM 生成回复，支持系统提示词、上下文注入 |
 | **Condition** | 🔀 | 条件分支，根据变量值路由到不同分支 |
-| **Tool** | 🔧 | 调用外部工具（搜索、计算、API） |
+| **Tool** | 🔧 | 调用外部工具（搜索/计算/API/浏览器） |
+| **Browser** | 🌐 | Browser-Use 自动化，AI 控制浏览器操作网页 |
 | **Knowledge** | 📚 | 知识库检索，增强 LLM 回答准确性 |
 | **Start/End** | 🚩 | 工作流入口/出口节点 |
 
