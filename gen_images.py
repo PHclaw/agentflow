@@ -30,18 +30,17 @@ def fnt(size, bold=False):
     # 优先使用 Windows 中文字体
     if bold:
         for p in [
-            r"C:\Windows\Fonts\msyhbd.ttf",  # 微软雅黑粗体
+            r"C:\Windows\Fonts\msyhbd.ttc",  # 微软雅黑粗体(ttc)
+            r"C:\Windows\Fonts\Dengb.ttf",   # 等线粗体
             r"C:\Windows\Fonts\simhei.ttf",  # 黑体
-            r"C:\Windows\Fonts\dengb.ttf",   # 等线粗体
         ]:
             try: return ImageFont.truetype(p, size)
             except: pass
     for p in [
-        r"C:\Windows\Fonts\msyh.ttf",      # 微软雅黑
-        r"C:\Windows\Fonts\msyh.ttc",     # 微软雅黑 (ttc)
-        r"C:\Windows\Fonts\simhei.ttf",   # 黑体
-        r"C:\Windows\Fonts\deng.ttf",     # 等线
-        r"C:\Windows\Fonts\simsun.ttc",   # 宋体
+        r"C:\Windows\Fonts\msyh.ttc",      # 微软雅黑(ttc)
+        r"C:\Windows\Fonts\Deng.ttf",      # 等线
+        r"C:\Windows\Fonts\simhei.ttf",    # 黑体
+        r"C:\Windows\Fonts\simsun.ttc",    # 宋体
     ]:
         try: return ImageFont.truetype(p, size)
         except: pass
