@@ -21,7 +21,7 @@
 ## ✨ 特性
 
 <p align="center">
-  <img src="https://via.placeholder.com/800x400/6366F1/FFFFFF?text=AgentFlow+Dashboard" alt="Dashboard" width="800"/>
+  <img src="promo_images/01_hero.png" alt="AgentFlow Hero" width="800"/>
 </p>
 
 ### 🎯 核心能力
@@ -35,6 +35,10 @@
 | **🌐 浏览器自动化** | 内置 Browser-Use 引擎，让 Agent 控制浏览器执行复杂任务 | ✅ |
 | **多渠道接入** | 一键部署到网站/微信/钉钉/企业微信/API | 🚧 |
 | **实时数据分析** | 对话统计、意图分析、用户反馈追踪 | ✅ |
+
+<p align="center">
+  <img src="promo_images/02_features.png" alt="Features" width="800"/>
+</p>
 
 ### 📦 开箱即用的行业模板
 
@@ -97,6 +101,10 @@
 
 ### 技术栈详情
 
+<p align="center">
+  <img src="promo_images/05_tech.png" alt="Tech Stack" width="800"/>
+</p>
+
 #### 后端技术
 | 技术 | 版本 | 用途 |
 |:-----|:-----|:-----|
@@ -119,6 +127,10 @@
 | **React Router** | 6+ | 客户端路由 |
 
 #### 🌐 浏览器自动化 (Browser-Use)
+
+<p align="center">
+  <img src="promo_images/04_browser.png" alt="Browser Automation" width="800"/>
+</p>
 
 AgentFlow 内置 Browser-Use 引擎，Agent 可以像人一样操作浏览器：
 
@@ -307,6 +319,10 @@ agentflow/
 ---
 
 ## 🎨 工作流节点类型
+
+<p align="center">
+  <img src="promo_images/03_workflow.png" alt="Workflow Builder" width="800"/>
+</p>
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────┐
