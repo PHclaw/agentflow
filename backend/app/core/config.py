@@ -44,6 +44,13 @@ class Settings(BaseSettings):
     PRO_AGENTS: int = 5
     PRO_MESSAGES: int = 5000
     
+    # Stripe
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_FREE: str = ""
+    STRIPE_PRICE_PRO: str = "price_pro_monthly"
+    STRIPE_PRICE_TEAM: str = "price_team_monthly"
+    
     class Config:
         env_file = ".env"
 

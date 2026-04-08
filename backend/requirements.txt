@@ -14,6 +14,9 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.1.2
 
+# Payments
+stripe==7.10.0
+
 # LLM
 openai==1.10.0
 anthropic==0.18.0

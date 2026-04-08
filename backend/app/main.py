@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api import auth, users, agents, templates, knowledge, chat
+from app.api import auth, users, agents, templates, knowledge, chat, billing
 
 
 @asynccontextmanager
@@ -43,6 +43,7 @@ app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agent"])
 app.include_router(templates.router, prefix="/api/v1/templates", tags=["模板"])
 app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["知识库"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
+app.include_router(billing.router, tags=["支付"])
 
 
 @app.get("/health")
