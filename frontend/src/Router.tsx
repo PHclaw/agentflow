@@ -9,6 +9,7 @@ import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import ChatPage from './pages/ChatPage'
 import Pricing from './pages/Pricing'
+import KnowledgePage from './pages/KnowledgePage'
 
 export default function Router() {
   return (
@@ -23,6 +24,7 @@ export default function Router() {
         <Route path="/register" element={<Register />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/knowledge" element={<KnowledgePage />} />
       </Routes>
     </BrowserRouter>
   )
