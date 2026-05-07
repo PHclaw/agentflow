@@ -48,3 +48,14 @@ aiofiles==23.2.1
 # Browser Automation - Browser-Use
 playwright==1.41.0
 browser-use==0.1.11
+
+# Agent Ecosystem (PHclaw)
+# These will be installed from GitHub until published to PyPI
+# agent-config-loader>=0.1.0
+# agent-prompt-templates>=0.1.0
+# agent-output-parser>=0.1.0
+# agent-tool-registry>=0.1.0
+# agent-memory-store>=0.1.0
+# agent-observability>=0.1.0
+# agent-orchestrator>=0.1.0
+# agent-mcp-client>=0.1.0
