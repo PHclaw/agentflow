@@ -71,7 +71,7 @@ class ChatSession(Base):
     messages = Column(JSON, default=list)
     
     # 元数据
-    metadata = Column(JSON)
+    session_metadata = Column(JSON)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

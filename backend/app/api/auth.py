@@ -3,10 +3,11 @@
 """
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
-from passlib.context import CryptContext
+import bcrypt
 from jose import jwt, JWTError
 
 from ..core.database import get_db
@@ -14,16 +15,15 @@ from ..core.config import settings
 
 router = APIRouter()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return bcrypt.checkpw(plain.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def create_token(user_id: str) -> str:
@@ -47,30 +47,55 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
 _users = {}
 
 
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    nickname: str = None
+
+
 @router.post("/register")
-async def register(email: str, password: str):
+async def register(request: RegisterRequest):
     """注册（简化版）"""
-    if email in _users:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    if request.email in _users:
+        raise HTTPException(status_code=400, detail="该邮箱已被注册")
     
     user_id = f"user_{len(_users)}"
-    _users[email] = {
+    _users[request.email] = {
         "id": user_id,
-        "email": email,
-        "password_hash": get_password_hash(password),
+        "email": request.email,
+        "nickname": request.nickname or request.email.split('@')[0],
+        "password_hash": get_password_hash(request.password),
     }
     
-    return {"id": user_id, "email": email}
+    # 注册后自动登录，返回token
+    token = create_token(user_id)
+    
+    return {
+        "token": token,
+        "user": {
+            "id": user_id,
+            "email": request.email,
+            "nickname": request.nickname or request.email.split('@')[0],
+        }
+    }
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 
 @router.post("/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: LoginRequest):
     """登录"""
-    user = _users.get(form_data.username)
+    user = _users.get(request.email)
     
-    if not user or not verify_password(form_data.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user:
+        raise HTTPException(status_code=401, detail="邮箱或密码错误")
+    
+    if not verify_password(request.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="邮箱或密码错误")
     
     token = create_token(user["id"])
     
-    return {"access_token": token, "token_type": "bearer"}
+    return {"token": token, "token_type": "bearer", "user": {"id": user["id"], "email": user["email"], "nickname": user.get("nickname", user["email"].split('@')[0])}}

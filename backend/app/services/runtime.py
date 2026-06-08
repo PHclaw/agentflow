@@ -44,7 +44,7 @@ class AgentRuntime:
             raise ValueError(f"Agent not found: {self.agent_id}")
         
         # 初始化工作流引擎
-        self.workflow = WorkflowEngine(self.agent.workflow_definition)
+        self.workflow = WorkflowEngine(self.agent.workflow_definition, llm_service=self.llm)
         
         # 初始化 LLM
         model_config = self.agent.model_config or {}

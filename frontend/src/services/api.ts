@@ -36,8 +36,25 @@ class ApiClient {
     })
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: '请求失败' }))
-      throw new Error(error.detail || '请求失败')
+      let errorMsg = '请求失败'
+      try {
+        const error = await response.json()
+        // Handle various error formats
+        if (Array.isArray(error)) {
+          errorMsg = error.map(e => e.detail || e.msg || JSON.stringify(e)).join(', ')
+        } else if (error.detail) {
+          errorMsg = Array.isArray(error.detail) 
+            ? error.detail.map(e => e.detail || JSON.stringify(e)).join(', ')
+            : error.detail
+        } else if (error.message) {
+          errorMsg = error.message
+        } else {
+          errorMsg = JSON.stringify(error) || '请求失败'
+        }
+      } catch {
+        errorMsg = `错误 (${response.status})`
+      }
+      throw new Error(errorMsg)
     }
 
     return response.json()
@@ -134,10 +151,51 @@ export const knowledge = {
   create: (data: any) => {
     return api.post('/knowledge', data)
   },
-  upload: async (kbId: string, file: File, chunkSize?: number) => {
-    return api.uploadFile(`/knowledge/${kbId}/upload`, file)
+  get: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}`)
   },
-  search: (kbId: string, query: string) => {
-    return api.post(`/knowledge/${kbId}/search`, { query })
+  delete: (kbId: string) => {
+    return api.delete(`/knowledge/${kbId}`)
+  },
+  upload: async (kbId: string, file: File) => {
+    return api.uploadFile(`/knowledge/${kbId}/documents`, file)
+  },
+  getDocuments: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}/documents`)
+  },
+  deleteDocument: (kbId: string, docId: number) => {
+    return api.delete(`/knowledge/${kbId}/documents/${docId}`)
+  },
+  search: (query: string, kbIds?: string[], topK?: number) => {
+    return api.post('/knowledge/search', { query, kb_ids: kbIds, top_k: topK || 5 })
+  },
+  getContext: (query: string, kbIds?: string[]) => {
+    return api.post('/knowledge/context', { query, kb_ids: kbIds })
+  },
+  // RAG 链式调用
+  ragQuery: (query: string, kbIds?: string[], systemPrompt?: string) => {
+    return api.post('/knowledge/rag', { query, kb_ids: kbIds, system_prompt: systemPrompt })
+  },
+  ragChat: (query: string, chatHistory: any[], kbIds?: string[]) => {
+    return api.post('/knowledge/rag/chat', { query, chat_history: chatHistory, kb_ids: kbIds })
+  },
+  getStats: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}/stats`)
+  },
+}
+
+// 工作流 API
+export const workflow = {
+  execute: (workflowDefinition: any, inputData: any) => {
+    return api.post('/workflow/execute', { workflow_definition: workflowDefinition, input_data: inputData })
+  },
+  executeNode: (workflowDefinition: any, nodeId: string, inputData: any) => {
+    return api.post('/workflow/execute/node', { workflow_definition: workflowDefinition, node_id: nodeId, input_data: inputData })
+  },
+  test: (nodes: any[], edges: any[], inputData: any) => {
+    return api.post('/workflow/test', { nodes, edges, input_data: inputData })
+  },
+  getExecutionOrder: (nodes: any[], edges: any[]) => {
+    return api.get(`/workflow/execution-order?nodes=${encodeURIComponent(JSON.stringify(nodes))}&edges=${encodeURIComponent(JSON.stringify(edges))}`)
   },
 }

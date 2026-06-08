@@ -1,35 +1,69 @@
 """
-知识库服务 - RAG + pgvector
+知识库服务 - LangChain RAG 实现
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, text
 from sqlalchemy.orm import selectinload
 import json
 import os
 import uuid
+import io
 from datetime import datetime
+from pathlib import Path
 
 from ..models.agent import KnowledgeBase
 from ..models.document import Document, DocumentChunk
 from ..services.llm import LLMService
+from ..core.config import settings
 
-# 尝试导入 pgvector
-try:
-    from pgvector.sqlalchemy import Vector
-    from sqlalchemy import text
-    HAS_PGVECTOR = True
-except ImportError:
-    HAS_PGVECTOR = False
+# LangChain imports
+from langchain_core.documents import Document as LCDocument
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.document_loaders import (
+    TextLoader,
+    UnstructuredWordDocumentLoader,
+    UnstructuredHTMLLoader,
+    UnstructuredMarkdownLoader,
+)
+from langchain_community.document_loaders.pdf import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownTextSplitter
+from langchain_community.vectorstores import Chroma, FAISS
+
+# 向量存储缓存
+_vector_stores: Dict[str, Any] = {}
 
 
 class KnowledgeService:
-    """知识库服务"""
+    """知识库服务 - 基于 LangChain"""
     
     def __init__(self, db: AsyncSession, kb_id: str = None):
         self.db = db
         self.kb_id = kb_id
         self.llm = LLMService()
+        self._vector_store = None
+    
+    def _get_embeddings(self):
+        """获取嵌入模型"""
+        return OpenAIEmbeddings(
+            api_key=settings.OPENAI_API_KEY,
+            model="text-embedding-3-small"
+        )
+    
+    def _get_llm(self, model: str = None, temperature: float = 0.7):
+        """获取 LLM 模型"""
+        return ChatOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            model=model or settings.OPENAI_MODEL,
+            temperature=temperature
+        )
+    
+    def _get_vector_store_path(self, kb_id: str) -> Path:
+        """获取向量存储路径"""
+        return Path(settings.UPLOAD_DIR) / "vectorstore" / kb_id
     
     async def create_knowledge_base(
         self,
@@ -42,11 +76,16 @@ class KnowledgeService:
             id=str(uuid.uuid4()),
             name=name,
             description=description,
-            agent_id=None,  # 独立知识库
+            agent_id=None,
         )
         self.db.add(kb)
         await self.db.commit()
         await self.db.refresh(kb)
+        
+        # 创建向量存储目录
+        vs_path = self._get_vector_store_path(kb.id)
+        vs_path.mkdir(parents=True, exist_ok=True)
+        
         return kb
     
     async def add_document(
@@ -55,11 +94,10 @@ class KnowledgeService:
         filename: str,
         content: str,
         file_type: str = "txt",
-        chunk_size: int = 500,
-        chunk_overlap: int = 50,
+        chunk_size: int = 1000,
+        chunk_overlap: int = 200,
     ) -> Document:
-        """添加文档"""
-        # 创建文档记录
+        """添加文档 - 使用 LangChain 处理"""
         doc = Document(
             kb_id=kb_id,
             filename=filename,
@@ -72,20 +110,44 @@ class KnowledgeService:
         await self.db.refresh(doc)
         
         try:
-            # 分块
-            chunks = self._split_text(content, chunk_size, chunk_overlap)
+            # 使用 LangChain 加载文档
+            lc_doc = LCDocument(
+                page_content=content,
+                metadata={
+                    "source": filename,
+                    "file_type": file_type,
+                    "document_id": doc.id,
+                }
+            )
             
-            # 为每个分块生成嵌入并保存
+            # 文本分块 - 使用 RecursiveCharacterTextSplitter
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                length_function=len,
+                separators=["\n\n", "\n", "。", ". ", " ", ""]
+            )
+            chunks = text_splitter.split_documents([lc_doc])
+            
+            # 获取或创建向量存储
+            vector_store = await self._get_or_create_vector_store(kb_id)
+            
+            # 添加到向量存储
+            texts = [c.page_content for c in chunks]
+            metadatas = [c.metadata for c in chunks]
+            vector_store.add_texts(texts=texts, metadatas=metadatas)
+            
+            # 保存向量存储
+            await self._save_vector_store(kb_id, vector_store)
+            
+            # 保存分块信息到数据库
             for i, chunk_content in enumerate(chunks):
-                # 生成嵌入向量
-                embedding = await self.llm.embed(chunk_content)
-                
                 chunk = DocumentChunk(
                     document_id=doc.id,
                     kb_id=kb_id,
                     chunk_index=i,
                     content=chunk_content,
-                    embedding=embedding,
+                    metadata=json.dumps(chunks[i].metadata),
                 )
                 self.db.add(chunk)
             
@@ -105,38 +167,39 @@ class KnowledgeService:
             await self.db.commit()
             raise
     
-    def _split_text(
-        self,
-        text: str,
-        chunk_size: int,
-        chunk_overlap: int,
-    ) -> List[str]:
-        """文本分块"""
-        chunks = []
-        start = 0
+    async def _get_or_create_vector_store(self, kb_id: str) -> Chroma:
+        """获取或创建向量存储"""
+        if kb_id in _vector_stores:
+            return _vector_stores[kb_id]
         
-        while start < len(text):
-            end = start + chunk_size
-            chunk = text[start:end]
-            
-            # 尝试在句子边界分割
-            if end < len(text):
-                # 中英文句子边界
-                last_period = max(chunk.rfind("。"), chunk.rfind("."), chunk.rfind("!"), chunk.rfind("?"))
-                last_newline = chunk.rfind("\n")
-                split_point = max(last_period, last_newline)
-                
-                if split_point > chunk_size * 0.3:
-                    chunk = chunk[:split_point + 1]
-                    end = start + split_point + 1
-            
-            chunk = chunk.strip()
-            if chunk:
-                chunks.append(chunk)
-            
-            start = end - chunk_overlap if end < len(text) else len(text)
+        vs_path = self._get_vector_store_path(kb_id)
         
-        return chunks
+        # 检查持久化的向量存储
+        if vs_path.exists() and (vs_path / "chroma.sqlite3").exists():
+            try:
+                vector_store = Chroma(
+                    persist_directory=str(vs_path),
+                    embedding_function=self._get_embeddings()
+                )
+                _vector_stores[kb_id] = vector_store
+                return vector_store
+            except Exception:
+                pass
+        
+        # 创建新的向量存储
+        vector_store = Chroma(
+            persist_directory=str(vs_path),
+            embedding_function=self._get_embeddings()
+        )
+        _vector_stores[kb_id] = vector_store
+        return vector_store
+    
+    async def _save_vector_store(self, kb_id: str, vector_store: Chroma):
+        """持久化向量存储"""
+        try:
+            vector_store.persist()
+        except Exception:
+            pass  # Chroma 会自动持久化
     
     async def search(
         self,
@@ -144,133 +207,79 @@ class KnowledgeService:
         kb_ids: List[str] = None,
         top_k: int = 5,
         threshold: float = 0.7,
+        filter_metadata: Dict = None,
     ) -> List[dict]:
-        """语义搜索 - pgvector"""
-        # 生成查询向量
-        query_embedding = await self.llm.embed(query)
+        """语义搜索 - LangChain Retriever"""
+        kb_id = kb_ids[0] if kb_ids else self.kb_id
+        if not kb_id:
+            return []
         
-        if HAS_PGVECTOR:
-            # 使用 pgvector 余弦相似度搜索
-            results = await self._vector_search(query_embedding, kb_ids, top_k, threshold)
-        else:
-            # 回退到内存搜索
-            results = await self._memory_search(query_embedding, kb_ids, top_k, threshold)
-        
-        return results
-    
-    async def _vector_search(
-        self,
-        query_embedding: List[float],
-        kb_ids: List[str],
-        top_k: int,
-        threshold: float,
-    ) -> List[dict]:
-        """pgvector 向量搜索"""
-        # 将向量转换为字符串格式
-        vector_str = f"[{','.join(str(x) for x in query_embedding)}]"
-        
-        # 构建查询
-        query = """
-            SELECT 
-                dc.id, dc.content, dc.chunk_index, dc.metadata,
-                d.filename, d.file_type,
-                dc.embedding <=> :embedding::vector as distance
-            FROM document_chunks dc
-            JOIN documents d ON dc.document_id = d.id
-            WHERE d.status = 'done'
-        """
-        
-        params = {"embedding": vector_str}
-        
-        if kb_ids:
-            query += " AND dc.kb_id = ANY(:kb_ids)"
-            params["kb_ids"] = kb_ids
-        
-        query += f" ORDER BY dc.embedding <=> :embedding::vector LIMIT {top_k}"
-        
-        result = await self.db.execute(text(query), params)
-        rows = result.fetchall()
-        
-        results = []
-        for row in rows:
-            # 余弦距离转换为相似度: similarity = 1 - distance
-            similarity = 1 - row.distance if row.distance else 0
+        try:
+            vector_store = await self._get_or_create_vector_store(kb_id)
             
-            if similarity >= threshold:
-                results.append({
-                    "id": row.id,
-                    "content": row.content,
-                    "chunk_index": row.chunk_index,
-                    "filename": row.filename,
-                    "file_type": row.file_type,
-                    "score": similarity,
-                })
-        
-        return results
+            # 使用 similarity_search_with_relevance_scores
+            results = vector_store.similarity_search_with_relevance_scores(
+                query=query,
+                k=top_k,
+                filter=filter_metadata
+            )
+            
+            search_results = []
+            for doc, score in results:
+                relevance = 1 - score if score > 0 else score
+                if relevance >= threshold:
+                    search_results.append({
+                        "id": f"{kb_id}_{doc.metadata.get('document_id', 'unknown')}",
+                        "content": doc.page_content,
+                        "chunk_index": doc.metadata.get("chunk_index", 0),
+                        "filename": doc.metadata.get("source", "unknown"),
+                        "file_type": doc.metadata.get("file_type", "txt"),
+                        "score": relevance,
+                        "metadata": doc.metadata,
+                    })
+            
+            return search_results
+            
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
     
-    async def _memory_search(
+    async def similarity_search(
         self,
-        query_embedding: List[float],
-        kb_ids: List[str],
-        top_k: int,
-        threshold: float,
-    ) -> List[dict]:
-        """内存向量搜索（回退方案）"""
-        # 构建查询
-        stmt = select(DocumentChunk).options(
-            selectinload(DocumentChunk.document)
-        )
+        query: str,
+        kb_ids: List[str] = None,
+        top_k: int = 5,
+    ) -> List[LCDocument]:
+        """纯相似度搜索"""
+        kb_id = kb_ids[0] if kb_ids else self.kb_id
+        if not kb_id:
+            return []
         
-        if kb_ids:
-            stmt = stmt.where(DocumentChunk.kb_id.in_(kb_ids))
-        
-        result = await self.db.execute(stmt)
-        chunks = result.scalars().all()
-        
-        # 计算相似度
-        scored_chunks = []
-        for chunk in chunks:
-            if chunk.embedding:
-                sim = cosine_similarity(query_embedding, chunk.embedding)
-                if sim >= threshold:
-                    scored_chunks.append((sim, chunk))
-        
-        # 排序并返回 top_k
-        scored_chunks.sort(key=lambda x: x[0], reverse=True)
-        scored_chunks = scored_chunks[:top_k]
-        
-        results = []
-        for score, chunk in scored_chunks:
-            results.append({
-                "id": chunk.id,
-                "content": chunk.content,
-                "chunk_index": chunk.chunk_index,
-                "filename": chunk.document.filename if chunk.document else None,
-                "file_type": chunk.document.file_type if chunk.document else None,
-                "score": score,
-            })
-        
-        return results
+        try:
+            vector_store = await self._get_or_create_vector_store(kb_id)
+            return vector_store.similarity_search(query, k=top_k)
+        except Exception:
+            return []
     
     async def get_context(
         self,
         query: str,
         kb_ids: List[str] = None,
         max_tokens: int = 2000,
+        top_k: int = 10,
     ) -> str:
         """获取 RAG 上下文"""
-        results = await self.search(query, kb_ids, top_k=10)
+        results = await self.search(query, kb_ids, top_k=top_k)
         
         context_parts = []
         total_chars = 0
-        max_chars = max_tokens * 4  # 粗略估计
+        max_chars = max_tokens * 4
         
         for result in results:
             content = result["content"]
             if total_chars + len(content) > max_chars:
                 break
             
-            # 添加来源信息
             source = f"[{result.get('filename', '未知')}]"
             context_parts.append(f"{source}\n{content}")
             total_chars += len(content)
@@ -280,18 +289,245 @@ class KnowledgeService:
         
         return "\n\n---\n\n".join(context_parts)
     
+    async def rag_chain(
+        self,
+        query: str,
+        kb_ids: List[str] = None,
+        system_prompt: str = None,
+        model: str = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+    ) -> str:
+        """RAG 链 - 检索 + 生成"""
+        kb_id = kb_ids[0] if kb_ids else self.kb_id
+        if not kb_id:
+            return "请先选择知识库"
+        
+        try:
+            vector_store = await self._get_or_create_vector_store(kb_id)
+            retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+            
+            # RAG Prompt
+            default_prompt = """你是一个助手，需要根据提供的上下文信息回答用户的问题。
+如果上下文中没有相关信息，请如实告知用户你无法从提供的内容中找到答案。
+
+上下文信息:
+{context}
+
+用户问题: {question}
+
+请基于上下文信息给出回答:"""
+            
+            prompt = ChatPromptTemplate.from_template(system_prompt or default_prompt)
+            llm = self._get_llm(model, temperature)
+            
+            # 构建 RAG 链
+            def format_docs(docs):
+                return "\n\n---\n\n".join([d.page_content for d in docs])
+            
+            rag_chain = (
+                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+            
+            result = await rag_chain.ainvoke(query)
+            return result
+            
+        except Exception as e:
+            return f"RAG 处理出错: {str(e)}"
+    
+    async def rag_chain_stream(
+        self,
+        query: str,
+        kb_ids: List[str] = None,
+        system_prompt: str = None,
+        model: str = None,
+        temperature: float = 0.7,
+    ) -> AsyncIterator[str]:
+        """RAG 链 - 流式输出"""
+        kb_id = kb_ids[0] if kb_ids else self.kb_id
+        if not kb_id:
+            yield "请先选择知识库"
+            return
+        
+        try:
+            vector_store = await self._get_or_create_vector_store(kb_id)
+            retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+            
+            default_prompt = """你是一个助手，需要根据提供的上下文信息回答用户的问题。
+如果上下文中没有相关信息，请如实告知用户你无法从提供的内容中找到答案。
+
+上下文信息:
+{context}
+
+用户问题: {question}
+
+请基于上下文信息给出回答:"""
+            
+            prompt = ChatPromptTemplate.from_template(system_prompt or default_prompt)
+            llm = self._get_llm(model, temperature)
+            
+            def format_docs(docs):
+                return "\n\n---\n\n".join([d.page_content for d in docs])
+            
+            rag_chain = (
+                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                | prompt
+                | llm
+            )
+            
+            async for chunk in rag_chain.astream(query):
+                if chunk.content:
+                    yield chunk.content
+            
+        except Exception as e:
+            yield f"RAG 处理出错: {str(e)}"
+    
     async def delete_document(self, document_id: int) -> bool:
         """删除文档"""
+        # 获取文档信息
+        stmt = select(Document).where(Document.id == document_id)
+        result = await self.db.execute(stmt)
+        doc = result.scalar_one_or_none()
+        
+        if not doc:
+            return False
+        
+        kb_id = doc.kb_id
+        
+        # 从数据库删除
+        stmt = delete(DocumentChunk).where(DocumentChunk.document_id == document_id)
+        await self.db.execute(stmt)
+        
         stmt = delete(Document).where(Document.id == document_id)
         await self.db.execute(stmt)
+        
         await self.db.commit()
+        
+        # 重建向量存储（删除该文档的嵌入）
+        await self._rebuild_vector_store(kb_id)
+        
         return True
+    
+    async def _rebuild_vector_store(self, kb_id: str):
+        """重建向量存储"""
+        # 获取所有分块
+        stmt = select(DocumentChunk).where(
+            DocumentChunk.kb_id == kb_id
+        ).join(Document).where(Document.status == "done")
+        
+        result = await self.db.execute(stmt)
+        chunks = result.scalars().all()
+        
+        if not chunks:
+            # 清空向量存储
+            if kb_id in _vector_stores:
+                del _vector_stores[kb_id]
+            
+            vs_path = self._get_vector_store_path(kb_id)
+            import shutil
+            if vs_path.exists():
+                shutil.rmtree(vs_path)
+            return
+        
+        # 重建
+        vector_store = await self._get_or_create_vector_store(kb_id)
+        
+        # 删除旧数据并重新添加
+        vector_store.delete_collection()
+        vector_store = Chroma(
+            persist_directory=str(self._get_vector_store_path(kb_id)),
+            embedding_function=self._get_embeddings()
+        )
+        
+        texts = [c.content for c in chunks]
+        metadatas = [json.loads(c.metadata) if c.metadata else {} for c in chunks]
+        
+        vector_store.add_texts(texts=texts, metadatas=metadatas)
+        await self._save_vector_store(kb_id, vector_store)
+        _vector_stores[kb_id] = vector_store
     
     async def get_documents(self, kb_id: str) -> List[Document]:
         """获取知识库中的所有文档"""
         stmt = select(Document).where(Document.kb_id == kb_id).order_by(Document.created_at.desc())
         result = await self.db.execute(stmt)
         return result.scalars().all()
+    
+    async def get_kb_stats(self, kb_id: str) -> Dict[str, Any]:
+        """获取知识库统计信息"""
+        # 文档数量
+        stmt = select(Document).where(Document.kb_id == kb_id)
+        result = await self.db.execute(stmt)
+        docs = result.scalars().all()
+        
+        # 分块数量
+        stmt = select(DocumentChunk).where(DocumentChunk.kb_id == kb_id)
+        result = await self.db.execute(stmt)
+        chunks = result.scalars().all()
+        
+        return {
+            "document_count": len(docs),
+            "chunk_count": len(chunks),
+            "total_size": sum(d.file_size for d in docs),
+            "done_count": len([d for d in docs if d.status == "done"]),
+            "failed_count": len([d for d in docs if d.status == "failed"]),
+        }
+    
+    async def query_with_history(
+        self,
+        query: str,
+        chat_history: List[Dict[str, str]],
+        kb_ids: List[str] = None,
+        system_prompt: str = None,
+    ) -> str:
+        """带历史记录的问答"""
+        kb_id = kb_ids[0] if kb_ids else self.kb_id
+        if not kb_id:
+            return "请先选择知识库"
+        
+        try:
+            vector_store = await self._get_or_create_vector_store(kb_id)
+            retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+            
+            # 构建历史消息
+            history_text = ""
+            for msg in chat_history[-5:]:  # 最近5条
+                role = "用户" if msg.get("role") == "user" else "助手"
+                history_text += f"{role}: {msg.get('content')}\n"
+            
+            default_prompt = f"""你是一个助手，需要根据提供的上下文信息回答用户的问题。
+请结合对话历史来理解用户意图。
+
+对话历史:
+{history_text}
+
+上下文信息:
+{{context}}
+
+用户问题: {{question}}
+
+请基于上下文信息和对话历史给出回答:"""
+            
+            prompt = ChatPromptTemplate.from_template(system_prompt or default_prompt)
+            llm = self._get_llm()
+            
+            def format_docs(docs):
+                return "\n\n---\n\n".join([d.page_content for d in docs])
+            
+            rag_chain = (
+                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+            
+            result = await rag_chain.ainvoke(query)
+            return result
+            
+        except Exception as e:
+            return f"处理出错: {str(e)}"
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
@@ -299,4 +535,4 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     import numpy as np
     a = np.array(a)
     b = np.array(b)
-    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
+    return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-8))

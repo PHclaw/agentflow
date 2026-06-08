@@ -1,47 +1,93 @@
 """
-数据库 - PostgreSQL + pgvector
+数据库 - PostgreSQL + SQLite 备用方案
 """
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
+from sqlalchemy.pool import StaticPool
 
 from .config import settings
 
-# 创建异步引擎
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-)
-
-# 异步会话工厂
-async_session = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+# 数据库状态
+USE_MEMORY_MODE = False
 
 # 声明基类
 Base = declarative_base()
 
+# 异步引擎和会话（延迟初始化）
+_engine = None
+_async_session = None
 
-async def init_pgvector():
-    """初始化 pgvector 扩展"""
+
+def _init_engine():
+    """初始化数据库引擎"""
+    global _engine, USE_MEMORY_MODE
+    
+    if _engine is not None:
+        return _engine
+    
+    db_url = settings.DATABASE_URL
+    
+    # 检查是否使用 SQLite（备用方案）
+    if "sqlite" in db_url or not db_url:
+        USE_MEMORY_MODE = False
+        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "agentflow.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        sqlite_url = f"sqlite+aiosqlite:///{db_path}"
+        _engine = create_async_engine(
+            sqlite_url,
+            echo=settings.DEBUG,
+            poolclass=StaticPool,
+            connect_args={"check_same_thread": False}
+        )
+        print(f"Using SQLite database: {db_path}")
+        return _engine
+    
+    # 尝试使用 PostgreSQL
     try:
-        async with engine.begin() as conn:
-            # 创建 pgvector 扩展
-            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-            await conn.commit()
+        _engine = create_async_engine(
+            db_url,
+            echo=settings.DEBUG,
+            pool_pre_ping=True,
+        )
+        print("Using PostgreSQL database")
+        return _engine
     except Exception as e:
-        # 如果没有权限创建扩展，忽略错误
-        print(f"Warning: Could not create pgvector extension: {e}")
+        print(f"PostgreSQL not available: {e}")
+        USE_MEMORY_MODE = True
+        # 使用内存 SQLite（仅演示用）
+        _engine = create_async_engine(
+            "sqlite+aiosqlite:///:memory:",
+            echo=settings.DEBUG,
+            connect_args={"check_same_thread": False}
+        )
+        print("Using in-memory database (data will not persist!)")
+        return _engine
+
+
+def get_engine():
+    """获取数据库引擎"""
+    return _init_engine()
+
+
+def get_async_session_factory():
+    """获取会话工厂"""
+    global _async_session
+    if _async_session is None:
+        engine = get_engine()
+        _async_session = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+    return _async_session
 
 
 async def get_db():
     """获取数据库会话"""
-    async with async_session() as session:
+    session_factory = get_async_session_factory()
+    async with session_factory() as session:
         try:
             yield session
         finally:
@@ -50,9 +96,31 @@ async def get_db():
 
 async def init_db():
     """初始化数据库"""
-    # 尝试初始化 pgvector
-    await init_pgvector()
+    global USE_MEMORY_MODE
     
-    # 创建所有表
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    engine = get_engine()
+    
+    try:
+        # 创建所有表
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        # 尝试初始化 pgvector（仅 PostgreSQL）
+        if not USE_MEMORY_MODE and "postgresql" in str(settings.DATABASE_URL):
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            except Exception:
+                pass  # pgvector 可能不可用
+        
+        mode = "Memory (NOT persistent)" if USE_MEMORY_MODE else "File-based (persistent)"
+        print(f"Database initialized: {mode}")
+        return True
+        
+    except Exception as e:
+        print(f"Database init error: {e}")
+        return False
+
+
+# 兼容性别名
+async_session = get_async_session_factory

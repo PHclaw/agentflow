@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 import os
 import uuid
@@ -289,3 +289,131 @@ async def get_rag_context(
         "query": data.query,
         "context": context,
     }
+
+
+# ===== LangChain RAG 链 =====
+
+class RAGRequest(BaseModel):
+    query: str
+    kb_ids: Optional[List[str]] = None
+    system_prompt: Optional[str] = None
+    model: Optional[str] = "gpt-4o-mini"
+    temperature: float = 0.7
+
+
+class ChatHistoryRequest(BaseModel):
+    query: str
+    chat_history: List[Dict[str, str]] = []
+    kb_ids: Optional[List[str]] = None
+    system_prompt: Optional[str] = None
+
+
+@router.post("/rag")
+async def rag_query(
+    data: RAGRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """RAG 查询 - 检索 + 生成"""
+    service = KnowledgeService(db)
+    result = await service.rag_chain(
+        query=data.query,
+        kb_ids=data.kb_ids,
+        system_prompt=data.system_prompt,
+        model=data.model,
+        temperature=data.temperature,
+    )
+    
+    return {
+        "query": data.query,
+        "answer": result,
+    }
+
+
+@router.post("/rag/stream")
+async def rag_query_stream(
+    data: RAGRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """RAG 查询 - 流式输出"""
+    service = KnowledgeService(db)
+    
+    async def generate():
+        async for chunk in service.rag_chain_stream(
+            query=data.query,
+            kb_ids=data.kb_ids,
+            system_prompt=data.system_prompt,
+            model=data.model,
+            temperature=data.temperature,
+        ):
+            yield f"data: {json.dumps({'content': chunk})}\n\n"
+        yield "data: [DONE]\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+    )
+
+
+@router.post("/rag/chat")
+async def rag_chat_with_history(
+    data: ChatHistoryRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """带历史记录的 RAG 问答"""
+    service = KnowledgeService(db)
+    result = await service.query_with_history(
+        query=data.query,
+        chat_history=data.chat_history,
+        kb_ids=data.kb_ids,
+        system_prompt=data.system_prompt,
+    )
+    
+    return {
+        "query": data.query,
+        "answer": result,
+        "sources": await service.search(data.query, data.kb_ids, top_k=3),
+    }
+
+
+@router.get("/{kb_id}/stats")
+async def get_kb_stats(
+    kb_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """获取知识库统计信息"""
+    service = KnowledgeService(db, kb_id)
+    stats = await service.get_kb_stats(kb_id)
+    return stats
+
+
+@router.post("/rerank")
+async def rerank_results(
+    query: str,
+    results: List[dict],
+    top_n: int = 5,
+):
+    """对搜索结果进行重排序"""
+    from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+    
+    try:
+        model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")
+        
+        contents = [r.get("content", "") for r in results]
+        scores = model.predict([(query, c) for c in contents])
+        
+        # 排序
+        ranked = list(zip(results, scores))
+        ranked.sort(key=lambda x: x[1], reverse=True)
+        
+        return {
+            "results": [
+                {**r, "rerank_score": float(s)}
+                for r, s in ranked[:top_n]
+            ]
+        }
+    except Exception as e:
+        return {"error": str(e), "results": results}

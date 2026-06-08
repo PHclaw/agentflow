@@ -9,9 +9,10 @@ from functools import lru_cache
 class Settings(BaseSettings):
     APP_NAME: str = "AgentFlow"
     DEBUG: bool = True
+    LOG_LEVEL: str = "INFO"
     
-    # 数据库
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/agentflow"
+    # 数据库 - SQLite 备用方案
+    DATABASE_URL: str = "sqlite+aiosqlite:///./agentflow.db"
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_MODEL: str = "claude-3-haiku"
     DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
     
     # Embedding
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"

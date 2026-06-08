@@ -18,8 +18,9 @@ class WorkflowState(TypedDict):
 class WorkflowEngine:
     """工作流引擎"""
     
-    def __init__(self, workflow_definition: dict):
+    def __init__(self, workflow_definition: dict, llm_service=None):
         self.definition = workflow_definition
+        self.llm_service = llm_service
         self.graph = StateGraph(WorkflowState)
         self._build_graph()
     
@@ -79,13 +80,57 @@ class WorkflowEngine:
         return handler
     
     async def _llm_node(self, state: WorkflowState, config: dict) -> dict:
-        """LLM 节点"""
-        # 简化实现
+        """LLM 节点 - 真正调用 LLM"""
         messages = state.get("messages", [])
-        last_message = messages[-1] if messages else None
+        
+        # 如果没有注入 LLM 服务，返回占位响应
+        if not self.llm_service:
+            last_message = messages[-1] if messages else None
+            return {
+                "messages": messages + [AIMessage(
+                    content=f"[Placeholder] Response to: {last_message.content if last_message else 'start'}"
+                )],
+                "current_node": "llm_response"
+            }
+        
+        # 转换消息格式
+        llm_messages = []
+        for msg in messages:
+            if isinstance(msg, HumanMessage):
+                llm_messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                llm_messages.append({"role": "assistant", "content": msg.content})
+            elif isinstance(msg, SystemMessage):
+                llm_messages.append({"role": "system", "content": msg.content})
+        
+        # 合并节点级配置
+        node_config = {**config}
+        provider = node_config.pop("provider", None)
+        model = node_config.pop("model", None)
+        temperature = node_config.pop("temperature", 0.7)
+        max_tokens = node_config.pop("max_tokens", 2000)
+        
+        # 如果节点指定了不同的 provider/model，临时创建 LLM 服务
+        if provider or model:
+            from ..services.llm import LLMService
+            temp_llm = LLMService(
+                provider=provider or self.llm_service.provider,
+                model=model or self.llm_service.model,
+            )
+            response_text = await temp_llm.chat(
+                messages=llm_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        else:
+            response_text = await self.llm_service.chat(
+                messages=llm_messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
         
         return {
-            "messages": messages + [AIMessage(content=f"Response to: {last_message.content if last_message else 'start'}")],
+            "messages": messages + [AIMessage(content=response_text)],
             "current_node": "llm_response"
         }
     

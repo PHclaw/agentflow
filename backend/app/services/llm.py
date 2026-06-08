@@ -118,25 +118,20 @@ class LLMService:
         temperature: float,
         max_tokens: int,
     ) -> str:
-        """DeepSeek API"""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.deepseek.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                },
-                timeout=60,
-            )
-            
-            data = response.json()
-            return data["choices"][0]["message"]["content"]
+        """DeepSeek API - 通过 OpenAI 兼容接口"""
+        client = AsyncOpenAI(
+            api_key=settings.DEEPSEEK_API_KEY,
+            base_url=settings.DEEPSEEK_BASE_URL + "/v1",
+        )
+        
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        
+        return response.choices[0].message.content
     
     async def embed(self, text: str) -> list:
         """生成嵌入向量"""

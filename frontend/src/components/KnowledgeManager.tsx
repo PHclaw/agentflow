@@ -50,20 +50,24 @@ export default function KnowledgeManager() {
   const loadKnowledgeBases = async () => {
     try {
       const res = await fetch('/api/v1/knowledge');
+      if (!res.ok) throw new Error('加载失败');
       const data = await res.json();
-      setKnowledgeBases(data);
+      setKnowledgeBases(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load knowledge bases:', err);
+      setKnowledgeBases([]);
     }
   };
 
   const loadDocuments = async (kbId: string) => {
     try {
       const res = await fetch(`/api/v1/knowledge/${kbId}/documents`);
+      if (!res.ok) throw new Error('加载失败');
       const data = await res.json();
-      setDocuments(data);
+      setDocuments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Failed to load documents:', err);
+      setDocuments([]);
     }
   };
 
@@ -82,9 +86,13 @@ export default function KnowledgeManager() {
         setNewKbName('');
         setNewKbDesc('');
         loadKnowledgeBases();
+      } else {
+        const error = await res.json().catch(() => ({ detail: '创建失败' }));
+        alert(error.detail || '创建失败');
       }
     } catch (err) {
       console.error('Failed to create knowledge base:', err);
+      alert('创建失败');
     }
   };
 
@@ -102,7 +110,7 @@ export default function KnowledgeManager() {
       if (res.ok) {
         loadDocuments(kbId);
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({ detail: '上传失败' }));
         alert(error.detail || '上传失败');
       }
     } catch (err) {
@@ -117,10 +125,12 @@ export default function KnowledgeManager() {
     if (!confirm('确定删除此文档？')) return;
 
     try {
-      await fetch(`/api/v1/knowledge/${kbId}/documents/${docId}`, {
+      const res = await fetch(`/api/v1/knowledge/${kbId}/documents/${docId}`, {
         method: 'DELETE',
       });
-      loadDocuments(kbId);
+      if (res.ok) {
+        loadDocuments(kbId);
+      }
     } catch (err) {
       console.error('Failed to delete document:', err);
     }
@@ -141,10 +151,12 @@ export default function KnowledgeManager() {
         }),
       });
       
+      if (!res.ok) throw new Error('搜索失败');
       const data = await res.json();
-      setSearchResults(data.results);
+      setSearchResults(data.results || []);
     } catch (err) {
       console.error('Failed to search:', err);
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }

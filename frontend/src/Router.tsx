@@ -1,31 +1,64 @@
-import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import App from './App'
-import AgentList from './components/AgentList'
-import WorkflowBuilder from './components/WorkflowBuilder'
-import TemplateMarket from './pages/TemplateMarket'
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
+import { Toast } from './components/ui/Toast'
+import { AppLayout, AuthLayout } from './components/layout'
+
+// Pages
+import HomePage from './pages/HomePage'
+import DashboardPage from './pages/DashboardPage'
+import AgentListPage from './pages/AgentListPage'
+import AgentCreatePage from './pages/AgentCreatePage'
 import ChatPage from './pages/ChatPage'
-import Pricing from './pages/Pricing'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import SettingsPage from './pages/SettingsPage'
+import HelpPage from './pages/HelpPage'
 import KnowledgePage from './pages/KnowledgePage'
+import WorkflowPage from './pages/WorkflowPage'
+
+// Pages wrapper components
+function LandingPage() {
+  return <HomePage />
+}
+
+function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return <AppLayout hideSidebar={false}>{children}</AppLayout>
+}
 
 export default function Router() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/templates" element={<TemplateMarket />} />
-        <Route path="/agents" element={<AgentList />} />
-        <Route path="/agents/:id/edit" element={<WorkflowBuilder />} />
+        {/* Public Routes with Header/Footer */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/templates" element={<LandingPage />} />
+        <Route path="/pricing" element={<LandingPage />} />
+
+        {/* Auth Routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+
+        {/* Protected Routes with Sidebar */}
+        <Route path="/dashboard" element={<DashboardLayout><DashboardPage /></DashboardLayout>} />
+        <Route path="/agents" element={<DashboardLayout><AgentListPage /></DashboardLayout>} />
+        <Route path="/agents/new" element={<DashboardLayout><AgentCreatePage /></DashboardLayout>} />
+        <Route path="/agents/:id/edit" element={<DashboardLayout><AgentCreatePage /></DashboardLayout>} />
+        <Route path="/conversations" element={<DashboardLayout><AgentListPage /></DashboardLayout>} />
+        <Route path="/knowledge" element={<DashboardLayout><KnowledgePage /></DashboardLayout>} />
+        <Route path="/settings" element={<DashboardLayout><SettingsPage /></DashboardLayout>} />
+        <Route path="/help" element={<DashboardLayout><HelpPage /></DashboardLayout>} />
+
+        {/* Chat Page - Full Screen */}
         <Route path="/agents/:id/chat" element={<ChatPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/knowledge" element={<KnowledgePage />} />
+
+        {/* Workflow Editor Page - Full Screen */}
+        <Route path="/workflow/:id" element={<WorkflowPage />} />
+
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+
+      {/* Toast Notifications */}
+      <Toast />
     </BrowserRouter>
   )
 }

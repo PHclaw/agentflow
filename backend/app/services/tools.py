@@ -143,14 +143,46 @@ class ToolService:
         }
     
     async def _calculate(self, expression: str) -> dict:
-        """计算"""
+        """计算 - 使用 ast 安全解析"""
+        import ast
+        import operator
+        
         try:
-            # 安全计算（仅允许基本数学运算）
+            # 安全计算：仅允许基本数学运算
             allowed_chars = set("0123456789+-*/(). ")
             if not all(c in allowed_chars for c in expression):
-                return {"error": "Invalid expression"}
+                return {"error": "Invalid expression: only digits and +-*/(). allowed"}
             
-            result = eval(expression)
+            # 使用 ast.literal_eval 不支持运算符，改用手动解析
+            # 用 operator 映射实现安全计算
+            tree = ast.parse(expression, mode='eval')
+            
+            def _eval(node):
+                if isinstance(node, ast.Constant):
+                    return node.value
+                elif isinstance(node, ast.BinOp):
+                    left = _eval(node.left)
+                    right = _eval(node.right)
+                    ops = {
+                        ast.Add: operator.add,
+                        ast.Sub: operator.sub,
+                        ast.Mult: operator.mul,
+                        ast.Div: operator.truediv,
+                        ast.Pow: operator.pow,
+                        ast.Mod: operator.mod,
+                    }
+                    return ops[type(node.op)](left, right)
+                elif isinstance(node, ast.UnaryOp):
+                    operand = _eval(node.operand)
+                    if isinstance(node.op, ast.USub):
+                        return -operand
+                    elif isinstance(node.op, ast.UAdd):
+                        return operand
+                elif isinstance(node, ast.Call):
+                    raise ValueError("Function calls not allowed")
+                raise ValueError(f"Unsupported expression: {ast.dump(node)}")
+            
+            result = _eval(tree.body)
             return {"expression": expression, "result": result}
         except Exception as e:
             return {"error": str(e)}

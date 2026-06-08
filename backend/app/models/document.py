@@ -1,7 +1,7 @@
 """
 文档向量模型 - pgvector
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -37,7 +37,7 @@ class Document(Base):
     error_message = Column(Text)
     
     # 元数据
-    metadata = Column(JSON, default=dict)
+    doc_metadata = Column(JSON, default=dict)
     
     # 时间戳
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -63,7 +63,7 @@ class DocumentChunk(Base):
     embedding = Column(Vector(1536))
     
     # 元数据
-    metadata = Column(JSON, default=dict)
+    chunk_metadata = Column(JSON, default=dict)
     
     # 时间戳
     created_at = Column(DateTime, default=datetime.utcnow)
