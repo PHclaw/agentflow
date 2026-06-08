@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.0-6366F1?style=for-the-badge&logo=robot&logoColor=white)
+![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.1-6366F1?style=for-the-badge&logo=robot&logoColor=white)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat-square&logo=react&logoColor=white)](https://react.dev)
