@@ -38,20 +38,19 @@ class ApiClient {
     if (!response.ok) {
       let errorMsg = '请求失败'
       try {
-        const error = await response.json()
-        // Handle various error formats
-        if (Array.isArray(error)) {
-          errorMsg = error.map(e => e.detail || e.msg || JSON.stringify(e)).join(', ')
-        } else if (error.detail) {
-          errorMsg = Array.isArray(error.detail) 
-            ? error.detail.map(e => e.detail || JSON.stringify(e)).join(', ')
-            : error.detail
-        } else if (error.message) {
-          errorMsg = error.message
+        const errorBody: any = await response.json()
+        if (Array.isArray(errorBody)) {
+          errorMsg = errorBody.map((e: any) => e.detail || e.msg || JSON.stringify(e)).join(', ')
+        } else if (errorBody.detail) {
+          errorMsg = Array.isArray(errorBody.detail)
+            ? errorBody.detail.map((e: any) => e.detail || String(e)).join(', ')
+            : String(errorBody.detail)
+        } else if (errorBody.message) {
+          errorMsg = String(errorBody.message)
         } else {
-          errorMsg = JSON.stringify(error) || '请求失败'
+          errorMsg = JSON.stringify(errorBody) || `错误 (${response.status})`
         }
-      } catch {
+      } catch (e) {
         errorMsg = `错误 (${response.status})`
       }
       throw new Error(errorMsg)
@@ -124,7 +123,11 @@ export const auth = {
 
 export const agents = {
   list: (params?: { limit?: number; offset?: number }) => {
-    const query = params ? `?${new URLSearchParams(params as any)}` : ''
+    const query = params
+      ? '?' + new URLSearchParams(
+          Object.entries(params).map(([k, v]) => [k, String(v)])
+        ).toString()
+      : ''
     return api.get(`/agents${query}`)
   },
   get: (id: string) => {
@@ -172,7 +175,6 @@ export const knowledge = {
   getContext: (query: string, kbIds?: string[]) => {
     return api.post('/knowledge/context', { query, kb_ids: kbIds })
   },
-  // RAG 链式调用
   ragQuery: (query: string, kbIds?: string[], systemPrompt?: string) => {
     return api.post('/knowledge/rag', { query, kb_ids: kbIds, system_prompt: systemPrompt })
   },
@@ -184,7 +186,6 @@ export const knowledge = {
   },
 }
 
-// 工作流 API
 export const workflow = {
   execute: (workflowDefinition: any, inputData: any) => {
     return api.post('/workflow/execute', { workflow_definition: workflowDefinition, input_data: inputData })
@@ -196,6 +197,9 @@ export const workflow = {
     return api.post('/workflow/test', { nodes, edges, input_data: inputData })
   },
   getExecutionOrder: (nodes: any[], edges: any[]) => {
-    return api.get(`/workflow/execution-order?nodes=${encodeURIComponent(JSON.stringify(nodes))}&edges=${encodeURIComponent(JSON.stringify(edges))}`)
+    return api.get(`/workflow/execution-order?${new URLSearchParams({
+      nodes: JSON.stringify(nodes),
+      edges: JSON.stringify(edges),
+    })}`)
   },
 }
