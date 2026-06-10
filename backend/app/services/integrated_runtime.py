@@ -6,7 +6,8 @@
 from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import asyncio
+import json
+import logging
 
 from ..models.agent import Agent, ChatSession
 from ..integrations import config, tracer
@@ -142,7 +143,10 @@ class IntegratedAgentRuntime:
                 # 如果工具调用成功，可能需要再次调用 LLM
                 if tool_result.get("success"):
                     # 简化：直接返回工具结果
-                    response = json.dumps(tool_result["result"], ensure_ascii=False)
+                    response = json.dumps(
+                        tool_result["result"],
+                        ensure_ascii=False,
+                    )
             
             # 保存记忆
             await self.memory.add_message("user", message)
