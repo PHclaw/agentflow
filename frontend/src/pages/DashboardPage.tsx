@@ -53,46 +53,17 @@ export default function DashboardPage() {
 
   const loadDashboardData = async () => {
     try {
-      // 模拟数据（实际应从 API 获取）
+      setLoading(true)
+      const data = await api.get('/agents/stats/summary')
       setStats({
-        totalAgents: 12,
-        activeConversations: 156,
-        totalKnowledgeBases: 8,
-        apiCallsThisMonth: 45230,
-        growthRate: 23.5,
-        avgResponseTime: 850,
+        totalAgents: data.totalAgents ?? 0,
+        activeConversations: data.activeConversations ?? 0,
+        totalKnowledgeBases: data.totalKnowledgeBases ?? 0,
+        apiCallsThisMonth: data.apiCallsThisMonth ?? 0,
+        growthRate: data.growthRate ?? 0,
+        avgResponseTime: data.avgResponseTime ?? 0,
       })
-
-      setActivities([
-        {
-          id: '1',
-          type: 'conversation',
-          title: '新对话 - 客服助手',
-          description: '用户 "张先生" 发起咨询',
-          timestamp: '2 分钟前',
-        },
-        {
-          id: '2',
-          type: 'knowledge_added',
-          title: '知识库更新',
-          description: '产品文档新增 25 条记录',
-          timestamp: '15 分钟前',
-        },
-        {
-          id: '3',
-          type: 'workflow_run',
-          title: '工作流执行',
-          description: '销售机器人成功执行 145 次',
-          timestamp: '1 小时前',
-        },
-        {
-          id: '4',
-          type: 'agent_created',
-          title: '新 Agent 上线',
-          description: 'HR 助手已创建并配置完成',
-          timestamp: '3 小时前',
-        },
-      ])
+      setActivities([])
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
