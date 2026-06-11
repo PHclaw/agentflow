@@ -30,10 +30,12 @@ interface Agent {
   name: string
   description: string
   model: string
-  conversation_count: number
+  message_count?: number
+  conversation_count?: number
   created_at: string
   updated_at: string
   status: 'active' | 'inactive' | 'draft'
+  is_active?: boolean
 }
 
 export default function AgentListPage() {
@@ -54,43 +56,11 @@ export default function AgentListPage() {
   const loadAgents = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/agents')
-      setAgents(response.data || [])
+      const data = await api.get('/agents')
+      setAgents(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to load agents:', error)
-      // 使用模拟数据
-      setAgents([
-        {
-          id: '1',
-          name: '智能客服助手',
-          description: '基于知识库的 24/7 客户支持 Agent',
-          model: 'gpt-4o-mini',
-          conversation_count: 1250,
-          created_at: '2024-01-15T10:30:00Z',
-          updated_at: '2024-01-20T15:45:00Z',
-          status: 'active',
-        },
-        {
-          id: '2',
-          name: '销售线索机器人',
-          description: '自动识别和跟进销售线索',
-          model: 'gpt-4o',
-          conversation_count: 856,
-          created_at: '2024-01-10T09:00:00Z',
-          updated_at: '2024-01-19T11:20:00Z',
-          status: 'active',
-        },
-        {
-          id: '3',
-          name: 'HR 入职助手',
-          description: '帮助新员工完成入职流程',
-          model: 'claude-3-sonnet',
-          conversation_count: 423,
-          created_at: '2024-01-05T14:00:00Z',
-          updated_at: '2024-01-18T09:30:00Z',
-          status: 'draft',
-        },
-      ])
+      setAgents([])
     } finally {
       setLoading(false)
     }
@@ -271,7 +241,7 @@ export default function AgentListPage() {
               <div className="flex items-center gap-4 text-sm text-slate-400 mb-4">
                 <div className="flex items-center gap-1">
                   <MessageSquare className="w-4 h-4" />
-                  {agent.conversation_count}
+                  {agent.conversation_count ?? agent.message_count ?? 0}
                 </div>
                 <div className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
@@ -348,7 +318,7 @@ export default function AgentListPage() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
-                    {agent.conversation_count}
+                    {agent.conversation_count ?? agent.message_count ?? 0}
                   </td>
                   <td className="px-6 py-4 text-slate-500 dark:text-slate-400">
                     {new Date(agent.updated_at).toLocaleDateString('zh-CN')}

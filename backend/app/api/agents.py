@@ -1,12 +1,14 @@
 """
-Agent API - 内存存储版本
+Agent CRUD API — 数据库版本
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
 from pydantic import BaseModel
-from datetime import datetime
-import uuid
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
+from ..core.database import get_db
+from ..models.agent import Agent, ChatSession
 from .auth import get_current_user_id
 
 router = APIRouter()
@@ -58,113 +60,129 @@ class AgentUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-# 内存存储
-_agents_db = {}
+# ----- 辅助 -----
+
+def _agent_to_dict(agent: Agent) -> dict:
+    """将 Agent ORM 对象转为前端需要的格式"""
+    mc = agent.model_config or {}
+    return {
+        "id": agent.id,
+        "name": agent.name,
+        "description": agent.description or "",
+        "model": mc.get("model", "gpt-4o-mini"),
+        "status": "active" if agent.is_active else "inactive",
+        "message_count": agent.message_count or 0,
+        "is_active": agent.is_active,
+        "created_at": agent.created_at.isoformat() if agent.created_at else "",
+        "updated_at": agent.updated_at.isoformat() if agent.updated_at else "",
+    }
 
 
-def _get_user_agents(user_id: str) -> List[dict]:
-    """获取用户的所有agents"""
-    return [a for a in _agents_db.values() if a["user_id"] == user_id]
-
+# ----- 路由 -----
 
 @router.post("")
 async def create_agent(
     data: AgentCreate,
-    user_id: str = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """创建 Agent"""
-    agent_id = str(uuid.uuid4())[:8]
-    agent = {
-        "id": agent_id,
-        "user_id": user_id,
-        "name": data.name,
-        "description": data.description or "",
-        "workflow_definition": data.workflow_definition.model_dump() if data.workflow_definition else {"nodes": [], "edges": []},
-        "model_config": data.llm_config.model_dump() if data.llm_config else {"provider": "openai", "model": "gpt-4o-mini"},
-        "settings": {},
-        "is_active": True,
-        "message_count": 0,
-        "created_at": datetime.now().isoformat(),
-    }
-    _agents_db[agent_id] = agent
-    
-    return {"id": agent_id, "name": agent["name"], "id": agent["id"], "description": agent["description"], "is_active": agent["is_active"], "message_count": agent["message_count"], "created_at": agent["created_at"]}
+    agent = Agent(
+        user_id=user_id,
+        name=data.name,
+        description=data.description or "",
+        workflow_definition=(
+            data.workflow_definition.model_dump()
+            if data.workflow_definition
+            else {"nodes": [], "edges": []}
+        ),
+        model_config=(
+            data.llm_config.model_dump()
+            if data.llm_config
+            else {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7}
+        ),
+        settings={},
+        is_active=True,
+    )
+    db.add(agent)
+    await db.commit()
+    await db.refresh(agent)
+    return _agent_to_dict(agent)
 
 
 @router.get("")
 async def list_agents(
-    user_id: str = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """列出用户的 Agents"""
-    agents = _get_user_agents(user_id)
-    return [
-        {
-            "id": a["id"],
-            "name": a["name"],
-            "description": a["description"],
-            "is_active": a["is_active"],
-            "message_count": a["message_count"],
-            "created_at": a["created_at"],
-        }
-        for a in sorted(agents, key=lambda x: x["created_at"], reverse=True)
-    ]
+    stmt = (
+        select(Agent)
+        .where(Agent.user_id == user_id)
+        .order_by(Agent.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    agents = result.scalars().all()
+    return [_agent_to_dict(a) for a in agents]
 
 
 @router.get("/{agent_id}")
 async def get_agent(
     agent_id: str,
-    user_id: str = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """获取 Agent 详情"""
-    if agent_id not in _agents_db:
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    agent = _agents_db[agent_id]
-    if agent["user_id"] != user_id:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    return agent
+    return _agent_to_dict(agent)
 
 
 @router.put("/{agent_id}")
 async def update_agent(
     agent_id: str,
     data: AgentUpdate,
-    user_id: str = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """更新 Agent"""
-    if agent_id not in _agents_db:
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    agent = _agents_db[agent_id]
-    if agent["user_id"] != user_id:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
+
     update_data = data.model_dump(exclude_unset=True)
+    key_map = {
+        "llm_config": "model_config",
+    }
+
     for key, value in update_data.items():
-        if key == "workflow_definition" and value:
-            agent[key] = value if isinstance(value, dict) else value.model_dump()
-        elif key == "model_config" and value:
-            agent[key] = value if isinstance(value, dict) else value.model_dump()
+        if value is None:
+            continue
+        db_key = key_map.get(key, key)
+        if db_key == "model_config" and hasattr(value, "model_dump"):
+            setattr(agent, db_key, value.model_dump())
+        elif db_key == "workflow_definition" and hasattr(value, "model_dump"):
+            setattr(agent, db_key, value.model_dump())
         else:
-            agent[key] = value
-    
-    return {"id": agent_id, "message": "Updated successfully"}
+            setattr(agent, db_key, value)
+
+    await db.commit()
+    await db.refresh(agent)
+    return _agent_to_dict(agent)
 
 
 @router.delete("/{agent_id}")
 async def delete_agent(
     agent_id: str,
-    user_id: str = Depends(get_current_user_id)
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """删除 Agent"""
-    if agent_id not in _agents_db:
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
         raise HTTPException(status_code=404, detail="Agent not found")
-    
-    agent = _agents_db[agent_id]
-    if agent["user_id"] != user_id:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    del _agents_db[agent_id]
-    
+
+    await db.delete(agent)
+    await db.commit()
     return {"message": "Deleted successfully"}

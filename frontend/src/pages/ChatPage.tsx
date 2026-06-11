@@ -62,28 +62,26 @@ export default function ChatPage() {
 
   const loadAgent = async () => {
     try {
-      const response = await api.get(`/agents/${id}`)
-      setAgent(response.data)
-    } catch (error) {
-      // 使用默认信息
+      const data = await api.get(`/agents/${id}`)
       setAgent({
-        id: id || '',
-        name: 'AI Assistant',
-        description: '智能对话助手',
-        model: 'gpt-4o-mini',
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        model: data.model || 'gpt-4o-mini',
       })
+    } catch (error) {
+      console.error('Failed to load agent:', error)
     }
   }
 
   const loadHistory = async () => {
     try {
-      // 加载聊天历史
-      const response = await api.get(`/chat/${id}/history`)
-      if (response.data?.messages) {
-        setMessages(response.data.messages)
+      const data = await api.get(`/chat/${id}/history`)
+      if (data?.messages) {
+        setMessages(data.messages)
       }
     } catch (error) {
-      console.log('No chat history')
+      // No chat history yet
     }
   }
 
