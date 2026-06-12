@@ -70,42 +70,11 @@ export default function KnowledgePage() {
   const loadKnowledgeBases = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/knowledge')
-      setKnowledgeBases(response.data?.knowledge_bases || [])
+      const data = await api.get('/knowledge')
+      setKnowledgeBases(Array.isArray(data?.knowledge_bases) ? data.knowledge_bases : [])
     } catch (error) {
-      // 使用模拟数据
-      setKnowledgeBases([
-        {
-          id: '1',
-          name: '产品文档',
-          description: '公司产品使用文档和技术规格',
-          document_count: 25,
-          chunk_count: 1250,
-          created_at: '2024-01-15T10:30:00Z',
-          updated_at: '2024-01-20T15:45:00Z',
-          status: 'ready',
-        },
-        {
-          id: '2',
-          name: 'FAQ 知识库',
-          description: '常见问题解答',
-          document_count: 45,
-          chunk_count: 890,
-          created_at: '2024-01-10T09:00:00Z',
-          updated_at: '2024-01-19T11:20:00Z',
-          status: 'ready',
-        },
-        {
-          id: '3',
-          name: '培训材料',
-          description: '员工培训资料',
-          document_count: 12,
-          chunk_count: 450,
-          created_at: '2024-01-05T14:00:00Z',
-          updated_at: '2024-01-18T09:30:00Z',
-          status: 'indexing',
-        },
-      ])
+      console.error('Failed to load knowledge bases:', error)
+      setKnowledgeBases([])
     } finally {
       setLoading(false)
     }
@@ -113,39 +82,11 @@ export default function KnowledgePage() {
 
   const loadDocuments = async (kbId: string) => {
     try {
-      const response = await api.get(`/knowledge/${kbId}/documents`)
-      setDocuments(response.data?.documents || [])
+      const data = await api.get(`/knowledge/${kbId}/documents`)
+      setDocuments(Array.isArray(data?.documents) ? data.documents : [])
     } catch (error) {
-      // 使用模拟数据
-      setDocuments([
-        {
-          id: 1,
-          name: '产品使用手册.pdf',
-          type: 'pdf',
-          size: 2.5 * 1024 * 1024,
-          chunks: 45,
-          status: 'completed',
-          created_at: '2024-01-15T10:30:00Z',
-        },
-        {
-          id: 2,
-          name: 'API接口文档.docx',
-          type: 'docx',
-          size: 1.2 * 1024 * 1024,
-          chunks: 28,
-          status: 'completed',
-          created_at: '2024-01-14T09:00:00Z',
-        },
-        {
-          id: 3,
-          name: '常见问题.md',
-          type: 'md',
-          size: 156 * 1024,
-          chunks: 12,
-          status: 'processing',
-          created_at: '2024-01-13T14:00:00Z',
-        },
-      ])
+      console.error('Failed to load documents:', error)
+      setDocuments([])
     }
   }
 

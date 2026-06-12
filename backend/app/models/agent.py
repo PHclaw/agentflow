@@ -1,7 +1,8 @@
 """
 Agent 模型
 """
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, JSON
+from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, JSON, ForeignKey
+from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
@@ -13,7 +14,7 @@ class Agent(Base):
     __tablename__ = "agents"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.external_id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     
@@ -35,6 +36,9 @@ class Agent(Base):
     # 时间戳
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # 关系
+    user = relationship("User", back_populates="agents", foreign_keys=[user_id])
 
 
 class WorkflowTemplate(Base):

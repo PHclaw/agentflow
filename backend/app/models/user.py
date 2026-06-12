@@ -34,4 +34,4 @@ class User(Base):
     
     # 关系
     subscription = relationship("Subscription", back_populates="user", uselist=False)
-    agents = relationship("Agent", back_populates="user")
+    agents = relationship("Agent", back_populates="user", foreign_keys="Agent.user_id")
