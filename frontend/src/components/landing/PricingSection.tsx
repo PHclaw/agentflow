@@ -204,7 +204,7 @@ export function PricingSection() {
 
                   {/* CTA */}
                   <Button
-                    variant={plan.popular ? 'default' : 'outline'}
+                    variant={plan.popular ? 'primary' : 'outline'}
                     className={`w-full ${
                       plan.popular
                         ? 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 shadow-lg shadow-indigo-500/30'

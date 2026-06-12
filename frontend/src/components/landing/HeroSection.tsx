@@ -67,13 +67,13 @@ export function HeroSection() {
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
               <Link to="/register">
-                <Button size="xl" className="w-full sm:w-auto shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 group">
+                <Button size="lg" className="w-full sm:w-auto shadow-xl shadow-indigo-500/30 hover:shadow-indigo-500/50 group">
                   <span>免费开始</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </Link>
               <Link to="/templates">
-                <Button variant="outline" size="xl" className="w-full sm:w-auto group">
+                <Button variant="outline" size="lg" className="w-full sm:w-auto group">
                   <Play className="mr-2 w-5 h-5" />
                   查看演示
                 </Button>

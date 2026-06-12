@@ -8,8 +8,6 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   loading?: boolean
   leftIcon?: React.ReactNode
   rightIcon?: React.ReactNode
-  as?: 'button' | 'a'
-  href?: string
   fullWidth?: boolean
 }
 
@@ -24,7 +22,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       rightIcon,
       disabled,
       children,
-      as: Component = 'button',
       fullWidth = false,
       ...props
     },
@@ -87,7 +84,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const isDisabled = disabled || loading
 
     return (
-      <Component
+      <button
         ref={ref}
         disabled={isDisabled}
         className={clsx(
@@ -108,7 +105,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {!loading && rightIcon && (
           <span className={clsx(size === 'xs' && 'w-3 h-3')}>{rightIcon}</span>
         )}
-      </Component>
+      </button>
     )
   }
 )

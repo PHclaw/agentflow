@@ -123,7 +123,7 @@ export default function KnowledgePage() {
           await new Promise(resolve => setTimeout(resolve, 100))
         }
 
-        await api.upload(`/knowledge/${selectedKB.id}/documents`, file)
+        await api.uploadFile(`/knowledge/${selectedKB.id}/documents`, file)
       }
 
       loadDocuments(selectedKB.id)

@@ -446,7 +446,7 @@ export default function WorkflowPage() {
             <div className="w-px h-6 bg-slate-200 mx-1" />
             <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />} onClick={handleExport}>导出</Button>
             <label>
-              <Button variant="outline" size="sm" leftIcon={<Upload className="w-4 h-4" />} as="span">导入</Button>
+              <Button variant="outline" size="sm" leftIcon={<Upload className="w-4 h-4" />}>导入</Button>
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
             <Button size="sm" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} loading={loading} className="shadow-lg shadow-indigo-500/20">
