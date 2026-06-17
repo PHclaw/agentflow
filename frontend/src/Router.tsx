@@ -14,6 +14,7 @@ import SettingsPage from './pages/SettingsPage'
 import HelpPage from './pages/HelpPage'
 import KnowledgePage from './pages/KnowledgePage'
 import WorkflowPage from './pages/WorkflowPage'
+import TemplateMarket from './pages/TemplateMarket'
 
 // Pages wrapper components
 function LandingPage() {
@@ -30,7 +31,7 @@ export default function Router() {
       <Routes>
         {/* Public Routes with Header/Footer */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/templates" element={<LandingPage />} />
+        <Route path="/templates" element={<TemplateMarket />} />
         <Route path="/pricing" element={<LandingPage />} />
 
         {/* Auth Routes */}

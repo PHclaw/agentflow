@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.pool import StaticPool
 
 from .config import settings
+from .seed import seed_templates
 
 # 数据库状态
 USE_MEMORY_MODE = False
@@ -115,6 +116,11 @@ async def init_db():
         
         mode = "Memory (NOT persistent)" if USE_MEMORY_MODE else "File-based (persistent)"
         print(f"Database initialized: {mode}")
+
+        # 种子数据
+        async with get_async_session_factory()() as session:
+            await seed_templates(session)
+
         return True
         
     except Exception as e:
