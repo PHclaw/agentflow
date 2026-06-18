@@ -1,72 +1,50 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { templates } from '../services/api'
 
-const templates = [
-  {
-    id: 'customer_service',
-    name: '智能客服',
-    icon: '💬',
-    description: '自动回答常见问题，支持多轮对话和工单创建',
-    features: ['FAQ 自动回答', '多轮对话', '工单创建', '满意度调查'],
-    color: 'from-green-500 to-emerald-600',
-    category: '客服',
-  },
-  {
-    id: 'sales',
-    name: '销售助手',
-    icon: '💰',
-    description: '帮助销售跟进客户、生成报价、安排会议',
-    features: ['客户跟进', '报价生成', '会议安排', 'CRM 集成'],
-    color: 'from-blue-500 to-indigo-600',
-    category: '销售',
-  },
-  {
-    id: 'hr',
-    name: 'HR 助手',
-    icon: '👥',
-    description: '回答员工关于假期、薪资、福利等问题',
-    features: ['政策查询', '假期申请', '薪资咨询', '培训推荐'],
-    color: 'from-purple-500 to-violet-600',
-    category: 'HR',
-  },
-  {
-    id: 'finance',
-    name: '财务助手',
-    icon: '📊',
-    description: '处理报销审批、发票查询、预算咨询',
-    features: ['报销审批', '发票查询', '预算咨询', '财务报表'],
-    color: 'from-yellow-500 to-orange-600',
-    category: '财务',
-  },
-  {
-    id: 'knowledge',
-    name: '知识库问答',
-    icon: '📚',
-    description: '基于企业知识库的智能问答系统',
-    features: ['文档导入', '智能检索', '多格式支持', '权限管理'],
-    color: 'from-pink-500 to-rose-600',
-    category: '通用',
-  },
-  {
-    id: 'appointment',
-    name: '预约助手',
-    icon: '📅',
-    description: '智能预约管理，支持多种业务场景',
-    features: ['在线预约', '日程管理', '提醒通知', '数据统计'],
-    color: 'from-cyan-500 to-teal-600',
-    category: '通用',
-  },
-]
+interface Template {
+  id: string
+  name: string
+  description: string
+  category: string
+  icon: string
+  features: string[]
+  color: string
+}
 
 export default function TemplateMarket() {
+  const [templateList, setTemplateList] = useState<Template[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
   const categories = ['全部', '客服', '销售', 'HR', '财务', '通用']
 
+  useEffect(() => {
+    async function loadTemplates() {
+      try {
+        const data = await templates.list()
+        setTemplateList(data)
+      } catch (err) {
+        console.error('Failed to load templates:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadTemplates()
+  }, [])
+
   const filteredTemplates = selectedCategory && selectedCategory !== '全部'
-    ? templates.filter((t) => t.category === selectedCategory)
-    : templates
+    ? templateList.filter((t) => t.category === selectedCategory)
+    : templateList
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">加载中...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,8 +86,8 @@ export default function TemplateMarket() {
               className="bg-white rounded-xl shadow-sm border hover:shadow-lg transition overflow-hidden"
             >
               {/* Header */}
-              <div className={`bg-gradient-to-r ${template.color} p-6 text-white`}>
-                <div className="text-4xl mb-2">{template.icon}</div>
+              <div className={`bg-gradient-to-r ${template.color || 'from-blue-500 to-indigo-600'} p-6 text-white`}>
+                <div className="text-4xl mb-2">{template.icon || '🤖'}</div>
                 <h3 className="text-xl font-semibold">{template.name}</h3>
                 <span className="text-sm opacity-80">{template.category}</span>
               </div>
@@ -118,14 +96,16 @@ export default function TemplateMarket() {
               <div className="p-6">
                 <p className="text-gray-600 mb-4">{template.description}</p>
 
-                <div className="space-y-2 mb-6">
-                  {template.features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-500">
-                      <span className="text-green-500">✓</span>
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
+                {template.features && template.features.length > 0 && (
+                  <div className="space-y-2 mb-6">
+                    {template.features.map((feature, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm text-gray-500">
+                        <span className="text-green-500">✓</span>
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <button

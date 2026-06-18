@@ -203,3 +203,12 @@ export const workflow = {
     })}`)
   },
 }
+
+export const templates = {
+  list: () => {
+    return api.get('/templates')
+  },
+  get: (id: string) => {
+    return api.get(`/templates/${id}`)
+  },
+}

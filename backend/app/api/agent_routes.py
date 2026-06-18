@@ -10,6 +10,7 @@ import json
 from app.models.agent import Agent, ChatSession, KnowledgeBase, WorkflowTemplate
 from app.core.logging import get_logger
 from app.core.database import get_db
+from app.api.auth import get_current_user_id
 
 router = APIRouter()
 logger = get_logger("agent_routes")
