@@ -212,3 +212,9 @@ export const templates = {
     return api.get(`/templates/${id}`)
   },
 }
+
+export const models = {
+  list: () => {
+    return api.get('/templates/models/list')
+  },
+}

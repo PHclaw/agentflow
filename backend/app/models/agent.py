@@ -40,8 +40,8 @@ class Agent(Base):
     message_count = Column(Integer, default=0)
     
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关系
     user = relationship("User", back_populates="agents", foreign_keys=[user_id])
@@ -71,7 +71,7 @@ class WorkflowTemplate(Base):
     use_count = Column(Integer, default=0)
     is_public = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class ChatSession(Base):
@@ -88,8 +88,8 @@ class ChatSession(Base):
     # 元数据
     session_metadata = Column(JSON)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class KnowledgeBase(Base):
@@ -107,5 +107,5 @@ class KnowledgeBase(Base):
     # 统计
     documents_count = Column(Integer, default=0)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

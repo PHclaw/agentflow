@@ -79,7 +79,7 @@ async def create_checkout_session(
         # 测试模式：返回模拟 session
         return {
             "url": data.success_url + "?test=1",
-            "session_id": "cs_test_" + datetime.utcnow().strftime("%Y%m%d%H%M%S")
+            "session_id": "cs_test_" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         }
     
     # 获取或创建 Stripe 客户

@@ -165,7 +165,7 @@ async def export_agent(
 
     export_data = {
         "agent_id": agent.id,
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "version": "2.0.0",
         "config": {
             "name": agent.name,
@@ -217,7 +217,7 @@ async def import_agent(
     return {
         "status": "success",
         "agent_id": agent_id,
-        "imported_at": datetime.utcnow().isoformat(),
+        "imported_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -239,7 +239,7 @@ async def check_agent_health(agent_id: str, db: AsyncSession = Depends(get_db)):
             "knowledge_bases_accessible": True,
             "webhook_reachable": True,
         },
-        "last_check": datetime.utcnow().isoformat(),
+        "last_check": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -401,6 +401,7 @@ async def get_template_categories(db: AsyncSession = Depends(get_db)):
         "hr": "人力资源",
         "developer": "开发工具",
         "productivity": "效率工具",
+        "general": "通用",
     }
 
     return {
@@ -420,8 +421,8 @@ async def get_template_categories(db: AsyncSession = Depends(get_db)):
 async def instantiate_template(
     template_id: str,
     name: str = Query(..., min_length=1, max_length=100),
-    user_id: str = Query("default"),
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """从模板创建 Agent"""
     tmpl = await db.get(WorkflowTemplate, template_id)

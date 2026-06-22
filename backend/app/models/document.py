@@ -40,7 +40,7 @@ class Document(Base):
     doc_metadata = Column(JSON, default=dict)
     
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     processed_at = Column(DateTime)
     
     # 关系
@@ -66,7 +66,7 @@ class DocumentChunk(Base):
     chunk_metadata = Column(JSON, default=dict)
     
     # 时间戳
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # 关系
     document = relationship("Document", back_populates="chunks")

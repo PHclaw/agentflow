@@ -12,7 +12,7 @@ class JSONFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -140,7 +140,7 @@ class WorkflowLogger:
             "node_id": node_id,
             "node_type": node_type,
             "inputs": inputs,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self.events.append(event)
         self.logger.info(f"Node started: {node_id} ({node_type})")
@@ -152,7 +152,7 @@ class WorkflowLogger:
             "node_id": node_id,
             "outputs": outputs,
             "duration_ms": duration_ms,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self.events.append(event)
         self.logger.info(f"Node completed: {node_id} in {duration_ms:.2f}ms")
@@ -163,7 +163,7 @@ class WorkflowLogger:
             "type": "node_error",
             "node_id": node_id,
             "error": error,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         self.events.append(event)
         self.logger.error(f"Node error: {node_id} - {error}")

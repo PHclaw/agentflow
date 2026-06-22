@@ -154,7 +154,7 @@ class KnowledgeService:
             # 更新文档状态
             doc.status = "done"
             doc.chunk_count = len(chunks)
-            doc.processed_at = datetime.utcnow()
+            doc.processed_at = datetime.now(timezone.utc)
             
             await self.db.commit()
             await self.db.refresh(doc)

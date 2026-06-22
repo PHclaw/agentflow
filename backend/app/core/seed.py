@@ -9,7 +9,7 @@ from app.models.agent import WorkflowTemplate
 DEFAULT_TEMPLATES = [
     {
         "name": "智能客服",
-        "category": "客服",
+        "category": "customer_service",
         "description": "自动回答常见问题，支持多轮对话和工单创建。包含 FAQ 匹配、意图识别、工单生成三个节点。",
         "icon": "💬",
         "color": "from-green-500 to-emerald-600",
@@ -34,7 +34,7 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "销售助手",
-        "category": "销售",
+        "category": "sales",
         "description": "帮助销售跟进客户、生成报价、安排会议。集成 CRM 数据查询节点。",
         "icon": "💰",
         "color": "from-blue-500 to-indigo-600",
@@ -59,7 +59,7 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "HR 助手",
-        "category": "HR",
+        "category": "hr",
         "description": "回答员工关于假期、薪资、福利等 HR 政策问题，支持政策文档 RAG 检索。",
         "icon": "👥",
         "color": "from-purple-500 to-violet-600",
@@ -81,7 +81,7 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "知识库问答",
-        "category": "通用",
+        "category": "general",
         "description": "基于企业知识库的智能问答系统，支持多文档格式检索和 LLM 摘要回答。",
         "icon": "📚",
         "color": "from-pink-500 to-rose-600",

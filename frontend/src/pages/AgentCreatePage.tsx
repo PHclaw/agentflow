@@ -24,9 +24,14 @@ import {
 const modelOptions = [
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
+  { value: 'gpt-4.1', label: 'GPT-4.1' },
+  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
+  { value: 'o3', label: 'o3' },
+  { value: 'o4-mini', label: 'o4-mini' },
+  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+  { value: 'deepseek-chat', label: 'DeepSeek V3' },
+  { value: 'deepseek-reasoner', label: 'DeepSeek R1' },
 ]
 
 const tabs = [

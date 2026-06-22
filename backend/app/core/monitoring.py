@@ -155,7 +155,7 @@ async def health_check():
     
     return HealthStatus(
         status=overall_status,
-        timestamp=datetime.utcnow().isoformat(),
+        timestamp=datetime.now(timezone.utc).isoformat(),
         components=components
     )
 
@@ -163,7 +163,7 @@ async def health_check():
 @router.get("/health/live")
 async def liveness_check():
     """存活检查 - K8s liveness probe"""
-    return {"status": "alive", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/health/ready")
@@ -174,7 +174,7 @@ async def readiness_check():
         from app.core.database import engine
         async with engine.connect() as conn:
             await conn.execute("SELECT 1")
-        return {"status": "ready", "timestamp": datetime.utcnow().isoformat()}
+        return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         return {"status": "not_ready", "error": str(e)}
 

@@ -28,7 +28,7 @@ def get_password_hash(password: str) -> str:
 
 
 def create_token(user_id: str) -> str:
-    expire = datetime.utcnow() + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.JWT_EXPIRE_MINUTES)
     payload = {"sub": user_id, "exp": expire}
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
@@ -92,7 +92,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not verify_password(request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="邮箱或密码错误")
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
     token = create_token(user.external_id)
