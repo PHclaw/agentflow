@@ -7,10 +7,13 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from httpx import AsyncClient
 
-from ..models.base import Base
+from ..core.database import Base
 from ..models.user import User
 from ..models.agent import Agent, ChatSession
+from ..main import app
+from ..api.auth import create_access_token
 
 
 # 测试数据库 URL
@@ -92,10 +95,35 @@ async def test_agent(async_db: AsyncSession, test_user: User) -> Agent:
             "provider": "openai",
             "model": "gpt-4o-mini",
         },
-        temperature=0.7,
-        template="qa",
+        workflow_definition={
+            "nodes": [{"id": "start", "type": "start"}],
+            "edges": [],
+        },
     )
     async_db.add(agent)
     await async_db.commit()
     await async_db.refresh(agent)
     return agent
+
+
+@pytest.fixture
+async def async_client(async_db: AsyncSession) -> AsyncClient:
+    """异步 HTTP 客户端"""
+    from ..core.database import get_db
+    
+    async def override_get_db():
+        yield async_db
+    
+    app.dependency_overrides[get_db] = override_get_db
+    
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
+    
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def auth_headers(test_user: User) -> dict:
+    """认证请求头"""
+    token = create_access_token(data={"sub": test_user.email})
+    return {"Authorization": f"Bearer {token}"}

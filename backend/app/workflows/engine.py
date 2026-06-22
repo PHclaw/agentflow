@@ -18,11 +18,85 @@ class WorkflowState(TypedDict):
 class WorkflowEngine:
     """工作流引擎"""
     
-    def __init__(self, workflow_definition: dict, llm_service=None):
-        self.definition = workflow_definition
+    def __init__(self, workflow_definition: dict = None, llm_service=None):
+        self.definition = workflow_definition or {}
         self.llm_service = llm_service
-        self.graph = StateGraph(WorkflowState)
-        self._build_graph()
+        self.graph = None
+        
+        if workflow_definition:
+            self.graph = StateGraph(WorkflowState)
+            self._build_graph()
+    
+    def validate(self, workflow: dict = None) -> tuple[bool, list[str]]:
+        """验证工作流定义"""
+        definition = workflow or self.definition
+        errors = []
+        
+        if not definition:
+            return False, ["工作流定义为空"]
+        
+        nodes = definition.get("nodes", [])
+        edges = definition.get("edges", [])
+        
+        # 检查开始节点
+        has_start = any(n.get("type") == "start" for n in nodes)
+        if not has_start:
+            errors.append("缺少开始节点 (type: start)")
+        
+        # 检查结束节点
+        has_end = any(n.get("type") in ["end", "output"] for n in nodes)
+        if not has_end:
+            errors.append("缺少结束节点 (type: end 或 output)")
+        
+        # 检查边的引用是否存在
+        node_ids = {n["id"] for n in nodes}
+        for edge in edges:
+            source = edge.get("from") or edge.get("source")
+            target = edge.get("to") or edge.get("target")
+            
+            if source and source not in node_ids:
+                errors.append(f"边引用了不存在的源节点: {source}")
+            if target and target not in node_ids:
+                errors.append(f"边引用了不存在的目标节点: {target}")
+        
+        return len(errors) == 0, errors
+    
+    def get_execution_order(self, workflow: dict = None) -> list[str]:
+        """获取执行顺序（拓扑排序）"""
+        definition = workflow or self.definition
+        
+        if not definition:
+            return []
+        
+        nodes = definition.get("nodes", [])
+        edges = definition.get("edges", [])
+        
+        # 构建邻接表
+        graph = {n["id"]: [] for n in nodes}
+        in_degree = {n["id"]: 0 for n in nodes}
+        
+        for edge in edges:
+            source = edge.get("from") or edge.get("source")
+            target = edge.get("to") or edge.get("target")
+            
+            if source and target:
+                graph[source].append(target)
+                in_degree[target] += 1
+        
+        # Kahn 算法
+        queue = [nid for nid, deg in in_degree.items() if deg == 0]
+        order = []
+        
+        while queue:
+            current = queue.pop(0)
+            order.append(current)
+            
+            for neighbor in graph[current]:
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+        
+        return order
     
     def _build_graph(self):
         """构建工作流图"""
