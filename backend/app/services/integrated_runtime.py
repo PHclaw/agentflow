@@ -64,11 +64,14 @@ class IntegratedAgentRuntime:
             model=model_config.get("model"),
         )
         
-        # 初始化记忆管理
-        memory_manager = MemoryManager(
-            backend=config.get("MEMORY_BACKEND", "in_memory"),
-            config={"redis_url": config.redis_url}
-        )
+        # 初始化记忆管理（只初始化一次）
+        if not self.memory:
+            memory_manager = MemoryManager(
+                backend=config.get("MEMORY_BACKEND", "in_memory"),
+                config={"redis_url": config.redis_url}
+            )
+            # 先创建会话，再初始化记忆
+            # memory 会在 chat() 中初始化
         
         # 初始化知识库
         kb_id = self.agent.knowledge_base_id
@@ -124,9 +127,13 @@ class IntegratedAgentRuntime:
             )
             
             # 调用 LLM
+            temperature = 0.7
+            if self.agent.model_config:
+                temperature = self.agent.model_config.get("temperature", 0.7)
+            
             response = await self.llm.chat(
                 messages=messages,
-                temperature=self.agent.temperature or 0.7,
+                temperature=temperature,
                 stream=stream
             )
             

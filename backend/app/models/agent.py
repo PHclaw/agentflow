@@ -24,6 +24,12 @@ class Agent(Base):
     # 模型配置
     model_config = Column(JSON, nullable=False, default=dict)
     
+    # 模板名称（关联 WorkflowTemplate）
+    template = Column(String(100), nullable=True)
+    
+    # 知识库 ID
+    knowledge_base_id = Column(String(36), nullable=True, index=True)
+    
     # 设置
     settings = Column(JSON, nullable=True)
     
@@ -49,6 +55,11 @@ class WorkflowTemplate(Base):
     name = Column(String(100), nullable=False)
     category = Column(String(50), nullable=False)  # customer_service, sales, hr, finance
     description = Column(Text)
+    
+    # 前端展示
+    icon = Column(String(50), default="template")  # emoji 或图标名
+    color = Column(String(50), default="from-blue-500 to-indigo-600")  # Tailwind gradient
+    features = Column(JSON, default=list)  # ["功能1", "功能2"]
     
     # 模板定义
     workflow_definition = Column(JSON, nullable=False)

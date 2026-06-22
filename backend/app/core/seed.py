@@ -9,8 +9,11 @@ from app.models.agent import WorkflowTemplate
 DEFAULT_TEMPLATES = [
     {
         "name": "智能客服",
-        "category": "customer_service",
+        "category": "客服",
         "description": "自动回答常见问题，支持多轮对话和工单创建。包含 FAQ 匹配、意图识别、工单生成三个节点。",
+        "icon": "💬",
+        "color": "from-green-500 to-emerald-600",
+        "features": ["FAQ 自动回答", "多轮对话", "工单创建", "满意度调查"],
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "用户输入"},
@@ -31,8 +34,11 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "销售助手",
-        "category": "sales",
+        "category": "销售",
         "description": "帮助销售跟进客户、生成报价、安排会议。集成 CRM 数据查询节点。",
+        "icon": "💰",
+        "color": "from-blue-500 to-indigo-600",
+        "features": ["客户跟进", "报价生成", "会议安排", "CRM 集成"],
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "客户输入"},
@@ -53,8 +59,11 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "HR 助手",
-        "category": "hr",
+        "category": "HR",
         "description": "回答员工关于假期、薪资、福利等 HR 政策问题，支持政策文档 RAG 检索。",
+        "icon": "👥",
+        "color": "from-purple-500 to-violet-600",
+        "features": ["政策查询", "假期申请", "薪资咨询", "培训推荐"],
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "员工提问"},
@@ -72,8 +81,11 @@ DEFAULT_TEMPLATES = [
     },
     {
         "name": "知识库问答",
-        "category": "general",
+        "category": "通用",
         "description": "基于企业知识库的智能问答系统，支持多文档格式检索和 LLM 摘要回答。",
+        "icon": "📚",
+        "color": "from-pink-500 to-rose-600",
+        "features": ["文档导入", "智能检索", "多格式支持", "权限管理"],
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "用户提问"},
@@ -107,6 +119,9 @@ async def seed_templates(db: AsyncSession):
             name=tpl["name"],
             category=tpl["category"],
             description=tpl["description"],
+            icon=tpl.get("icon", "template"),
+            color=tpl.get("color", "from-blue-500 to-indigo-600"),
+            features=tpl.get("features", []),
             workflow_definition=tpl["workflow_definition"],
             is_public=tpl["is_public"],
         )

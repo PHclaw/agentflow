@@ -22,6 +22,9 @@ async def list_templates(db: AsyncSession = Depends(get_db)):
             "name": t.name,
             "category": t.category,
             "description": t.description or "",
+            "icon": t.icon or "template",
+            "color": t.color or "from-blue-500 to-indigo-600",
+            "features": t.features or [],
             "use_count": t.use_count or 0,
         }
         for t in templates
@@ -46,6 +49,9 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
         "name": template.name,
         "category": template.category,
         "description": template.description or "",
+        "icon": template.icon or "template",
+        "color": template.color or "from-blue-500 to-indigo-600",
+        "features": template.features or [],
         "workflow_definition": template.workflow_definition,
         "preview_image": template.preview_image or "",
         "use_count": template.use_count or 0,
