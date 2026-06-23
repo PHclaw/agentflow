@@ -11,7 +11,7 @@ from httpx import AsyncClient
 
 from ..core.database import Base
 from ..models.user import User
-from ..models.agent import Agent, ChatSession
+from ..models.agent import Agent, ChatSession, KnowledgeBase
 from ..main import app
 from ..api.auth import create_access_token
 
@@ -104,6 +104,20 @@ async def test_agent(async_db: AsyncSession, test_user: User) -> Agent:
     await async_db.commit()
     await async_db.refresh(agent)
     return agent
+
+
+@pytest.fixture
+async def test_knowledge_base(async_db: AsyncSession) -> KnowledgeBase:
+    """创建测试知识库"""
+    kb = KnowledgeBase(
+        id="test-kb-001",
+        name="Test KB",
+        description="A test knowledge base",
+    )
+    async_db.add(kb)
+    await async_db.commit()
+    await async_db.refresh(kb)
+    return kb
 
 
 @pytest.fixture
