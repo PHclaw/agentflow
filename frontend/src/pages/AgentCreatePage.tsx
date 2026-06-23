@@ -7,7 +7,7 @@ import { Tabs, TabPanel } from '../components/ui/Tabs'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
-import { api } from '../services/api'
+import { api, models as modelsApi } from '../services/api'
 import { useToastStore } from '../stores'
 import type { Agent, WorkflowDefinition } from '../types'
 import {
@@ -21,7 +21,21 @@ import {
   Play,
 } from 'lucide-react'
 
-const modelOptions = [
+interface ModelOption {
+  value: string
+  label: string
+  provider?: string
+  tier?: string
+}
+
+const tabs = [
+  { id: 'basic', label: '基础配置' },
+  { id: 'workflow', label: '工作流' },
+  { id: 'knowledge', label: '知识库' },
+]
+
+// 默认模型列表（API 失败时回退）
+const defaultModelOptions: ModelOption[] = [
   { value: 'gpt-4o', label: 'GPT-4o' },
   { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
   { value: 'gpt-4.1', label: 'GPT-4.1' },
@@ -34,12 +48,6 @@ const modelOptions = [
   { value: 'deepseek-reasoner', label: 'DeepSeek R1' },
 ]
 
-const tabs = [
-  { id: 'basic', label: '基础配置' },
-  { id: 'workflow', label: '工作流' },
-  { id: 'knowledge', label: '知识库' },
-]
-
 export default function AgentCreatePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -48,6 +56,7 @@ export default function AgentCreatePage() {
 
   const [activeTab, setActiveTab] = useState('basic')
   const [loading, setLoading] = useState(false)
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>(defaultModelOptions)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -55,6 +64,27 @@ export default function AgentCreatePage() {
     prompt: '',
   })
   const [previewOpen, setPreviewOpen] = useState(false)
+
+  // 加载模型列表
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const data = await modelsApi.list()
+        if (Array.isArray(data) && data.length > 0) {
+          const options = data.map((m: any) => ({
+            value: m.id || m.model_id,
+            label: m.name || m.display_name || m.id,
+            provider: m.provider,
+            tier: m.tier,
+          }))
+          setModelOptions(options)
+        }
+      } catch (error) {
+        // 使用默认列表
+      }
+    }
+    fetchModels()
+  }, [])
 
   useEffect(() => {
     if (isEditing && id) {
