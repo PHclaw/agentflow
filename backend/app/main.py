@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import time
 
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import init_db, get_async_session_factory
 from app.core.logging import setup_logging, logger
 from app.core.monitoring import metrics_middleware, router as monitoring_router
 from app.core.websocket import router as websocket_router
@@ -33,6 +33,13 @@ async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     await init_db()
     logger.info("Database initialized")
+    
+    # 播种模板数据
+    from app.core.seed import seed_templates
+    async for db in get_async_session_factory()():
+        await seed_templates(db)
+        logger.info("Templates seeded")
+        break
     
     yield
     

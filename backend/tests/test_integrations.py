@@ -34,13 +34,18 @@ class TestTracerIntegration:
     
     def test_start_span(self):
         """测试开始追踪"""
-        from app.integrations import tracer
+        from app.integrations import tracer, HAS_OBSERVABILITY
         
         span_id = tracer.start_span(
             name="test_span",
             agent_id="test-agent",
             session_id="test-session",
         )
+        
+        # 如果 agent-observability 未安装，返回 None 是预期行为
+        if not HAS_OBSERVABILITY:
+            assert span_id is None
+            return
         
         assert span_id is not None
         

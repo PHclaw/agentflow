@@ -3,7 +3,7 @@ Agent 模型
 """
 from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.core.base import Base
@@ -97,7 +97,7 @@ class KnowledgeBase(Base):
     __tablename__ = "knowledge_bases"
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    agent_id = Column(String(36), nullable=False, index=True)
+    agent_id = Column(String(36), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     

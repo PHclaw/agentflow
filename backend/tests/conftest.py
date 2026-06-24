@@ -75,7 +75,6 @@ def sync_db():
 async def test_user(async_db: AsyncSession) -> User:
     """创建测试用户"""
     user = User(
-        id="test-user-001",
         email="test@example.com",
         password_hash="hashed_password",
         is_active=True,
@@ -91,7 +90,7 @@ async def test_agent(async_db: AsyncSession, test_user: User) -> Agent:
     """创建测试 Agent"""
     agent = Agent(
         id="test-agent-001",
-        user_id=test_user.id,
+        user_id=test_user.external_id,
         name="Test Agent",
         description="A test agent",
         model_config={
@@ -114,6 +113,7 @@ async def test_knowledge_base(async_db: AsyncSession) -> KnowledgeBase:
     """创建测试知识库"""
     kb = KnowledgeBase(
         id="test-kb-001",
+        agent_id="test-agent-001",
         name="Test KB",
         description="A test knowledge base",
     )
@@ -142,7 +142,7 @@ async def async_client(async_db: AsyncSession):
 
 
 @pytest.fixture
-def auth_headers(test_user: User) -> dict:
+async def auth_headers(test_user: User) -> dict:
     """认证请求头"""
-    token = create_token(data={"sub": test_user.email})
+    token = create_token(user_id=test_user.external_id)
     return {"Authorization": f"Bearer {token}"}

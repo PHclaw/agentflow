@@ -100,7 +100,7 @@ class TestIntegratedAgentRuntime:
         runtime.llm.chat = AsyncMock(return_value='{"tool": "search", "input": {"query": "test"}}')
         
         # Mock tool manager
-        with patch("..services.integrated_runtime.tool_manager") as mock_tool:
+        with patch("app.services.integrated_runtime.tool_manager") as mock_tool:
             mock_tool.execute = AsyncMock(return_value={"success": True, "result": "search results"})
             
             response = await runtime.chat_with_tools(message="Search for test")
@@ -114,23 +114,27 @@ class TestIntegratedAgentRuntime:
         test_agent: Agent,
     ):
         """测试多 Agent 协作"""
-        runtime = IntegratedAgentRuntime(
-            agent_id=test_agent.id,
-            db=async_db,
-            user_id=test_agent.user_id,
-        )
-        
-        await runtime.initialize()
-        runtime.llm.chat = AsyncMock(return_value="Agent response")
-        
-        # 使用同一个 agent ID 模拟多 agent
-        results = await runtime.multi_agent_chat(
-            message="Hello",
-            agent_ids=[test_agent.id],
-        )
-        
-        assert results is not None
-        assert "result" in results or test_agent.id in results
+        with patch("app.services.integrated_runtime.LLMService") as mock_llm_class:
+            mock_llm = MagicMock()
+            mock_llm.chat = AsyncMock(return_value="Agent response")
+            mock_llm_class.return_value = mock_llm
+            
+            runtime = IntegratedAgentRuntime(
+                agent_id=test_agent.id,
+                db=async_db,
+                user_id=test_agent.user_id,
+            )
+            
+            await runtime.initialize()
+            
+            # 使用同一个 agent ID 模拟多 agent
+            results = await runtime.multi_agent_chat(
+                message="Hello",
+                agent_ids=[test_agent.id],
+            )
+            
+            assert results is not None
+            assert "result" in results or test_agent.id in results
     
     @pytest.mark.asyncio
     async def test_get_stats(

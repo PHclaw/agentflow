@@ -7,7 +7,9 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
+from app.core.database import get_db
+from app.api.auth import get_current_user_id
 
 from ..core.config import settings
 from ..core.database import get_db
@@ -62,17 +64,29 @@ class CreatePortalRequest(BaseModel):
 @router.get("/plans")
 async def get_plans():
     """获取定价计划"""
+    plans_list = [
+        {"id": key, **value}
+        for key, value in PLANS.items()
+    ]
     return {
-        "plans": PLANS,
+        "plans": plans_list,
         "current_plan": None  # 前端会根据用户状态显示
     }
+
+
+@router.get("/plans/{plan_id}")
+async def get_plan_details(plan_id: str):
+    """获取单个计划详情"""
+    if plan_id not in PLANS:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return {"id": plan_id, **PLANS[plan_id]}
 
 
 @router.post("/checkout")
 async def create_checkout_session(
     data: CreateCheckoutRequest,
     db: Session = Depends(get_db),
-    # user: User = Depends(get_current_user)  # TODO: 添加认证
+    user_id: str = Depends(get_current_user_id),
 ):
     """创建 Stripe Checkout Session"""
     if not settings.STRIPE_SECRET_KEY:
@@ -108,7 +122,7 @@ async def create_checkout_session(
 async def create_portal_session(
     data: CreatePortalRequest,
     db: Session = Depends(get_db),
-    # user: User = Depends(get_current_user)
+    user_id: str = Depends(get_current_user_id),
 ):
     """创建客户门户 Session（管理订阅）"""
     if not settings.STRIPE_SECRET_KEY:
@@ -183,7 +197,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 @router.get("/subscription")
 async def get_subscription(
     db: Session = Depends(get_db),
-    # user: User = Depends(get_current_user)
+    user_id: str = Depends(get_current_user_id),
 ):
     """获取当前订阅状态"""
     # 测试模式返回模拟数据

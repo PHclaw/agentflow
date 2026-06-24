@@ -3,6 +3,7 @@
 """
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.seed import DEFAULT_TEMPLATES
 
@@ -14,8 +15,13 @@ class TestTemplatesAPI:
     async def test_list_templates(
         self,
         async_client: AsyncClient,
+        async_db: AsyncSession,
     ):
         """测试获取模板列表"""
+        # 播种模板数据
+        from app.core.seed import seed_templates
+        await seed_templates(async_db)
+        
         response = await async_client.get("/api/v1/templates")
         assert response.status_code == 200
         data = response.json()

@@ -109,8 +109,8 @@ DEFAULT_TEMPLATES = [
 async def seed_templates(db: AsyncSession):
     """初始化模板数据（仅当表为空时）"""
     result = await db.execute(select(func.count()).select_from(WorkflowTemplate))
-    count = result.scalar()
-    if count and count > 0:
+    count = result.scalar() or 0
+    if count > 0:
         return  # 已存在数据，跳过
 
     for tpl in DEFAULT_TEMPLATES:

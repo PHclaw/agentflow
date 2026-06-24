@@ -101,7 +101,8 @@ class TestKnowledgeAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert "results" in data
+        assert "query" in data
     
     @pytest.mark.asyncio
     async def test_unauthorized_access(
