@@ -3,18 +3,15 @@
 """
 import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 from sqlalchemy import text
 from sqlalchemy.pool import StaticPool
 
 from .config import settings
 from .seed import seed_templates
+from .base import Base
 
 # 数据库状态
 USE_MEMORY_MODE = False
-
-# 声明基类
-Base = declarative_base()
 
 # 异步引擎和会话（延迟初始化）
 _engine = None

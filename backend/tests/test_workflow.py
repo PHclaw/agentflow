@@ -3,7 +3,7 @@
 """
 import pytest
 
-from ..workflows.engine import WorkflowEngine
+from app.workflows.engine import WorkflowEngine
 
 
 class TestWorkflowEngine:

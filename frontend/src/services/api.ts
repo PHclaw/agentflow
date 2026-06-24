@@ -218,3 +218,18 @@ export const models = {
     return api.get('/templates/models/list')
   },
 }
+
+export const billing = {
+  listPlans: () => {
+    return api.get('/billing/plans')
+  },
+  getSubscription: () => {
+    return api.get('/billing/subscription')
+  },
+  createCheckout: (data: { price_id: string; success_url: string; cancel_url: string }) => {
+    return api.post('/billing/checkout', data)
+  },
+  createPortal: (data: { return_url: string }) => {
+    return api.post('/billing/portal', data)
+  },
+}

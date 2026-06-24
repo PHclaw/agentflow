@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
 
-from ..core.database import Base
+from app.core.base import Base
 
 
 class Agent(Base):

@@ -1,4 +1,4 @@
-"""
+﻿"""
 整合模块测试
 """
 import pytest
@@ -9,13 +9,13 @@ class TestConfigIntegration:
     
     def test_config_import(self):
         """测试配置导入"""
-        from ..integrations import config
+        from app.integrations import config
         
         assert config is not None
     
     def test_config_get(self):
         """测试配置获取"""
-        from ..integrations import config
+        from app.integrations import config
         
         # 测试默认值
         value = config.get("NON_EXISTENT_KEY", "default_value")
@@ -28,13 +28,13 @@ class TestTracerIntegration:
     
     def test_tracer_import(self):
         """测试追踪器导入"""
-        from ..integrations import tracer
+        from app.integrations import tracer
         
         assert tracer is not None
     
     def test_start_span(self):
         """测试开始追踪"""
-        from ..integrations import tracer
+        from app.integrations import tracer
         
         span_id = tracer.start_span(
             name="test_span",
@@ -49,7 +49,7 @@ class TestTracerIntegration:
     
     def test_get_stats(self):
         """测试获取统计"""
-        from ..integrations import tracer
+        from app.integrations import tracer
         
         stats = tracer.get_stats()
         

@@ -14,7 +14,7 @@ from ..core.database import get_db
 from ..models.user import User
 from ..models.subscription import Subscription, PlanType
 
-router = APIRouter(prefix="/api/billing", tags=["billing"])
+router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
 
 # 初始化 Stripe
 if settings.STRIPE_SECRET_KEY:

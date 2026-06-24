@@ -1,6 +1,10 @@
 """
 测试配置
 """
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pytest
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -9,11 +13,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from httpx import AsyncClient
 
-from ..core.database import Base
-from ..models.user import User
-from ..models.agent import Agent, ChatSession, KnowledgeBase
-from ..main import app
-from ..api.auth import create_access_token
+from app.core.database import Base, get_db
+from app.models.user import User
+from app.models.agent import Agent, ChatSession, KnowledgeBase
+from app.main import app
+from app.api.auth import create_token
 
 
 # 测试数据库 URL
@@ -73,8 +77,7 @@ async def test_user(async_db: AsyncSession) -> User:
     user = User(
         id="test-user-001",
         email="test@example.com",
-        username="testuser",
-        hashed_password="hashed_password",
+        password_hash="hashed_password",
         is_active=True,
     )
     async_db.add(user)
@@ -121,16 +124,18 @@ async def test_knowledge_base(async_db: AsyncSession) -> KnowledgeBase:
 
 
 @pytest.fixture
-async def async_client(async_db: AsyncSession) -> AsyncClient:
+async def async_client(async_db: AsyncSession):
     """异步 HTTP 客户端"""
-    from ..core.database import get_db
+    from app.core.database import get_db
+    from httpx import ASGITransport
     
     async def override_get_db():
         yield async_db
     
     app.dependency_overrides[get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
     
     app.dependency_overrides.clear()
@@ -139,5 +144,5 @@ async def async_client(async_db: AsyncSession) -> AsyncClient:
 @pytest.fixture
 def auth_headers(test_user: User) -> dict:
     """认证请求头"""
-    token = create_access_token(data={"sub": test_user.email})
+    token = create_token(data={"sub": test_user.email})
     return {"Authorization": f"Bearer {token}"}

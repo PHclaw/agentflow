@@ -16,7 +16,7 @@ except ImportError:
     def Vector(dim):
         return JSON
 
-from ..core.database import Base
+from app.core.base import Base
 
 
 class Document(Base):

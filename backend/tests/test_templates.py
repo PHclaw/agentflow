@@ -4,7 +4,7 @@
 import pytest
 from httpx import AsyncClient
 
-from ..core.seed import DEFAULT_TEMPLATES
+from app.core.seed import DEFAULT_TEMPLATES
 
 
 class TestTemplatesAPI:

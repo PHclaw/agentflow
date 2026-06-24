@@ -1,13 +1,13 @@
-"""
+﻿"""
 整合运行时测试
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..services.integrated_runtime import IntegratedAgentRuntime
-from ..models.agent import Agent, ChatSession
-from ..models.user import User
+from app.services.integrated_runtime import IntegratedAgentRuntime
+from app.models.agent import Agent, ChatSession
+from app.models.user import User
 
 
 class TestIntegratedAgentRuntime:
@@ -159,13 +159,13 @@ class TestPromptIntegration:
     
     def test_prompt_manager_import(self):
         """测试提示词管理器导入"""
-        from ..integrations.prompts_outputs import prompt_manager
+        from app.integrations.prompts_outputs import prompt_manager
         
         assert prompt_manager is not None
     
     def test_build_messages(self):
         """测试构建消息"""
-        from ..integrations.prompts_outputs import prompt_manager
+        from app.integrations.prompts_outputs import prompt_manager
         
         messages = prompt_manager.build_messages(
             template_name="qa",
@@ -183,13 +183,13 @@ class TestOutputParserIntegration:
     
     def test_output_parser_import(self):
         """测试输出解析器导入"""
-        from ..integrations.prompts_outputs import output_parser
+        from app.integrations.prompts_outputs import output_parser
         
         assert output_parser is not None
     
     def test_parse_json(self):
         """测试解析 JSON"""
-        from ..integrations.prompts_outputs import output_parser
+        from app.integrations.prompts_outputs import output_parser
         
         result = output_parser.parse('{"key": "value"}', format="json")
         
@@ -202,13 +202,13 @@ class TestToolManagerIntegration:
     
     def test_tool_manager_import(self):
         """测试工具管理器导入"""
-        from ..integrations.tools_memory import tool_manager
+        from app.integrations.tools_memory import tool_manager
         
         assert tool_manager is not None
     
     def test_get_tool_schemas(self):
         """测试获取工具 schema"""
-        from ..integrations.tools_memory import tool_manager
+        from app.integrations.tools_memory import tool_manager
         
         schemas = tool_manager.get_tool_schemas()
         
@@ -220,7 +220,7 @@ class TestMemoryIntegration:
     
     def test_memory_manager_import(self):
         """测试记忆管理器导入"""
-        from ..integrations.tools_memory import MemoryManager
+        from app.integrations.tools_memory import MemoryManager
         
         manager = MemoryManager()
         
@@ -228,7 +228,7 @@ class TestMemoryIntegration:
     
     def test_conversation_memory(self):
         """测试对话记忆"""
-        from ..integrations.tools_memory import ConversationMemory, MemoryManager
+        from app.integrations.tools_memory import ConversationMemory, MemoryManager
         
         memory = ConversationMemory(
             session_id="test-session",

@@ -5,7 +5,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.agent import KnowledgeBase
+from app.models.agent import KnowledgeBase
 
 
 class TestKnowledgeAPI:

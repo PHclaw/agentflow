@@ -86,8 +86,8 @@ async def log_requests(request: Request, call_next):
 # 注册路由
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["认证"])
 app.include_router(users.router, prefix="/api/v1/users", tags=["用户"])
-app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agent"])
 app.include_router(agent_routes_router, prefix="/api/v1/agents", tags=["Agent-增强"])
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agent"])
 app.include_router(templates.router, prefix="/api/v1/templates", tags=["模板"])
 app.include_router(knowledge_api_router, tags=["知识库"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])

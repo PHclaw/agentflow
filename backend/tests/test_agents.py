@@ -5,8 +5,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.user import User
-from ..models.agent import Agent
+from app.models.user import User
+from app.models.agent import Agent
 
 
 class TestAgentsAPI:

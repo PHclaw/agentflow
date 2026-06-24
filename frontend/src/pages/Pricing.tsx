@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { billing } from '../services/api';
 
 interface Plan {
   name: string;
@@ -9,72 +10,75 @@ interface Plan {
   price_id?: string;
 }
 
-const plans: Record<string, Plan> = {
-  free: {
-    name: 'Free',
-    price: 0,
-    agents: 1,
-    messages: 100,
-    features: ['1个Agent', '100条消息/月', '基础模板', '社区支持']
-  },
-  pro: {
-    name: 'Pro',
-    price: 29,
-    agents: 5,
-    messages: 5000,
-    features: ['5个Agent', '5000条消息/月', '高级模板', '知识库RAG', '优先支持'],
-    price_id: 'price_pro_monthly'
-  },
-  team: {
-    name: 'Team',
-    price: 99,
-    agents: 20,
-    messages: 50000,
-    features: ['20个Agent', '50000条消息/月', '全部功能', '团队协作', '专属客服', 'API访问'],
-    price_id: 'price_team_monthly'
-  }
-};
+interface PlansData {
+  [key: string]: Plan;
+}
 
 export default function Pricing() {
+  const [plans, setPlans] = useState<PlansData>({});
   const [currentPlan, setCurrentPlan] = useState<string>('free');
   const [loading, setLoading] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // 获取定价计划
+    billing.listPlans()
+      .then(res => {
+        setPlans(res.data.plans || res.data);
+      })
+      .catch(err => {
+        console.error(err);
+        setError('加载定价失败');
+      });
+
     // 获取当前订阅状态
-    fetch('/api/billing/subscription')
-      .then(res => res.json())
-      .then(data => setCurrentPlan(data.plan))
+    billing.getSubscription()
+      .then(res => {
+        setCurrentPlan(res.data.plan || 'free');
+      })
       .catch(console.error);
   }, []);
 
   const handleSubscribe = async (planKey: string) => {
     const plan = plans[planKey];
-    if (!plan.price_id || planKey === currentPlan) return;
+    if (!plan || !plan.price_id || planKey === currentPlan) return;
 
     setLoading(planKey);
     
     try {
-      const res = await fetch('/api/billing/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          price_id: plan.price_id,
-          success_url: window.location.origin + '/dashboard?success=1',
-          cancel_url: window.location.origin + '/pricing'
-        })
+      const res = await billing.createCheckout({
+        price_id: plan.price_id,
+        success_url: window.location.origin + '/dashboard?success=1',
+        cancel_url: window.location.origin + '/pricing'
       });
       
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      if (res.data.url) {
+        window.location.href = res.data.url;
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('订阅失败，请稍后重试');
+      alert(err.response?.data?.detail || '订阅失败，请稍后重试');
     } finally {
       setLoading(null);
     }
   };
+
+  const planKeys = Object.keys(plans);
+  if (planKeys.length === 0 && !error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white flex items-center justify-center">
+        <div className="text-gray-400">加载中...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white flex items-center justify-center">
+        <div className="text-red-400">{error}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white py-20 px-4">
@@ -91,7 +95,8 @@ export default function Pricing() {
 
         {/* Plans */}
         <div className="grid md:grid-cols-3 gap-8">
-          {Object.entries(plans).map(([key, plan]) => {
+          {planKeys.map((key) => {
+            const plan = plans[key];
             const isCurrent = currentPlan === key;
             const isPro = key === 'pro';
             
@@ -122,9 +127,9 @@ export default function Pricing() {
                 </div>
 
                 <ul className="space-y-3 mb-8">
-                  {plan.features.map((feature, i) => (
+                  {plan.features.map((feature: string, i: number) => (
                     <li key={i} className="flex items-center gap-2 text-gray-300">
-                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                       {feature}

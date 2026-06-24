@@ -34,20 +34,6 @@ const tabs = [
   { id: 'knowledge', label: '知识库' },
 ]
 
-// 默认模型列表（API 失败时回退）
-const defaultModelOptions: ModelOption[] = [
-  { value: 'gpt-4o', label: 'GPT-4o' },
-  { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-  { value: 'gpt-4.1', label: 'GPT-4.1' },
-  { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-  { value: 'o3', label: 'o3' },
-  { value: 'o4-mini', label: 'o4-mini' },
-  { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
-  { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-  { value: 'deepseek-chat', label: 'DeepSeek V3' },
-  { value: 'deepseek-reasoner', label: 'DeepSeek R1' },
-]
-
 export default function AgentCreatePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -56,7 +42,9 @@ export default function AgentCreatePage() {
 
   const [activeTab, setActiveTab] = useState('basic')
   const [loading, setLoading] = useState(false)
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>(defaultModelOptions)
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
+  const [modelsError, setModelsError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -68,8 +56,11 @@ export default function AgentCreatePage() {
   // 加载模型列表
   useEffect(() => {
     const fetchModels = async () => {
+      setModelsLoading(true)
+      setModelsError(null)
       try {
-        const data = await modelsApi.list()
+        const res = await modelsApi.list()
+        const data = res.data || res
         if (Array.isArray(data) && data.length > 0) {
           const options = data.map((m: any) => ({
             value: m.id || m.model_id,
@@ -78,9 +69,13 @@ export default function AgentCreatePage() {
             tier: m.tier,
           }))
           setModelOptions(options)
+        } else {
+          setModelsError('未获取到模型列表')
         }
-      } catch (error) {
-        // 使用默认列表
+      } catch (error: any) {
+        setModelsError(error.message || '加载模型列表失败')
+      } finally {
+        setModelsLoading(false)
       }
     }
     fetchModels()
@@ -224,13 +219,25 @@ export default function AgentCreatePage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
 
-                <Select
-                  label="语言模型"
-                  options={modelOptions}
-                  value={formData.model}
-                  onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                  hint="选择用于处理对话的语言模型"
-                />
+                {modelsLoading ? (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">语言模型</label>
+                    <div className="text-sm text-slate-500">加载模型中...</div>
+                  </div>
+                ) : modelsError ? (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-slate-700">语言模型</label>
+                    <div className="text-sm text-red-500">{modelsError}</div>
+                  </div>
+                ) : (
+                  <Select
+                    label="语言模型"
+                    options={modelOptions}
+                    value={formData.model}
+                    onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+                    hint={modelOptions.length === 0 ? "未获取到模型，请检查后端" : "选择用于处理对话的语言模型"}
+                  />
+                )}
 
                 <Textarea
                   label="系统提示词"

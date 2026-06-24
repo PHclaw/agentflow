@@ -1,10 +1,10 @@
 """用户模型"""
 from sqlalchemy import Column, String, DateTime, Boolean, JSON, Integer, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
-from ..core.database import Base
+from app.core.base import Base
 
 
 class User(Base):
