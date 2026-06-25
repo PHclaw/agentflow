@@ -20,7 +20,7 @@ import 'reactflow/dist/style.css'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
-import { api } from '../services/api'
+import { api, models } from '../services/api'
 import { useToastStore } from '../stores'
 import {
   ArrowLeft,

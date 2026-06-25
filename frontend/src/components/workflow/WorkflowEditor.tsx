@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import {
   ReactFlow,
   MiniMap,
@@ -43,6 +43,7 @@ import { KnowledgeNode } from './nodes/KnowledgeNode'
 import { ToolNode } from './nodes/ToolNode'
 import { ConditionNode } from './nodes/ConditionNode'
 import { ResponseNode } from './nodes/ResponseNode'
+import { models as modelsApi } from '../../services/api'
 
 const nodeTypes = {
   trigger: TriggerNode,
