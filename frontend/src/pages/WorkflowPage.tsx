@@ -644,7 +644,38 @@ interface NodeConfigPanelProps {
 
 function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProps) {
   const [showOutputs, setShowOutputs] = useState(false)
-  
+  const [modelOptions, setModelOptions] = useState<{value: string, label: string}[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
+  const [modelsError, setModelsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      setModelsLoading(true)
+      setModelsError(null)
+      try {
+        const res = await models.list()
+        const data = res.data || res
+        const options = data.map((m: any) => ({
+          value: m.id || m.model_id || m.name,
+          label: m.name || m.id || m.model_id
+        }))
+        setModelOptions(options.length > 0 ? options : [
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+        ])
+      } catch (error: any) {
+        setModelsError(error.message || 'Failed to load models')
+        setModelOptions([
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+        ])
+      } finally {
+        setModelsLoading(false)
+      }
+    }
+    fetchModels()
+  }, [])
+
   const renderConfig = () => {
     switch (node.type) {
       case 'trigger':
@@ -661,13 +692,15 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
           <>
             <Input label="节点名称" value={node.data.label} onChange={(e) => onUpdate({ label: e.target.value })} />
             <Select label="模型" value={node.data.model} onChange={(e) => onUpdate({ model: e.target.value })}
-              options={[
-                { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-                { value: 'gpt-4o', label: 'GPT-4o' },
-                { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-                { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-              ]}
+              options={modelOptions}
+              disabled={modelsLoading}
             />
+            {modelsLoading && (
+              <p className="text-xs text-slate-400 mt-1">加载模型中...</p>
+            )}
+            {modelsError && (
+              <p className="text-xs text-red-500 mt-1">{modelsError}</p>
+            )}
             <Input label="系统提示词" value={node.data.system_prompt} onChange={(e) => onUpdate({ system_prompt: e.target.value })} placeholder="设置 AI 角色..." />
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700">提示词模板</label>

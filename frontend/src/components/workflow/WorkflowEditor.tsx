@@ -120,6 +120,37 @@ export function WorkflowEditor({
   const [nodes, setNodes, onNodesChange] = useNodesState(propNodes || defaultNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(propEdges || defaultEdges)
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
+  const [modelOptions, setModelOptions] = useState<{value: string, label: string}[]>([])
+  const [modelsLoading, setModelsLoading] = useState(true)
+  const [modelsError, setModelsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const fetchModels = async () => {
+      setModelsLoading(true)
+      setModelsError(null)
+      try {
+        const res = await modelsApi.list()
+        const data = res.data || res
+        const options = data.map((m: any) => ({
+          value: m.id || m.model_id || m.name,
+          label: m.name || m.id || m.model_id
+        }))
+        setModelOptions(options.length > 0 ? options : [
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+        ])
+      } catch (error: any) {
+        setModelsError(error.message || 'Failed to load models')
+        setModelOptions([
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+          { value: 'gpt-4o', label: 'GPT-4o' },
+        ])
+      } finally {
+        setModelsLoading(false)
+      }
+    }
+    fetchModels()
+  }, [])
 
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds: Edge[]) => addEdge({ ...params, animated: true }, eds)),
@@ -337,12 +368,15 @@ export function WorkflowEditor({
                         )
                       )
                     }}
-                    options={[
-                      { value: 'gpt-4', label: 'GPT-4' },
-                      { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-                      { value: 'claude-3', label: 'Claude 3' },
-                    ]}
+                    options={modelOptions}
+                    disabled={modelsLoading}
                   />
+                  {modelsLoading && (
+                    <p className="text-xs text-slate-400 mt-1">加载模型中...</p>
+                  )}
+                  {modelsError && (
+                    <p className="text-xs text-red-500 mt-1">{modelsError}</p>
+                  )}
                 </>
               )}
             </div>
