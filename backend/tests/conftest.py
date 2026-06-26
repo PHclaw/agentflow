@@ -17,7 +17,7 @@ from app.core.database import Base, get_db
 from app.models.user import User
 from app.models.agent import Agent, ChatSession, KnowledgeBase
 from app.main import app
-from app.api.auth import create_token
+from app.api.auth import create_token, get_password_hash
 
 
 # 测试数据库 URL
@@ -76,7 +76,7 @@ async def test_user(async_db: AsyncSession) -> User:
     """创建测试用户"""
     user = User(
         email="test@example.com",
-        password_hash="hashed_password",
+        password_hash=get_password_hash("testpassword"),
         is_active=True,
     )
     async_db.add(user)

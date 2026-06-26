@@ -33,6 +33,48 @@ class MultiAgentRequest(BaseModel):
     session_id: Optional[str] = None
 
 
+# 注意：/multi-agent 必须放在 /{agent_id} 之前，否则会被匹配为 agent_id
+@router.post("/multi-agent")
+async def multi_agent_chat(
+    data: MultiAgentRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
+    """
+    多 Agent 协作
+    
+    使用 agent-orchestrator 协调多个 Agent
+    """
+    if not data.agent_ids:
+        raise HTTPException(status_code=400, detail="agent_ids is required")
+    
+    try:
+        # 使用第一个 agent 作为主运行时
+        runtime = IntegratedAgentRuntime(
+            agent_id=data.agent_ids[0],
+            db=db,
+            user_id=user_id,
+        )
+        
+        await runtime.initialize()
+        
+        results = await runtime.multi_agent_chat(
+            message=data.message,
+            agent_ids=data.agent_ids,
+            session_id=data.session_id,
+        )
+        
+        return {
+            "results": results,
+            "session_id": runtime.session.id if runtime.session else None,
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Multi-agent error: {str(e)}")
+
+
 @router.post("/{agent_id}", response_model=ChatResponse)
 async def chat(
     agent_id: str,
@@ -120,47 +162,6 @@ async def chat_with_tools(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
-
-
-@router.post("/multi-agent")
-async def multi_agent_chat(
-    data: MultiAgentRequest,
-    db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
-):
-    """
-    多 Agent 协作
-    
-    使用 agent-orchestrator 协调多个 Agent
-    """
-    if not data.agent_ids:
-        raise HTTPException(status_code=400, detail="agent_ids is required")
-    
-    try:
-        # 使用第一个 agent 作为主运行时
-        runtime = IntegratedAgentRuntime(
-            agent_id=data.agent_ids[0],
-            db=db,
-            user_id=user_id,
-        )
-        
-        await runtime.initialize()
-        
-        results = await runtime.multi_agent_chat(
-            message=data.message,
-            agent_ids=data.agent_ids,
-            session_id=data.session_id,
-        )
-        
-        return {
-            "results": results,
-            "session_id": runtime.session.id if runtime.session else None,
-        }
-        
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Multi-agent error: {str(e)}")
 
 
 @router.get("/{agent_id}/stats")
