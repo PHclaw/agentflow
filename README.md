@@ -123,6 +123,120 @@ npm run dev
 
 ---
 
+## 🌐 生产环境部署
+
+### 服务器要求
+
+| 资源 | 最低配置 | 推荐配置 |
+|:-----|:---------|:---------|
+| CPU | 2 核 | 4 核 |
+| 内存 | 4GB | 8GB+ |
+| 磁盘 | 20GB | 50GB+（含向量数据）|
+| 系统 | Linux (Ubuntu 22.04+) | Linux |
+
+### 一键部署（Docker）
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/PHclaw/agentflow.git
+cd agentflow
+
+# 2. 配置环境变量（⚠️ 生产环境必改）
+cp .env.example .env
+nano .env  # 修改 JWT_SECRET_KEY 和 API Keys
+
+# 3. 运行初始化脚本（Linux/macOS）
+bash scripts/init.sh
+
+# Windows:
+# .\scripts\init.ps1
+
+# 4. 访问 http://服务器IP:3000
+```
+
+### 生产环境 .env 关键配置
+
+```env
+# ⚠️ 务必修改（生产环境）
+JWT_SECRET_KEY=$(openssl rand -hex 32)   # 随机长字符串
+CORS_ORIGINS=https://yourdomain.com
+
+# 使用外部数据库（推荐生产环境）
+DATABASE_URL=postgresql+asyncpg://user:pass@db-host:5432/agentflow
+
+# 使用 Redis 云服务（推荐）
+REDIS_URL=redis://redis-host:6379/0
+
+# 公开访问地址
+PUBLIC_URL=https://yourdomain.com
+```
+
+### Nginx 反向代理（80/443 端口）
+
+创建 `/etc/nginx/sites-available/agentflow`：
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name yourdomain.com;
+
+    ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /api {
+        proxy_pass http://localhost:8001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    location /ws {
+        proxy_pass http://localhost:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+申请 Let's Encrypt 证书：
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+### 数据库备份
+
+```bash
+# 备份
+docker compose exec postgres pg_dump -U postgres agentflow > backup_$(date +%Y%m%d).sql
+
+# 恢复
+cat backup.sql | docker compose exec -T postgres psql -U postgres agentflow
+```
+
+### 更新到最新版本
+
+```bash
+git pull origin master
+docker compose down
+docker compose up -d --build
+```
+
+---
+
 ## 🏗️ 技术架构长什么样？
 
 ```
