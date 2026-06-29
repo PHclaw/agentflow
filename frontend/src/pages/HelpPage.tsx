@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Badge } from '../components/ui/Badge'
+import { models } from '../services/api'
 import {
   Search,
   Book,
@@ -66,8 +67,25 @@ const guides = [
 export default function HelpPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
+  const [supportedModels, setSupportedModels] = useState<string[]>(['GPT-4o', 'GPT-4o Mini', 'Claude 3.5'])
 
-  const filteredFaqs = faqs.filter(
+  useEffect(() => {
+    models.list().then((res) => {
+      const data = res.data || res
+      const names = (data || []).map((m: any) => m.name || m.id || m.model_id)
+      if (names.length > 0) setSupportedModels(names)
+    }).catch(() => {})
+  }, [])
+
+  const modelAnswer = `支持 ${supportedModels.join('、')} 等主流模型。`
+
+  const dynamicFaqs = faqs.map((faq) =>
+    faq.question === '支持哪些语言模型？'
+      ? { ...faq, answer: modelAnswer }
+      : faq
+  )
+
+  const filteredFaqs = dynamicFaqs.filter(
     (faq) =>
       faq.question.includes(searchQuery) ||
       faq.answer.includes(searchQuery)
