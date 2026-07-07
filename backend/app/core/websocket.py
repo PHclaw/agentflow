@@ -5,7 +5,44 @@ import json
 import asyncio
 from datetime import datetime
 
+from ..api.auth import get_current_user_id
+from ..services.websocket_chat import manager, handle_streaming_chat
+
 router = APIRouter()
+
+
+@router.websocket("/ws/chat/{agent_id}")
+async def chat_websocket(
+    websocket: WebSocket,
+    agent_id: str,
+    session_id: str = None,
+    user_id: str = Depends(get_current_user_id)
+):
+    """实时对话 WebSocket"""
+    await websocket.accept()
+
+    try:
+        while True:
+            # 接收消息
+            data = await websocket.receive_text()
+            message_data = json.loads(data)
+            message = message_data.get("message", "")
+
+            if not message:
+                continue
+
+            # 处理流式对话
+            await handle_streaming_chat(
+                websocket=websocket,
+                session_id=session_id or "default",
+                user_id=user_id,
+                agent_id=agent_id,
+                message=message,
+                db=None  # TODO: 需要注入 DB 会话
+            )
+
+    except WebSocketDisconnect:
+        pass
 
 
 class ConnectionManager:

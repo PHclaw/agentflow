@@ -66,6 +66,39 @@ class LLMService:
                     wait = 2 ** attempt
                     await asyncio.sleep(wait)
         raise last_err
+
+    async def chat_stream(
+        self,
+        messages: list,
+        temperature: float = 0.7,
+        max_tokens: int = 2000,
+    ) -> AsyncIterator[str]:
+        """流式对话"""
+        if self.provider == "openai":
+            async for chunk in self._chat_openai_stream(messages, temperature, max_tokens):
+                yield chunk
+        elif self.provider == "anthropic":
+            async for chunk in self._chat_anthropic_stream(messages, temperature, max_tokens):
+                yield chunk
+
+    async def _chat_openai_stream(
+        self,
+        messages: list,
+        temperature: float,
+        max_tokens: int,
+    ) -> AsyncIterator[str]:
+        """OpenAI 流式对话"""
+        client = self._get_client()
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+        async for chunk in response:
+            if chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
     
     async def _chat_openai(
         self,
