@@ -2,13 +2,11 @@
 AgentFlow - AI Agent 部署平台
 生产级架构，支持 WebSocket、缓存、监控、日志
 """
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 import time
-import traceback
 
 from app.core.config import settings
 from app.core.database import init_db, get_async_session_factory
@@ -27,26 +25,24 @@ from app.models import user, agent, subscription, document
 setup_logging(level=settings.LOG_LEVEL)
 
 
-class ErrorResponse:
-    """统一错误响应格式"""
-    def __init__(self, status_code: int, error: str, message: str, path: str = None):
-        self.status_code = status_code
-        self.error = error
-        self.message = message
-        self.path = path
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期"""
     logger.info("AgentFlow starting...")
-
+    
     # 启动时初始化数据库
     await init_db()
     logger.info("Database initialized")
-
+    
+    # 播种模板数据
+    from app.core.seed import seed_templates
+    async for db in get_async_session_factory()():
+        await seed_templates(db)
+        logger.info("Templates seeded")
+        break
+    
     yield
-
+    
     # 关闭时清理资源
     logger.info("AgentFlow shutting down...")
 
@@ -69,15 +65,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 速率限制中间件（可选，需要 Redis）
-# from app.core.rate_limiter import RateLimitMiddleware
-# app.add_middleware(
-#     RateLimitMiddleware,
-#     max_requests=100,  # 每分钟最多 100 次请求
-#     window_seconds=60,
-#     exclude_paths=["/docs", "/redoc", "/openapi.json", "/health"],
-# )
 
 # 请求日志中间件
 @app.middleware("http")
@@ -155,77 +142,14 @@ async def health():
 async def global_exception_handler(request: Request, exc: Exception):
     """全局异常处理"""
     logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
-    logger.error(traceback.format_exc())
-
     return JSONResponse(
         status_code=500,
         content={
-            "success": False,
             "error": "Internal Server Error",
-            "message": str(exc) if settings.DEBUG else "服务器内部错误，请联系管理员",
-            "path": request.url.path,
-            "method": request.method,
-        },
-        headers={"X-Request-ID": str(time.time())}
+            "message": str(exc) if settings.DEBUG else "An error occurred",
+            "path": request.url.path
+        }
     )
-
-
-# 验证错误处理
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """请求验证错误处理"""
-    errors = []
-    for error in exc.errors():
-        errors.append({
-            "field": ".".join(str(x) for x in error.get("loc", [])),
-            "message": error.get("msg"),
-            "type": error.get("type"),
-        })
-
-    logger.warning(f"Validation error: {errors}")
-
-    return JSONResponse(
-        status_code=422,
-        content={
-            "success": False,
-            "error": "Validation Error",
-            "message": "请求参数验证失败",
-            "details": errors,
-            "path": request.url.path,
-        },
-    )
-
-
-# HTTP 异常处理
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """HTTP 异常处理"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": exc.detail,
-            "message": get_error_message(exc.status_code),
-            "path": request.url.path,
-        },
-        headers=exc.headers,
-    )
-
-
-def get_error_message(status_code: int) -> str:
-    """根据状态码获取错误消息"""
-    messages = {
-        400: "请求参数错误",
-        401: "未授权，请先登录",
-        403: "没有权限访问该资源",
-        404: "请求的资源不存在",
-        422: "请求参数验证失败",
-        429: "请求过于频繁，请稍后再试",
-        500: "服务器内部错误",
-        502: "网关错误",
-        503: "服务暂时不可用",
-    }
-    return messages.get(status_code, "发生未知错误")
 
 
 # 404 处理
@@ -234,9 +158,8 @@ async def not_found_handler(request: Request, exc):
     return JSONResponse(
         status_code=404,
         content={
-            "success": False,
             "error": "Not Found",
-            "message": f"路由 {request.url.path} 不存在",
-            "path": request.url.path,
-        },
+            "message": f"Route {request.url.path} not found",
+            "path": request.url.path
+        }
     )

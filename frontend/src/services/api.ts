@@ -17,11 +17,6 @@ class ApiClient {
     localStorage.removeItem('token')
   }
 
-  private getToken(): string | null {
-    // 每次都从 localStorage 获取最新的 token
-    return localStorage.getItem('token') || this.token
-  }
-
   private async request(
     endpoint: string,
     options: RequestInit = {}
@@ -31,9 +26,8 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     }
 
-    const token = this.getToken()
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -91,10 +85,9 @@ class ApiClient {
     const formData = new FormData()
     formData.append('file', file)
 
-    const token = this.getToken()
     const headers: Record<string, string> = {}
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
+    if (this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -113,71 +106,130 @@ class ApiClient {
 
 export const api = new ApiClient()
 
-// Auth
 export const auth = {
-  login: (email: string, password: string) => api.post('/auth/login', { email, password }),
-  register: (email: string, password: string, nickname?: string) => api.post('/auth/register', { email, password, nickname }),
-  me: () => api.get('/auth/me'),
-  refreshToken: (token: string) => api.post('/auth/refresh', { token }),
-  changePassword: (oldPassword: string, newPassword: string) => api.post('/auth/change-password', { old_password: oldPassword, new_password: newPassword }),
+  login: (email: string, password: string) => {
+    return api.post('/auth/login', { email, password })
+  },
+  register: (email: string, password: string, nickname?: string) => {
+    return api.post('/auth/register', { email, password, nickname })
+  },
+  logout: () => {
+    api.clearToken()
+  },
+  getCurrentUser: () => {
+    return api.get('/auth/me')
+  },
 }
 
-// Knowledge Base
-export const knowledge = {
-  list: () => api.get('/knowledge'),
-  create: (name: string, description?: string) => api.post('/knowledge', { name, description }),
-  get: (kbId: string) => api.get(`/knowledge/${kbId}`),
-  delete: (kbId: string) => api.delete(`/knowledge/${kbId}`),
-  uploadDocument: (kbId: string, file: File) => api.uploadFile(`/knowledge/${kbId}/documents`, file),
-  listDocuments: (kbId: string) => api.get(`/knowledge/${kbId}/documents`),
-  deleteDocument: (kbId: string, docId: number) => api.delete(`/knowledge/${kbId}/documents/${docId}`),
-  search: (query: string, kbIds?: string[], topK?: number) => api.post('/knowledge/search', { query, kb_ids: kbIds, top_k: topK || 5 }),
-  searchInKb: (kbId: string, query: string, topK?: number) => api.post(`/knowledge/${kbId}/search`, { query, top_k: topK || 5 }),
-  upload: (kbId: string, file: File) => api.uploadFile(`/knowledge/${kbId}/documents`, file), // Alias for compatibility
-}
-
-// Workflow
-export const workflows = {
-  list: () => api.get('/workflow/templates'),
-  create: (data: any) => api.post('/workflow/templates', data),
-  save: (workflowId: string, data: any) => api.put(`/workflow/templates/${workflowId}`, data),
-  delete: (workflowId: string) => api.delete(`/workflow/templates/${workflowId}`),
-  execute: (workflowDefinition: any, inputData?: any) => api.post('/workflow/execute', { workflow_definition: workflowDefinition, input_data: inputData }),
-}
-
-// Agent
 export const agents = {
-  list: () => api.get('/agents'),
-  create: (data: any) => api.post('/agents', data),
-  get: (agentId: string) => api.get(`/agents/${agentId}`),
-  update: (agentId: string, data: any) => api.put(`/agents/${agentId}`, data),
-  delete: (agentId: string) => api.delete(`/agents/${agentId}`),
-  chat: (agentId: string, message: string, sessionId?: string) => api.post(`/agents/${agentId}/chat`, { message, session_id: sessionId }),
-  getSessions: (agentId: string) => api.get(`/agents/${agentId}/sessions`),
+  list: (params?: { limit?: number; offset?: number }) => {
+    const query = params
+      ? '?' + new URLSearchParams(
+          Object.entries(params).map(([k, v]) => [k, String(v)])
+        ).toString()
+      : ''
+    return api.get(`/agents${query}`)
+  },
+  get: (id: string) => {
+    return api.get(`/agents/${id}`)
+  },
+  create: (data: any) => {
+    return api.post('/agents', data)
+  },
+  update: (id: string, data: any) => {
+    return api.put(`/agents/${id}`, data)
+  },
+  delete: (id: string) => {
+    return api.delete(`/agents/${id}`)
+  },
+  chat: (id: string, message: string, sessionId?: string) => {
+    return api.post(`/chat/${id}`, { message, session_id: sessionId })
+  },
 }
 
-// Chat
-export const chat = {
-  getHistory: (sessionId: string) => api.get(`/chat/${sessionId}/history`),
-  send: (sessionId: string, message: string) => api.post(`/chat/${sessionId}`, { message }),
+export const knowledge = {
+  list: () => {
+    return api.get('/knowledge')
+  },
+  create: (data: any) => {
+    return api.post('/knowledge', data)
+  },
+  get: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}`)
+  },
+  delete: (kbId: string) => {
+    return api.delete(`/knowledge/${kbId}`)
+  },
+  upload: async (kbId: string, file: File) => {
+    return api.uploadFile(`/knowledge/${kbId}/documents`, file)
+  },
+  getDocuments: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}/documents`)
+  },
+  deleteDocument: (kbId: string, docId: number) => {
+    return api.delete(`/knowledge/${kbId}/documents/${docId}`)
+  },
+  search: (query: string, kbIds?: string[], topK?: number) => {
+    return api.post('/knowledge/search', { query, kb_ids: kbIds, top_k: topK || 5 })
+  },
+  getContext: (query: string, kbIds?: string[]) => {
+    return api.post('/knowledge/context', { query, kb_ids: kbIds })
+  },
+  ragQuery: (query: string, kbIds?: string[], systemPrompt?: string) => {
+    return api.post('/knowledge/rag', { query, kb_ids: kbIds, system_prompt: systemPrompt })
+  },
+  ragChat: (query: string, chatHistory: any[], kbIds?: string[]) => {
+    return api.post('/knowledge/rag/chat', { query, chat_history: chatHistory, kb_ids: kbIds })
+  },
+  getStats: (kbId: string) => {
+    return api.get(`/knowledge/${kbId}/stats`)
+  },
 }
 
-// Models
-export const models = {
-  list: () => api.get('/models'),
+export const workflow = {
+  execute: (workflowDefinition: any, inputData: any) => {
+    return api.post('/workflow/execute', { workflow_definition: workflowDefinition, input_data: inputData })
+  },
+  executeNode: (workflowDefinition: any, nodeId: string, inputData: any) => {
+    return api.post('/workflow/execute/node', { workflow_definition: workflowDefinition, node_id: nodeId, input_data: inputData })
+  },
+  test: (nodes: any[], edges: any[], inputData: any) => {
+    return api.post('/workflow/test', { nodes, edges, input_data: inputData })
+  },
+  getExecutionOrder: (nodes: any[], edges: any[]) => {
+    return api.get(`/workflow/execution-order?${new URLSearchParams({
+      nodes: JSON.stringify(nodes),
+      edges: JSON.stringify(edges),
+    })}`)
+  },
 }
 
-// Templates (placeholder)
 export const templates = {
-  list: () => Promise.resolve([]),
-  get: (id: string) => Promise.resolve({ id, name: 'Template' }),
+  list: () => {
+    return api.get('/templates')
+  },
+  get: (id: string) => {
+    return api.get(`/templates/${id}`)
+  },
 }
 
-// Billing (placeholder)
+export const models = {
+  list: () => {
+    return api.get('/templates/models/list')
+  },
+}
+
 export const billing = {
-  getPlans: () => Promise.resolve([]),
-  listPlans: () => Promise.resolve([]),
-  getSubscription: () => Promise.resolve(null),
-  subscribe: (planId: string) => Promise.resolve({ success: true }),
-  createCheckout: () => Promise.resolve({ url: '#' }),
+  listPlans: () => {
+    return api.get('/billing/plans')
+  },
+  getSubscription: () => {
+    return api.get('/billing/subscription')
+  },
+  createCheckout: (data: { price_id: string; success_url: string; cancel_url: string }) => {
+    return api.post('/billing/checkout', data)
+  },
+  createPortal: (data: { return_url: string }) => {
+    return api.post('/billing/portal', data)
+  },
 }

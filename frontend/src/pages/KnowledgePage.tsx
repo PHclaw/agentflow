@@ -21,7 +21,6 @@ import {
   RefreshCw,
   Settings,
   FolderOpen,
-  ExternalLink,
 } from 'lucide-react'
 import { api } from '../services/api'
 import { Button } from '../components/ui/Button'
@@ -72,8 +71,7 @@ export default function KnowledgePage() {
     try {
       setLoading(true)
       const data = await api.get('/knowledge')
-      // API 返回的是数组格式
-      setKnowledgeBases(Array.isArray(data) ? data : (data?.knowledge_bases || []))
+      setKnowledgeBases(Array.isArray(data?.knowledge_bases) ? data.knowledge_bases : [])
     } catch (error) {
       console.error('Failed to load knowledge bases:', error)
       setKnowledgeBases([])
@@ -85,8 +83,7 @@ export default function KnowledgePage() {
   const loadDocuments = async (kbId: string) => {
     try {
       const data = await api.get(`/knowledge/${kbId}/documents`)
-      // API 返回的是数组格式
-      setDocuments(Array.isArray(data) ? data : (data?.documents || []))
+      setDocuments(Array.isArray(data?.documents) ? data.documents : [])
     } catch (error) {
       console.error('Failed to load documents:', error)
       setDocuments([])
@@ -144,23 +141,6 @@ export default function KnowledgePage() {
     loadDocuments(kb.id)
   }
 
-  const handleDeleteKB = async (kbId: string, kbName: string) => {
-    if (!confirm(`确定要删除知识库"${kbName}"吗？此操作不可恢复。`)) return
-
-    try {
-      await api.delete(`/knowledge/${kbId}`)
-      if (selectedKB?.id === kbId) {
-        setSelectedKB(null)
-        setDocuments([])
-      }
-      loadKnowledgeBases()
-      alert('知识库已删除')
-    } catch (error) {
-      console.error('Failed to delete KB:', error)
-      alert('删除失败')
-    }
-  }
-
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return bytes + ' B'
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -207,22 +187,12 @@ export default function KnowledgePage() {
               <h2 className="font-semibold text-slate-900 dark:text-white">
                 知识库列表
               </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="p-1.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                  title="创建知识库"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={loadKnowledgeBases}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                  title="刷新"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                onClick={loadKnowledgeBases}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="relative mb-4">
@@ -240,19 +210,17 @@ export default function KnowledgePage() {
               {knowledgeBases
                 .filter(kb => kb.name.toLowerCase().includes(searchQuery.toLowerCase()))
                 .map((kb) => (
-                  <div
+                  <button
                     key={kb.id}
-                    className={`w-full p-3 rounded-xl text-left transition-colors flex items-center gap-3 ${
+                    onClick={() => handleSelectKB(kb)}
+                    className={`w-full p-3 rounded-xl text-left transition-colors ${
                       selectedKB?.id === kb.id
                         ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
-                    <button
-                      onClick={() => handleSelectKB(kb)}
-                      className="flex-1 flex items-center gap-3 min-w-0"
-                    >
-                      <div className={`p-2 rounded-lg flex-shrink-0 ${
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${
                         selectedKB?.id === kb.id
                           ? 'bg-indigo-500'
                           : 'bg-slate-100 dark:bg-slate-700'
@@ -269,22 +237,15 @@ export default function KnowledgePage() {
                           {kb.document_count} 个文档
                         </p>
                       </div>
-                    </button>
-                    {kb.status === 'ready' ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                    ) : kb.status === 'indexing' ? (
-                      <Loader2 className="w-4 h-4 text-amber-500 animate-spin flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                    )}
-                    <button
-                      onClick={() => handleDeleteKB(kb.id, kb.name)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                      title="删除知识库"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                      {kb.status === 'ready' ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      ) : kb.status === 'indexing' ? (
+                        <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                      )}
+                    </div>
+                  </button>
                 ))}
             </div>
           </Card>

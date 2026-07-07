@@ -52,8 +52,7 @@ export default function Router() {
         <Route path="/agents/:id/chat" element={<ChatPage />} />
 
         {/* Workflow Editor Page - Full Screen */}
-        <Route path="/workflow" element={<DashboardLayout><WorkflowPage /></DashboardLayout>} />
-        <Route path="/workflow/:id" element={<DashboardLayout><WorkflowPage /></DashboardLayout>} />
+        <Route path="/workflow/:id" element={<WorkflowPage />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

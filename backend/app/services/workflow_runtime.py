@@ -562,33 +562,18 @@ class WorkflowRuntime:
     ) -> List[str]:
         """获取下一个节点"""
         next_nodes = []
-
+        
         for edge in edges:
-            if edge.get("source") != current_node_id:
-                continue
-
-            source_handle = edge.get("sourceHandle")
-            target = edge.get("target")
-
-            if not target:
-                continue
-
-            # 检查是否是条件分支
-            if source_handle in ["yes", "true"]:
-                # 条件为真时的分支
-                if condition_result is True:
-                    next_nodes.append(target)
-            elif source_handle in ["no", "false"]:
-                # 条件为假时的分支
-                if condition_result is False:
-                    next_nodes.append(target)
-            elif source_handle is None or source_handle == "":
-                # 无条件边 - 总是执行
-                next_nodes.append(target)
-            else:
-                # 其他情况（如标签边）- 总是执行
-                next_nodes.append(target)
-
+            if edge.get("source") == current_node_id:
+                # 检查是否是条件分支
+                if edge.get("sourceHandle") in ["yes", "no"]:
+                    if edge.get("sourceHandle") == "yes" and condition_result:
+                        next_nodes.append(edge.get("target"))
+                    elif edge.get("sourceHandle") == "no" and not condition_result:
+                        next_nodes.append(edge.get("target"))
+                elif edge.get("sourceHandle") is None:
+                    next_nodes.append(edge.get("target"))
+        
         return next_nodes
     
     async def execute_workflow(
@@ -597,9 +582,9 @@ class WorkflowRuntime:
         input_data: Dict,
         db_session: AsyncSession,
     ) -> WorkflowState:
-        """执行工作流 - 使用 BFS 遍历"""
+        """执行工作流"""
         workflow_id = str(uuid.uuid4())
-
+        
         # 初始化状态
         state = WorkflowState(
             workflow_id=workflow_id,
@@ -608,77 +593,61 @@ class WorkflowRuntime:
             context=input_data,
         )
         state.context["db_session"] = db_session
-
+        
+        # 拓扑排序获取执行顺序
+        execution_order = self.get_execution_order(
+            workflow_def.get("nodes", []),
+            workflow_def.get("edges", [])
+        )
+        
         # 记录已执行的节点
         executed = set()
-
-        # 找到触发器节点作为起点
-        start_nodes = [
-            n["id"] for n in workflow_def.get("nodes", [])
-            if n.get("type") == "trigger"
-        ]
-
-        if not start_nodes:
-            # 如果没有触发器节点，使用拓扑排序的第一个节点
-            execution_order = self.get_execution_order(
-                workflow_def.get("nodes", []),
-                workflow_def.get("edges", [])
-            )
-            if execution_order:
-                start_nodes = [execution_order[0]]
-            else:
-                raise ValueError("工作流没有有效的起始节点")
-
-        # 使用队列进行 BFS 执行
-        from collections import deque
-        queue = deque(start_nodes)
-
-        while queue:
-            node_id = queue.popleft()
-
+        
+        # 从触发器开始执行
+        for node_id in execution_order:
             if node_id in executed:
                 continue
-
+            
             node_def = state.nodes.get(node_id, {})
             node_type = node_def.get("type", "")
-
-            if not node_type:
-                executed.add(node_id)
-                continue
-
+            
             # 创建节点实例
             node = self.create_node(node_type, node_id, node_def.get("data", {}))
-
+            
             # 设置当前节点
             state.current_node = node_id
-
+            
             # 执行节点
             result = await node.execute(state)
             result.execution_time = (
                 (result.end_time - result.start_time).total_seconds()
                 if result.end_time and result.start_time else 0
             )
-
+            
             state.execution_history.append(result)
             executed.add(node_id)
-
+            
             # 如果节点失败且是关键节点，停止执行
             if result.status == NodeStatus.FAILED:
                 if node_type in ["trigger", "llm", "response"]:
                     break
-
-            # 获取下一个节点
-            condition_result = None
+            
+            # 如果是条件节点，根据结果决定下一步
             if node_type == "condition":
-                condition_result = state.node_outputs.get(node_id, {}).get("condition_met", True)
-
-            next_nodes = self.get_next_nodes(node_id, state.edges, condition_result)
-
-            # 添加下一个节点到队列
-            for next_id in next_nodes:
-                if next_id not in executed:
-                    queue.append(next_id)
-
+                condition_met = state.node_outputs.get(node_id, {}).get("condition_met", True)
+                next_nodes = self.get_next_nodes(node_id, state.edges, condition_met)
+                
+                # 添加条件分支节点到执行队列
+                for next_id in next_nodes:
+                    if next_id not in executed:
+                        execution_order.extend([next_id])
+            else:
+                # 获取普通下一个节点
+                next_nodes = self.get_next_nodes(node_id, state.edges)
+                for next_id in next_nodes:
+                    if next_id not in executed:
+                        execution_order.extend([next_id])
+        
         return state
     
     async def execute_node(

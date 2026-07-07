@@ -112,39 +112,18 @@ async def create_agent(
 
 @router.get("")
 async def list_agents(
-    page: int = 1,
-    page_size: int = 20,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
 ):
-    """列出用户的 Agents（分页）"""
-    from sqlalchemy import func
-    from ..core.pagination import PageParams, PageResponse
-
-    params = PageParams(page=page, page_size=page_size)
-
-    # 获取总数
-    count_stmt = select(func.count(Agent.id)).where(Agent.user_id == user_id)
-    total = await db.scalar(count_stmt) or 0
-
-    # 获取分页数据
+    """列出用户的 Agents"""
     stmt = (
         select(Agent)
         .where(Agent.user_id == user_id)
         .order_by(Agent.created_at.desc())
-        .offset(params.offset)
-        .limit(params.limit)
     )
     result = await db.execute(stmt)
     agents = result.scalars().all()
-
-    return {
-        "items": [_agent_to_dict(a) for a in agents],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-        "total_pages": (total + page_size - 1) // page_size,
-    }
+    return [_agent_to_dict(a) for a in agents]
 
 
 @router.get("/{agent_id}")

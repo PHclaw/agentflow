@@ -9,17 +9,13 @@ import json
 import os
 import uuid
 import io
-from datetime import datetime as dt
+from datetime import datetime
 from pathlib import Path
 
 from ..models.agent import KnowledgeBase
 from ..models.document import Document, DocumentChunk
 from ..services.llm import LLMService
 from ..core.config import settings
-
-def datetime_now():
-    """返回不带时区的 datetime，避免数据库时区冲突"""
-    return dt.now()
 
 # LangChain imports
 from langchain_core.documents import Document as LCDocument
@@ -158,104 +154,28 @@ class KnowledgeService:
             # 更新文档状态
             doc.status = "done"
             doc.chunk_count = len(chunks)
-            doc.processed_at = datetime_now()
-
+            doc.processed_at = datetime.now(timezone.utc)
+            
             await self.db.commit()
             await self.db.refresh(doc)
-
+            
             return doc
-
+            
         except Exception as e:
             doc.status = "failed"
             doc.error_message = str(e)
             await self.db.commit()
             raise
-
-    async def process_document(
-        self,
-        doc_id: int,
-        content: str,
-        file_path: str = None,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 200,
-    ):
-        """处理文档 - 分块和向量化"""
-        doc = await self.db.get(Document, doc_id)
-        if not doc:
-            raise ValueError(f"文档不存在：{doc_id}")
-
-        kb_id = doc.kb_id
-
-        try:
-            # 使用 LangChain 加载文档
-            from langchain_core.documents import Document as LCDocument
-            from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-            lc_doc = LCDocument(
-                page_content=content,
-                metadata={
-                    "source": file_path or doc.filename,
-                    "file_type": doc.file_type,
-                    "document_id": doc.id,
-                }
-            )
-
-            # 文本分块
-            text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
-                length_function=len,
-                separators=["\n\n", "\n", "。", ". ", " ", ""]
-            )
-            chunks = text_splitter.split_documents([lc_doc])
-
-            # 获取或创建向量存储
-            vector_store = await self._get_or_create_vector_store(kb_id)
-
-            # 添加到向量存储
-            texts = [c.page_content for c in chunks]
-            metadatas = [c.metadata for c in chunks]
-            vector_store.add_texts(texts=texts, metadatas=metadatas)
-
-            # 保存向量存储
-            await self._save_vector_store(kb_id, vector_store)
-
-            # 保存分块信息到数据库
-            for i, chunk_content in enumerate(chunks):
-                chunk = DocumentChunk(
-                    document_id=doc.id,
-                    kb_id=kb_id,
-                    chunk_index=i,
-                    content=chunk_content.page_content,
-                    metadata=json.dumps(chunk_content.metadata),
-                )
-                self.db.add(chunk)
-
-            # 更新文档状态
-            doc.status = "done"
-            doc.chunk_count = len(chunks)
-            doc.processed_at = datetime_now()
-
-            await self.db.commit()
-            await self.db.refresh(doc)
-
-            return doc
-
-        except Exception as e:
-            doc.status = "failed"
-            doc.error_message = str(e)
-            await self.db.commit()
-            raise
-
-    async def _get_or_create_vector_store(self, kb_id: str):
+    
+    async def _get_or_create_vector_store(self, kb_id: str) -> Chroma:
         """获取或创建向量存储"""
         if kb_id in _vector_stores:
             return _vector_stores[kb_id]
-
+        
         vs_path = self._get_vector_store_path(kb_id)
-
+        
         # 检查持久化的向量存储
-        if vs_path.exists():
+        if vs_path.exists() and (vs_path / "chroma.sqlite3").exists():
             try:
                 vector_store = Chroma(
                     persist_directory=str(vs_path),
@@ -265,7 +185,7 @@ class KnowledgeService:
                 return vector_store
             except Exception:
                 pass
-
+        
         # 创建新的向量存储
         vector_store = Chroma(
             persist_directory=str(vs_path),
@@ -280,29 +200,6 @@ class KnowledgeService:
             vector_store.persist()
         except Exception:
             pass  # Chroma 会自动持久化
-
-    async def search_in_kb(
-        self,
-        query: str,
-        top_k: int = 5,
-        threshold: float = 0.7,
-    ) -> List[dict]:
-        """在知识库中搜索"""
-        if not self.kb_id:
-            return []
-
-        return await self.search(
-            query=query,
-            kb_ids=[self.kb_id],
-            top_k=top_k,
-            threshold=threshold,
-        )
-
-    async def get_documents(self, kb_id: str) -> List[Document]:
-        """获取知识库中的所有文档"""
-        stmt = select(Document).where(Document.kb_id == kb_id)
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
     
     async def search(
         self,

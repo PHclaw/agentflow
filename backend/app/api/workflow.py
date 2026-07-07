@@ -125,14 +125,24 @@ async def execute_workflow_stream(
             for node_result in state.execution_history:
                 outputs = state.node_outputs.get(node_result.node_id, {})
                 
-                yield f"data: {json.dumps({'type': 'node_complete', 'node_id': node_result.node_id, 'status': node_result.status.value, 'outputs': outputs, 'execution_time': node_result.execution_time})}\n\n"
+                yield f"data: {json.dumps({
+                    'type': 'node_complete',
+                    'node_id': node_result.node_id,
+                    'status': node_result.status.value,
+                    'outputs': outputs,
+                    'execution_time': node_result.execution_time,
+                })}\n\n"
                 
                 # 模拟流式输出（如果是 LLM 节点）
                 if "response" in outputs and isinstance(outputs["response"], str):
                     # 逐字符发送（模拟）
                     for i in range(0, len(outputs["response"]), 10):
                         chunk = outputs["response"][i:i+10]
-                        yield f"data: {json.dumps({'type': 'llm_chunk', 'node_id': node_result.node_id, 'chunk': chunk})}\n\n"
+                        yield f"data: {json.dumps({
+                            'type': 'llm_chunk',
+                            'node_id': node_result.node_id,
+                            'chunk': chunk,
+                        })}\n\n"
                         await asyncio.sleep(0.01)
             
             # 最终结果
@@ -147,7 +157,10 @@ async def execute_workflow_stream(
                         final_output = outputs["response"]
                         break
             
-            yield f"data: {json.dumps({'type': 'complete', 'final_output': final_output})}\n\n"
+            yield f"data: {json.dumps({
+                'type': 'complete',
+                'final_output': final_output,
+            })}\n\n"
             
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"

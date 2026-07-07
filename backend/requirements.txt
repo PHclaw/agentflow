@@ -1,63 +1,75 @@
 # Core
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-python-multipart>=0.0.6
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
 
 # Database
-sqlalchemy[asyncio]>=2.0.25
-asyncpg>=0.29.0
-alembic>=1.13.1
-pgvector>=0.2.3
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+pgvector==0.2.3
 
 # Auth
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
-bcrypt>=4.1.2
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
 
 # Payments
-stripe>=7.10.0
+stripe==7.10.0
 
 # LLM
-openai>=1.10.0
-anthropic>=0.18.0
-httpx>=0.26.0
+openai==1.10.0
+anthropic==0.18.0
+httpx==0.26.0
 
 # Embedding
-sentence-transformers>=2.3.1
+sentence-transformers==2.3.1
 
 # LangChain
-langchain>=0.1.4
-langchain-core>=0.1.28
-langchain-openai>=0.0.5
-langchain-community>=0.0.17
-langchain-text-splitters>=0.0.1
-langchain-chroma>=0.1.0
-faiss-cpu>=1.7.4
+langchain==0.1.4
+langchain-core==0.1.20
+langchain-openai==0.0.5
+langchain-community==0.0.17
+langchain-text-splitters==0.0.1
+langchain-chroma==0.1.0
+langchain-pg==0.0.1
+faiss-cpu==1.7.4
 
 # Workflow - LangGraph
-langgraph>=0.0.20
+langgraph==0.0.20
 
 # Task Queue
-celery>=5.3.6
-redis>=5.0.1
+celery==5.3.6
+redis==5.0.1
 
 # Utils
-pydantic>=2.5.3
-pydantic-settings>=2.1.0
-python-dotenv>=1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
 
 # File Processing
-python-docx>=1.1.0
-openpyxl>=3.1.2
-PyPDF2>=3.0.1
-aiofiles>=23.2.1
+python-docx==1.1.0
+openpyxl==3.1.2
+PyPDF2==3.0.1
+aiofiles==23.2.1
 
 # Browser Automation - Browser-Use
-playwright>=1.41.0
-browser-use>=0.1.11
+playwright==1.41.0
+browser-use==0.1.11
+
+# Agent Ecosystem (PHclaw)
+# These will be installed from GitHub until published to PyPI
+# agent-config-loader>=0.1.0
+# agent-prompt-templates>=0.1.0
+# agent-output-parser>=0.1.0
+# agent-tool-registry>=0.1.0
+# agent-memory-store>=0.1.0
+# agent-observability>=0.1.0
+# agent-orchestrator>=0.1.0
+# agent-mcp-client>=0.1.0
 
 # Testing
-pytest>=8.0.0
-pytest-asyncio>=0.23.3
-pytest-cov>=4.1.0
-aiosqlite>=0.19.0
+pytest==8.0.0
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+aiosqlite==0.19.0

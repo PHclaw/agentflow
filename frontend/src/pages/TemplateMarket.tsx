@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { templates } from '../services/api'
 
 interface Template {
   id: string
@@ -22,12 +23,7 @@ export default function TemplateMarket() {
   useEffect(() => {
     async function loadTemplates() {
       try {
-        // Placeholder - mock data
-        const data: Template[] = [
-          { id: '1', name: '智能客服', description: '自动回答常见问题', category: '客服', icon: '💬', features: ['FAQ'], color: 'from-green-500 to-emerald-600' },
-          { id: '2', name: '销售助手', description: '客户跟进、报价', category: '销售', icon: '💰', features: ['CRM'], color: 'from-blue-500 to-indigo-600' },
-          { id: '3', name: 'HR 助手', description: '假期政策、薪资咨询', category: 'HR', icon: '👥', features: ['政策'], color: 'from-purple-500 to-violet-600' },
-        ]
+        const data = await templates.list()
         setTemplateList(data)
       } catch (err) {
         console.error('Failed to load templates:', err)

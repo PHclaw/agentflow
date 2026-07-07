@@ -22,19 +22,19 @@ export default function Pricing() {
 
   useEffect(() => {
     // 获取定价计划
-    billing.getPlans()
-      .then((res: any) => {
-        setPlans(res.data?.plans || res.data || {});
+    billing.listPlans()
+      .then(res => {
+        setPlans(res.data.plans || res.data);
       })
-      .catch((err: any) => {
+      .catch(err => {
         console.error(err);
         setError('加载定价失败');
       });
 
     // 获取当前订阅状态
     billing.getSubscription()
-      .then((res: any) => {
-        setCurrentPlan(res.data?.plan || 'free');
+      .then(res => {
+        setCurrentPlan(res.data.plan || 'free');
       })
       .catch(console.error);
   }, []);
@@ -44,16 +44,20 @@ export default function Pricing() {
     if (!plan || !plan.price_id || planKey === currentPlan) return;
 
     setLoading(planKey);
-
+    
     try {
-      const res: any = await billing.createCheckout();
-
-      if (res.url) {
-        window.location.href = res.url;
+      const res = await billing.createCheckout({
+        price_id: plan.price_id,
+        success_url: window.location.origin + '/dashboard?success=1',
+        cancel_url: window.location.origin + '/pricing'
+      });
+      
+      if (res.data.url) {
+        window.location.href = res.data.url;
       }
     } catch (err: any) {
       console.error(err);
-      alert('订阅失败，请稍后重试');
+      alert(err.response?.data?.detail || '订阅失败，请稍后重试');
     } finally {
       setLoading(null);
     }

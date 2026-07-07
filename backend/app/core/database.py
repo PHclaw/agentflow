@@ -95,23 +95,22 @@ async def get_db():
 async def init_db():
     """初始化数据库"""
     global USE_MEMORY_MODE
-
+    
     engine = get_engine()
-
+    
     try:
-        # 先初始化 pgvector 扩展（仅 PostgreSQL）
+        # 创建所有表
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        
+        # 尝试初始化 pgvector（仅 PostgreSQL）
         if not USE_MEMORY_MODE and "postgresql" in str(settings.DATABASE_URL):
             try:
                 async with engine.begin() as conn:
                     await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-                print("pgvector extension initialized")
-            except Exception as e:
-                print(f"Warning: Could not initialize pgvector: {e}")
-
-        # 创建所有表
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-
+            except Exception:
+                pass  # pgvector 可能不可用
+        
         mode = "Memory (NOT persistent)" if USE_MEMORY_MODE else "File-based (persistent)"
         print(f"Database initialized: {mode}")
 
@@ -120,7 +119,7 @@ async def init_db():
             await seed_templates(session)
 
         return True
-
+        
     except Exception as e:
         print(f"Database init error: {e}")
         return False

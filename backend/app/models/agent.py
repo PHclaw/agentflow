@@ -3,7 +3,7 @@ Agent 模型
 """
 from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.core.base import Base
@@ -12,36 +12,36 @@ from app.core.base import Base
 class Agent(Base):
     """Agent 表"""
     __tablename__ = "agents"
-
+    
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String(36), ForeignKey("users.external_id"), nullable=False, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-
+    
     # 工作流定义
     workflow_definition = Column(JSON, nullable=False, default=dict)
-
+    
     # 模型配置
     model_config = Column(JSON, nullable=False, default=dict)
-
+    
     # 模板名称（关联 WorkflowTemplate）
     template = Column(String(100), nullable=True)
-
+    
     # 知识库 ID
     knowledge_base_id = Column(String(36), nullable=True, index=True)
-
+    
     # 设置
     settings = Column(JSON, nullable=True)
-
+    
     # 状态
     is_active = Column(Boolean, default=True)
-
+    
     # 统计
     message_count = Column(Integer, default=0)
-
+    
     # 时间戳
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # 关系
     user = relationship("User", back_populates="agents", foreign_keys=[user_id])
@@ -71,7 +71,7 @@ class WorkflowTemplate(Base):
     use_count = Column(Integer, default=0)
     is_public = Column(Boolean, default=True)
     
-    created_at = Column(DateTime, default=datetime.now)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class ChatSession(Base):
@@ -88,8 +88,8 @@ class ChatSession(Base):
     # 元数据
     session_metadata = Column(JSON)
     
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class KnowledgeBase(Base):
@@ -107,5 +107,5 @@ class KnowledgeBase(Base):
     # 统计
     documents_count = Column(Integer, default=0)
     
-    created_at = Column(DateTime, default=datetime.now)
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
