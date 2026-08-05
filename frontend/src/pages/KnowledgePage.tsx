@@ -57,6 +57,9 @@ export default function KnowledgePage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null)
+  const [previewContent, setPreviewContent] = useState('')
   const [newKBName, setNewKBName] = useState('')
   const [newKBDescription, setNewKBDescription] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -159,6 +162,44 @@ export default function KnowledgePage() {
         return <FileText className="w-5 h-5 text-slate-500" />
       default:
         return <File className="w-5 h-5 text-slate-400" />
+    }
+  }
+
+  const handlePreviewDoc = async (doc: Document) => {
+    setPreviewDoc(doc)
+    setPreviewContent(`文件名: ${doc.name}\n类型: ${doc.type}\n大小: ${formatFileSize(doc.size)}\n分块数: ${doc.chunks}\n状态: ${doc.status}\n创建时间: ${doc.created_at}\n\n（文档内容预览功能开发中）`)
+    setShowPreviewModal(true)
+  }
+
+  const handleDownloadDoc = async (doc: Document) => {
+    try {
+      const response = await fetch(`/api/v1/upload/${doc.name}`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = doc.name
+        a.click()
+        URL.revokeObjectURL(url)
+      } else {
+        alert('文件下载失败，文件可能尚未保存到服务器')
+      }
+    } catch {
+      alert('下载失败')
+    }
+  }
+
+  const handleDeleteDoc = async (doc: Document) => {
+    if (!selectedKB || !window.confirm(`确定要删除 "${doc.name}" 吗？`)) return
+
+    try {
+      await api.delete(`/knowledge/${selectedKB.id}/documents/${doc.id}`)
+      loadDocuments(selectedKB.id)
+      loadKnowledgeBases()
+    } catch (error) {
+      console.error('Delete failed:', error)
+      alert('删除失败')
     }
   }
 
@@ -340,15 +381,24 @@ export default function KnowledgePage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                        <button className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm">
+                        <button
+                          onClick={() => handlePreviewDoc(doc)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
+                        >
                           <Eye className="w-4 h-4" />
                           预览
                         </button>
-                        <button className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm">
+                        <button
+                          onClick={() => handleDownloadDoc(doc)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm"
+                        >
                           <Download className="w-4 h-4" />
                           下载
                         </button>
-                        <button className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm">
+                        <button
+                          onClick={() => handleDeleteDoc(doc)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm"
+                        >
                           <Trash2 className="w-4 h-4" />
                           删除
                         </button>
@@ -408,13 +458,25 @@ export default function KnowledgePage() {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex justify-end gap-1">
-                              <button className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                              <button
+                                onClick={() => handlePreviewDoc(doc)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                title="预览"
+                              >
                                 <Eye className="w-4 h-4" />
                               </button>
-                              <button className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                              <button
+                                onClick={() => handleDownloadDoc(doc)}
+                                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                                title="下载"
+                              >
                                 <Download className="w-4 h-4" />
                               </button>
-                              <button className="p-2 rounded-lg text-red-500 hover:bg-red-50">
+                              <button
+                                onClick={() => handleDeleteDoc(doc)}
+                                className="p-2 rounded-lg text-red-500 hover:bg-red-50"
+                                title="删除"
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
@@ -539,6 +601,18 @@ export default function KnowledgePage() {
             </ul>
           </div>
         </div>
+      </Modal>
+
+      {/* Preview Modal */}
+      <Modal
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        title={previewDoc?.name || '文档预览'}
+        size="lg"
+      >
+        <pre className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 p-4 rounded-lg max-h-96 overflow-y-auto">
+          {previewContent}
+        </pre>
       </Modal>
     </div>
   )

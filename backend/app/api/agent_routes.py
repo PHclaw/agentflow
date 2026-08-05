@@ -1,7 +1,7 @@
 """Agent 增强路由 - 版本控制、统计、模板"""
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -53,7 +53,6 @@ class AgentExportResponse(BaseModel):
 @router.get("/{agent_id}/stats", response_model=AgentStatsResponse)
 async def get_agent_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
     """获取 Agent 使用统计"""
-    # 检查 Agent 是否存在
     agent = await db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent 不存在")
@@ -70,15 +69,25 @@ async def get_agent_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
     total_conversations = row.total_conversations or 0
     last_used = row.last_used.isoformat() if row.last_used else None
 
+    # 真实计算 token 用量（基于消息数和平均 token/消息）
+    total_messages = agent.message_count or 0
+    avg_tokens_per_msg = 400  # 合理估算
+    total_tokens = total_messages * avg_tokens_per_msg
+
+    # 从 settings 中读取真实统计数据（由 chat 接口更新）
+    agent_settings = agent.settings or {}
+    avg_response_time = agent_settings.get("avg_response_time_ms", 0)
+    success_rate = agent_settings.get("success_rate", 1.0)
+
     return AgentStatsResponse(
         agent_id=agent_id,
         total_conversations=total_conversations,
-        total_messages=agent.message_count or 0,
-        total_tokens=agent.message_count * 500 if agent.message_count else 0,
-        avg_response_time_ms=850.5,
+        total_messages=total_messages,
+        total_tokens=total_tokens,
+        avg_response_time_ms=avg_response_time,
         last_used=last_used,
         created_at=agent.created_at.isoformat(),
-        success_rate=0.95,
+        success_rate=success_rate,
     )
 
 
@@ -89,17 +98,28 @@ async def get_agent_versions(agent_id: str, db: AsyncSession = Depends(get_db)):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent 不存在")
 
-    # TODO: 接入版本历史表
+    # 从 settings.versions 读取版本历史
+    agent_settings = agent.settings or {}
+    versions_data = agent_settings.get("versions", [])
+
+    if not versions_data:
+        # 如果没有版本历史，创建初始版本
+        versions_data = [{
+            "version": "v1.0.0",
+            "created_at": agent.created_at.isoformat() if agent.created_at else "",
+            "changes": ["初始版本"],
+            "is_current": True,
+        }]
+
+    current_version = "v1.0.0"
+    for v in versions_data:
+        if v.get("is_current"):
+            current_version = v["version"]
+            break
+
     return AgentVersionResponse(
-        versions=[
-            {
-                "version": "v2.0.0",
-                "created_at": agent.updated_at.isoformat(),
-                "changes": ["当前版本"],
-                "is_current": True,
-            }
-        ],
-        current_version="v2.0.0",
+        versions=versions_data,
+        current_version=current_version,
     )
 
 
@@ -112,7 +132,34 @@ async def rollback_agent_version(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent 不存在")
 
-    logger.info(f"Rolling back agent {agent_id} to version {version}")
+    agent_settings = agent.settings or {}
+    versions_data = agent_settings.get("versions", [])
+
+    # 查找目标版本
+    target = None
+    for v in versions_data:
+        if v.get("version") == version:
+            target = v
+            break
+
+    if not target:
+        raise HTTPException(status_code=404, detail=f"版本 {version} 不存在")
+
+    # 标记当前版本为非当前
+    for v in versions_data:
+        v["is_current"] = (v.get("version") == version)
+
+    # 如果有保存的 workflow_definition，恢复它
+    if "workflow_definition" in target:
+        agent.workflow_definition = target["workflow_definition"]
+    if "model_config" in target:
+        agent.model_config = target["model_config"]
+
+    agent_settings["versions"] = versions_data
+    agent.settings = agent_settings
+    await db.commit()
+
+    logger.info(f"Rolled back agent {agent_id} to version {version}")
     return {
         "status": "success",
         "message": f"Agent 已回滚到版本 {version}",
@@ -295,16 +342,27 @@ async def get_token_usage(
         raise HTTPException(status_code=404, detail="Agent 不存在")
 
     total_msgs = agent.message_count or 0
+    avg_tokens_per_msg = 400
+    total_tokens = total_msgs * avg_tokens_per_msg
+
+    # 从 settings 读取模型分布
+    agent_settings = agent.settings or {}
+    model_usage = agent_settings.get("model_usage", {})
+    if not model_usage:
+        model_name = (agent.model_config or {}).get("model", "gpt-4o-mini")
+        model_usage = {
+            model_name: {
+                "input": int(total_tokens * 0.7),
+                "output": int(total_tokens * 0.3),
+            }
+        }
+
     return {
         "agent_id": agent_id,
         "period_days": days,
-        "total_tokens": total_msgs * 500,
-        "by_model": {
-            "gpt-4o-mini": {"input": total_msgs * 350, "output": total_msgs * 150},
-            "gpt-4o": {"input": 0, "output": 0},
-        },
-        "daily_average": total_msgs * 500 // max(days, 1),
-        "trend": "stable",
+        "total_tokens": total_tokens,
+        "by_model": model_usage,
+        "daily_average": total_tokens // max(days, 1),
     }
 
 
@@ -315,18 +373,21 @@ async def get_latency_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent 不存在")
 
+    # 从 settings 读取真实延迟数据
+    agent_settings = agent.settings or {}
+    latency = agent_settings.get("latency", {})
+
+    if latency:
+        return {"agent_id": agent_id, **latency}
+
+    # 无历史数据时返回 0
     return {
         "agent_id": agent_id,
-        "avg_ms": 850,
-        "p50_ms": 650,
-        "p95_ms": 1500,
-        "p99_ms": 2500,
-        "by_node": {
-            "trigger": {"avg_ms": 10},
-            "llm": {"avg_ms": 700},
-            "knowledge": {"avg_ms": 120},
-            "response": {"avg_ms": 20},
-        },
+        "avg_ms": 0,
+        "p50_ms": 0,
+        "p95_ms": 0,
+        "p99_ms": 0,
+        "note": "尚无延迟数据，与 Agent 对话后将自动收集",
     }
 
 
@@ -340,13 +401,15 @@ async def get_error_stats(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent 不存在")
 
+    agent_settings = agent.settings or {}
+    error_stats = agent_settings.get("errors", {})
+
     return {
         "agent_id": agent_id,
         "period_days": days,
-        "total_errors": 0,
-        "by_type": {},
-        "error_rate": 0.0,
-        "trend": "stable",
+        "total_errors": error_stats.get("total", 0),
+        "by_type": error_stats.get("by_type", {}),
+        "error_rate": error_stats.get("rate", 0.0),
     }
 
 

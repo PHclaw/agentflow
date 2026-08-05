@@ -1,8 +1,9 @@
 """健康检查和指标监控"""
 from fastapi import APIRouter, Depends
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from pydantic import BaseModel
+from sqlalchemy import text
 import psutil
 import time
 
@@ -130,9 +131,10 @@ async def health_check():
     
     # 检查数据库
     try:
-        from app.core.database import engine
+        from app.core.database import get_engine
+        engine = get_engine()
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         components["database"] = {"status": "healthy", "latency_ms": 0}
     except Exception as e:
         components["database"] = {"status": "unhealthy", "error": str(e)}
@@ -170,10 +172,10 @@ async def liveness_check():
 async def readiness_check():
     """就绪检查 - K8s readiness probe"""
     try:
-        # 检查所有依赖是否就绪
-        from app.core.database import engine
+        from app.core.database import get_engine
+        engine = get_engine()
         async with engine.connect() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         return {"status": "not_ready", "error": str(e)}

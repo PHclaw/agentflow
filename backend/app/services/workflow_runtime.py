@@ -164,9 +164,9 @@ class LLMNode(BaseNode):
             else:
                 messages.append({"role": "user", "content": input_text})
             
-            # 调用 LLM
-            llm = LLMService()
-            response = await llm.chat(messages, temperature=temperature, model=model)
+            # 调用 LLM - 传入 model 到构造函数
+            llm = LLMService(model=model) if model != "gpt-4o-mini" else LLMService()
+            response = await llm.chat(messages, temperature=temperature)
             
             # 设置输出
             self.set_output(state, "response", response)
@@ -425,17 +425,25 @@ class ToolNode(BaseNode):
             return f"计算错误: {str(e)}"
     
     async def _tool_search(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
-        """搜索工具"""
+        """搜索工具 - 结构化 mock 数据"""
         query = params.get("query", input_data)
-        engine = params.get("engine", "duckduckgo")
-        
-        # 实际项目中这里会调用真实搜索 API
-        return f"搜索结果 for '{query}': 暂无结果（需要配置搜索 API）"
-    
+        return json.dumps({
+            "mock": True,
+            "query": query,
+            "results": [],
+            "message": "搜索 API 未配置，请设置 SEARCH_API_KEY 环境变量以启用真实搜索",
+        }, ensure_ascii=False)
+
     async def _tool_weather(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
-        """天气查询工具"""
+        """天气查询工具 - 结构化 mock 数据"""
         city = params.get("city", input_data)
-        return f"{city} 天气：晴，温度 25°C（需要配置天气 API）"
+        return json.dumps({
+            "mock": True,
+            "city": city,
+            "weather": "unknown",
+            "temperature": None,
+            "message": "天气 API 未配置，请设置 WEATHER_API_KEY 环境变量以启用真实天气查询",
+        }, ensure_ascii=False)
     
     async def _tool_formatter(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
         """格式化工具"""
