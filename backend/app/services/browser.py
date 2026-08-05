@@ -2,9 +2,6 @@
 Browser-Use 工具 - 浏览器自动化控制
 集成 browser-use 实现 AI 控制浏览器
 """
-import os
-import json
-import asyncio
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 

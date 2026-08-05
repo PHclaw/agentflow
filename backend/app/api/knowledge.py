@@ -6,15 +6,15 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-import os
 import uuid
+import json
 import aiofiles
 from pathlib import Path
 
 from ..core.config import settings
 from ..core.database import get_db
 from ..models.agent import KnowledgeBase
-from ..models.document import Document, DocumentChunk
+from ..models.document import Document
 from ..services.knowledge import KnowledgeService
 
 router = APIRouter(prefix="/api/v1/knowledge", tags=["知识库"])
@@ -208,7 +208,7 @@ async def extract_text(content: bytes, file_type: str, filename: str) -> str:
                     text_parts.append(text)
             
             return "\n\n".join(text_parts)
-        except Exception as e:
+        except Exception:
             # 回退到简单文本
             return content.decode("utf-8", errors="ignore")
     
@@ -222,7 +222,7 @@ async def extract_text(content: bytes, file_type: str, filename: str) -> str:
             paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
             
             return "\n\n".join(paragraphs)
-        except Exception as e:
+        except Exception:
             return content.decode("utf-8", errors="ignore")
     
     return content.decode("utf-8", errors="ignore")

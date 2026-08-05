@@ -114,6 +114,7 @@ export default function AgentCreatePage() {
         description: agent.description || '',
         model: agent.model_config?.model || 'gpt-4o-mini',
         prompt: '',
+        knowledgeBaseId: agent.knowledge_base_id || '',
       })
     } catch (error) {
       addToast({ type: 'error', message: '加载 Agent 失败' })

@@ -1,5 +1,5 @@
 """用户模型"""
-from sqlalchemy import Column, String, DateTime, Boolean, JSON, Integer, ForeignKey
+from sqlalchemy import Column, String, DateTime, Boolean, Integer
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 import uuid

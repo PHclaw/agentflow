@@ -1,15 +1,12 @@
 """
 知识库服务 - LangChain RAG 实现
 """
-from typing import List, Optional, Dict, Any, AsyncIterator
+from typing import List, Dict, Any, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete, text
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, delete
 import json
-import os
 import uuid
-import io
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..models.agent import KnowledgeBase
@@ -23,15 +20,8 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_community.document_loaders import (
-    TextLoader,
-    UnstructuredWordDocumentLoader,
-    UnstructuredHTMLLoader,
-    UnstructuredMarkdownLoader,
-)
-from langchain_community.document_loaders.pdf import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownTextSplitter
-from langchain_community.vectorstores import Chroma, FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
 
 # 向量存储缓存
 _vector_stores: Dict[str, Any] = {}

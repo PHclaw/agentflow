@@ -1,10 +1,9 @@
 """
 LLM 服务 - 统一接口
 """
-from typing import Optional, AsyncIterator, Callable
+from typing import AsyncIterator, Callable
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
-import httpx
 import asyncio
 
 from ..core.config import settings

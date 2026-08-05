@@ -3,9 +3,7 @@ AgentFlow 整合 agent-tool-registry 和 agent-memory-store
 
 Phase 3: 工具注册 + 记忆管理
 """
-from typing import Dict, Any, List, Optional, Callable
-from abc import ABC, abstractmethod
-import json
+from typing import Dict, Any, List, Callable
 import asyncio
 
 # agent-tool-registry 整合

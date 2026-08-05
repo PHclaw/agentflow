@@ -1,11 +1,8 @@
 """WebSocket 支持 - 实时通信"""
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, List
 import json
-import asyncio
 from datetime import datetime
-
-from ..services.websocket_chat import manager, handle_streaming_chat
 
 router = APIRouter()
 
@@ -61,7 +58,7 @@ class ConnectionManager:
             for ws in self.user_connections[user_id]:
                 try:
                     await ws.send_json(message)
-                except:
+                except Exception:
                     disconnected.append(ws)
             # 清理断开的连接
             for ws in disconnected:
@@ -74,7 +71,7 @@ class ConnectionManager:
             for ws in self.agent_connections[agent_id]:
                 try:
                     await ws.send_json(message)
-                except:
+                except Exception:
                     disconnected.append(ws)
             for ws in disconnected:
                 self.disconnect(ws, agent_id=agent_id)
@@ -86,7 +83,7 @@ class ConnectionManager:
             for ws in self.channels[channel]:
                 try:
                     await ws.send_json(message)
-                except:
+                except Exception:
                     disconnected.append(ws)
             for ws in disconnected:
                 self.disconnect(ws, channel=channel)
@@ -102,7 +99,7 @@ class ConnectionManager:
             for ws in connections:
                 try:
                     await ws.send_json(message)
-                except:
+                except Exception:
                     pass
 
 

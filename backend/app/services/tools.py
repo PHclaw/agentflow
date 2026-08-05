@@ -4,7 +4,6 @@
 from typing import Callable, Dict, Any, List
 from pydantic import BaseModel
 import httpx
-import json
 
 
 class ToolDefinition(BaseModel):

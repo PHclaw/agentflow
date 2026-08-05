@@ -2,17 +2,15 @@
 工作流运行时 - 节点数据传递与执行
 基于 LangGraph 实现工作流节点的数据流动
 """
-from typing import Dict, List, Any, Optional, Callable, AsyncIterator
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-import asyncio
 import json
 import uuid
 from datetime import datetime
 
 from .llm import LLMService
 from .knowledge import KnowledgeService
-from ..core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -319,12 +317,12 @@ class ConditionNode(BaseNode):
         elif condition_type == "greater_than":
             try:
                 return float(value) > float(condition_value)
-            except:
+            except Exception:
                 return False
         elif condition_type == "less_than":
             try:
                 return float(value) < float(condition_value)
-            except:
+            except Exception:
                 return False
         elif condition_type == "is_empty":
             return not value or str(value).strip() == ""
@@ -411,7 +409,7 @@ class ToolNode(BaseNode):
     
     async def _tool_calculator(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
         """计算器工具"""
-        operation = params.get("operation", "calculate")
+        operation = params.get("operation", "calculate")  # noqa: F841
         expression = params.get("expression", input_data)
         
         try:

@@ -2,10 +2,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-import json
 
 from app.models.agent import Agent, ChatSession, KnowledgeBase, WorkflowTemplate
 from app.core.logging import get_logger
@@ -419,7 +418,7 @@ async def get_error_stats(
 async def get_popular_templates(db: AsyncSession = Depends(get_db)):
     """获取热门模板"""
     stmt = select(WorkflowTemplate).where(
-        WorkflowTemplate.is_public == True
+        WorkflowTemplate.is_public
     ).order_by(WorkflowTemplate.use_count.desc()).limit(8)
     result = await db.execute(stmt)
     templates = result.scalars().all()
@@ -445,7 +444,7 @@ async def get_template_categories(db: AsyncSession = Depends(get_db)):
     stmt = select(
         WorkflowTemplate.category,
         func.count(WorkflowTemplate.id).label("count"),
-    ).where(WorkflowTemplate.is_public == True).group_by(
+    ).where(WorkflowTemplate.is_public).group_by(
         WorkflowTemplate.category
     )
     result = await db.execute(stmt)
@@ -531,7 +530,7 @@ async def get_dashboard_summary(
     # 活跃 Agent 数
     active_count = await db.scalar(
         select(func.count(Agent.id)).where(
-            Agent.user_id == user_id, Agent.is_active == True
+            Agent.user_id == user_id, Agent.is_active
         )
     )
 

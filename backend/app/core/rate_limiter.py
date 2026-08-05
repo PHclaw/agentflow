@@ -2,7 +2,7 @@
 速率限制中间件
 基于 Redis 实现滑动窗口限流
 """
-from fastapi import Request, HTTPException
+from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from typing import Optional, Dict

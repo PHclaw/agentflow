@@ -1,7 +1,7 @@
 """日志系统 - 结构化日志记录"""
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pathlib import Path
 import json

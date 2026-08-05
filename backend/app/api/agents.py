@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 
 from ..core.database import get_db
-from ..models.agent import Agent, ChatSession
+from ..models.agent import Agent
 from .auth import get_current_user_id
 
 router = APIRouter()
