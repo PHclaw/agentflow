@@ -19,6 +19,8 @@ import {
   Plus,
   Trash2,
   Play,
+  BookOpen,
+  Check,
 } from 'lucide-react'
 
 interface ModelOption {
@@ -50,8 +52,11 @@ export default function AgentCreatePage() {
     description: '',
     model: 'gpt-4o-mini',
     prompt: '',
+    knowledgeBaseId: '',
   })
+  const [knowledgeBases, setKnowledgeBases] = useState<Array<{id: string, name: string, description: string, document_count: number}>>([])
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [showKBSelector, setShowKBSelector] = useState(false)
 
   // 加载模型列表
   useEffect(() => {
@@ -79,6 +84,20 @@ export default function AgentCreatePage() {
       }
     }
     fetchModels()
+  }, [])
+
+  // 加载知识库列表
+  useEffect(() => {
+    const fetchKBs = async () => {
+      try {
+        const data = await api.get('/knowledge')
+        const kbs = data?.knowledge_bases || (Array.isArray(data) ? data : [])
+        setKnowledgeBases(kbs)
+      } catch {
+        // ignore
+      }
+    }
+    fetchKBs()
   }, [])
 
   useEffect(() => {
@@ -123,6 +142,7 @@ export default function AgentCreatePage() {
           temperature: 0.7,
           max_tokens: 2000,
         },
+        knowledge_base_id: formData.knowledgeBaseId || undefined,
       }
 
       if (isEditing && id) {
@@ -289,18 +309,74 @@ export default function AgentCreatePage() {
                     variant="outline"
                     size="sm"
                     leftIcon={<Plus className="w-4 h-4" />}
+                    onClick={() => setShowKBSelector(!showKBSelector)}
                   >
-                    添加知识库
+                    {showKBSelector ? '收起' : '选择知识库'}
                   </Button>
                 </div>
 
-                <div className="h-48 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center">
-                  <div className="text-center">
-                    <Bot className="w-12 h-12 mx-auto text-slate-300 mb-4" />
-                    <p className="text-slate-500">尚未关联知识库</p>
-                    <p className="text-sm text-slate-400">添加知识库后，Agent 可以基于知识回答问题</p>
+                {/* 当前关联的知识库 */}
+                {formData.knowledgeBaseId ? (
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                    <BookOpen className="w-6 h-6 text-emerald-500" />
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900 dark:text-white">
+                        {knowledgeBases.find(kb => kb.id === formData.knowledgeBaseId)?.name || '已关联知识库'}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {knowledgeBases.find(kb => kb.id === formData.knowledgeBaseId)?.document_count || 0} 个文档
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Trash2 className="w-4 h-4" />}
+                      onClick={() => setFormData({ ...formData, knowledgeBaseId: '' })}
+                    >
+                      移除
+                    </Button>
                   </div>
-                </div>
+                ) : (
+                  <div className="h-24 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center">
+                    <div className="text-center">
+                      <Bot className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      <p className="text-sm text-slate-500">尚未关联知识库</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 知识库选择列表 */}
+                {showKBSelector && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {knowledgeBases.length === 0 ? (
+                      <p className="text-sm text-slate-500 text-center py-4">暂无知识库，请先在知识库页面创建</p>
+                    ) : (
+                      knowledgeBases.map(kb => (
+                        <button
+                          key={kb.id}
+                          onClick={() => {
+                            setFormData({ ...formData, knowledgeBaseId: kb.id })
+                            setShowKBSelector(false)
+                          }}
+                          className={`w-full p-3 rounded-xl text-left transition-colors ${
+                            formData.knowledgeBaseId === kb.id
+                              ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <BookOpen className="w-5 h-5 text-slate-500" />
+                            <div className="flex-1">
+                              <p className="font-medium text-slate-900 dark:text-white">{kb.name}</p>
+                              <p className="text-xs text-slate-500">{kb.document_count} 个文档</p>
+                            </div>
+                            {formData.knowledgeBaseId === kb.id && <Check className="w-5 h-5 text-indigo-500" />}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </TabPanel>
           </Card>

@@ -15,8 +15,11 @@ import {
   Sparkles,
   BookOpen,
   Zap,
+  Check,
+  X,
 } from 'lucide-react'
 import { api } from '../services/api'
+import { chat as chatApi } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -50,6 +53,12 @@ export default function ChatPage() {
   const [streamingContent, setStreamingContent] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, string>>({})
+  const [settings, setSettings] = useState({
+    model: 'gpt-4o-mini',
+    temperature: 0.7,
+    systemPrompt: '',
+  })
 
   useEffect(() => {
     loadAgent()
@@ -89,6 +98,42 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const copyMessage = (content: string) => {
+    navigator.clipboard.writeText(content)
+  }
+
+  const handleFeedback = async (messageId: string, rating: string) => {
+    try {
+      await chatApi.feedback(id!, messageId, rating)
+      setFeedbackGiven(prev => ({ ...prev, [messageId]: rating }))
+    } catch (error) {
+      console.error('Feedback error:', error)
+    }
+  }
+
+  const handleRegenerate = async () => {
+    // 找到最后一条用户消息并重新发送
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')
+    if (!lastUserMsg || isLoading) return
+
+    // 删除最后一条 assistant 消息
+    setMessages(prev => {
+      const idx = prev.map(m => m.id).lastIndexOf(lastUserMsg.id)
+      return prev.slice(0, idx + 1)
+    })
+
+    // 重新发送
+    setInputMessage(lastUserMsg.content)
+    setTimeout(() => handleSend(), 100)
+  }
+
   const handleSend = async () => {
     if (!inputMessage.trim() || isLoading) return
 
@@ -100,6 +145,7 @@ export default function ChatPage() {
     }
 
     setMessages((prev) => [...prev, userMessage])
+    const currentInput = inputMessage
     setInputMessage('')
     setIsLoading(true)
     setStreamingContent('')
@@ -107,10 +153,13 @@ export default function ChatPage() {
     try {
       const response = await fetch(`/api/v1/chat/${id}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {}),
+        },
         body: JSON.stringify({
-          message: inputMessage,
-          conversation_id: conversationId,
+          message: currentInput,
+          session_id: conversationId,
           stream: true,
         }),
       })
@@ -131,9 +180,14 @@ export default function ChatPage() {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6))
-                if (data.content) {
+                if (data.type === 'session' && data.session_id) {
+                  setConversationId(data.session_id)
+                } else if (data.type === 'chunk' && data.content) {
                   fullContent += data.content
                   setStreamingContent(fullContent)
+                } else if (data.type === 'done') {
+                  fullContent = data.content || fullContent
+                  if (data.session_id) setConversationId(data.session_id)
                 }
               } catch {}
             }
@@ -141,7 +195,6 @@ export default function ChatPage() {
         }
       }
 
-      // 添加完整回复
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
@@ -163,17 +216,6 @@ export default function ChatPage() {
       setIsLoading(false)
       setStreamingContent('')
     }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }
-
-  const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content)
   }
 
   return (
@@ -218,6 +260,57 @@ export default function ChatPage() {
 
       {/* Messages */}
       <main className="flex-1 overflow-y-auto">
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-900 dark:text-white">对话设置</h3>
+                <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                  <X className="w-4 h-4 text-slate-500" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">模型</label>
+                  <select
+                    value={settings.model}
+                    onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
+                  >
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="deepseek-chat">DeepSeek V3</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">温度: {settings.temperature}</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={settings.temperature}
+                    onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">系统提示词</label>
+                  <input
+                    type="text"
+                    value={settings.systemPrompt}
+                    onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
+                    placeholder="自定义系统提示词..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-16">
@@ -300,18 +393,39 @@ export default function ChatPage() {
                     <button
                       onClick={() => copyMessage(message.content)}
                       className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      title="复制"
                     >
                       <Copy className="w-4 h-4" />
                     </button>
                     {message.role === 'assistant' && (
                       <>
-                        <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <button
+                          onClick={() => handleFeedback(message.id, 'up')}
+                          className={`p-1.5 rounded-lg ${
+                            feedbackGiven[message.id] === 'up'
+                              ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                              : 'text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                          title="赞同"
+                        >
                           <ThumbsUp className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <button
+                          onClick={() => handleFeedback(message.id, 'down')}
+                          className={`p-1.5 rounded-lg ${
+                            feedbackGiven[message.id] === 'down'
+                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                              : 'text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                          title="反对"
+                        >
                           <ThumbsDown className="w-4 h-4" />
                         </button>
-                        <button className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <button
+                          onClick={handleRegenerate}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          title="重新生成"
+                        >
                           <RefreshCw className="w-4 h-4" />
                         </button>
                       </>

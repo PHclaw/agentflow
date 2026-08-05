@@ -7,11 +7,12 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, AsyncIterator
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+import asyncio
 
 from ..core.database import get_db
 from ..services.workflow_runtime import workflow_runtime, NodeStatus
 
-router = APIRouter(prefix="/api/v1/workflow", tags=["工作流"])
+router = APIRouter()
 
 
 class WorkflowExecutionRequest(BaseModel):
@@ -233,7 +234,3 @@ async def get_execution_order(
         
     except Exception as e:
         raise HTTPException(400, f"解析失败: {str(e)}")
-
-
-# 添加 asyncio 导入
-import asyncio

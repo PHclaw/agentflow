@@ -39,18 +39,28 @@ class SearchRequest(BaseModel):
 @router.get("")
 async def list_knowledge_bases(db: AsyncSession = Depends(get_db)):
     """列出所有知识库"""
-    from sqlalchemy import select
+    from sqlalchemy import select, func
     stmt = select(KnowledgeBase).order_by(KnowledgeBase.created_at.desc())
     result = await db.execute(stmt)
     kbs = result.scalars().all()
-    
-    return [{
-        "id": kb.id,
-        "name": kb.name,
-        "description": kb.description,
-        "document_count": len(kb.documents) if hasattr(kb, 'documents') else 0,
-        "created_at": kb.created_at.isoformat() if kb.created_at else None,
-    } for kb in kbs]
+
+    # 统计每个知识库的文档数量
+    kb_list = []
+    for kb in kbs:
+        doc_count = await db.scalar(
+            select(func.count(Document.id)).where(Document.kb_id == kb.id)
+        ) or 0
+        kb_list.append({
+            "id": kb.id,
+            "name": kb.name,
+            "description": kb.description,
+            "document_count": doc_count,
+            "status": "ready" if doc_count > 0 else "indexing",
+            "created_at": kb.created_at.isoformat() if kb.created_at else None,
+            "updated_at": kb.updated_at.isoformat() if kb.updated_at else None,
+        })
+
+    return {"knowledge_bases": kb_list}
 
 
 @router.post("")
@@ -390,30 +400,38 @@ async def get_kb_stats(
     return stats
 
 
+class RerankRequest(BaseModel):
+    query: str
+    results: List[dict] = []
+    top_n: int = 5
+
+
 @router.post("/rerank")
 async def rerank_results(
-    query: str,
-    results: List[dict],
-    top_n: int = 5,
+    data: RerankRequest,
 ):
     """对搜索结果进行重排序"""
-    from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-    
+    if not data.results:
+        return {"results": []}
+
     try:
+        from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+
         model = HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-base")
-        
-        contents = [r.get("content", "") for r in results]
-        scores = model.predict([(query, c) for c in contents])
-        
+
+        contents = [r.get("content", "") for r in data.results]
+        scores = model.predict([(data.query, c) for c in contents])
+
         # 排序
-        ranked = list(zip(results, scores))
+        ranked = list(zip(data.results, scores))
         ranked.sort(key=lambda x: x[1], reverse=True)
-        
+
         return {
             "results": [
                 {**r, "rerank_score": float(s)}
-                for r, s in ranked[:top_n]
+                for r, s in ranked[:data.top_n]
             ]
         }
     except Exception as e:
-        return {"error": str(e), "results": results}
+        # 降级：按原始顺序返回
+        return {"results": data.results[:data.top_n], "fallback": True, "error": str(e)}

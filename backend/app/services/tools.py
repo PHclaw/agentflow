@@ -133,13 +133,13 @@ class ToolService:
             return {"error": str(e)}
     
     async def _search(self, query: str) -> dict:
-        """搜索"""
-        # 简化实现，实际应调用搜索 API
+        """搜索 - 结构化 mock 数据"""
         return {
+            "mock": True,
             "query": query,
-            "results": [
-                {"title": "搜索结果示例", "snippet": "这是搜索结果的内容..."}
-            ]
+            "results": [],
+            "total": 0,
+            "message": "搜索 API 未配置。请设置 SEARCH_API_KEY 以启用真实搜索。",
         }
     
     async def _calculate(self, expression: str) -> dict:
@@ -188,12 +188,14 @@ class ToolService:
             return {"error": str(e)}
     
     async def _get_weather(self, city: str) -> dict:
-        """获取天气"""
-        # 简化实现
+        """获取天气 - 结构化 mock 数据"""
         return {
+            "mock": True,
             "city": city,
-            "weather": "晴",
-            "temperature": "25°C",
+            "weather": None,
+            "temperature": None,
+            "humidity": None,
+            "message": "天气 API 未配置。请设置 WEATHER_API_KEY 以启用真实天气查询。",
         }
     
     async def _http_request(

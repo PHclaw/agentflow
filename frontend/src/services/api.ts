@@ -145,6 +145,31 @@ export const agents = {
   chat: (id: string, message: string, sessionId?: string) => {
     return api.post(`/chat/${id}`, { message, session_id: sessionId })
   },
+  stats: (id: string) => {
+    return api.get(`/agents/${id}/stats`)
+  },
+  duplicate: (id: string, name: string, description?: string) => {
+    return api.post(`/agents/${id}/duplicate`, { name, description })
+  },
+}
+
+export const chat = {
+  send: (agentId: string, message: string, sessionId?: string, stream?: boolean) => {
+    return api.post(`/chat/${agentId}`, { message, session_id: sessionId, stream })
+  },
+  history: (agentId: string, sessionId?: string) => {
+    const query = sessionId ? `?session_id=${sessionId}` : ''
+    return api.get(`/chat/${agentId}/history${query}`)
+  },
+  sessions: (agentId: string) => {
+    return api.get(`/chat/${agentId}/sessions`)
+  },
+  feedback: (agentId: string, messageId: string, rating: string, comment?: string) => {
+    return api.post(`/chat/${agentId}/feedback`, { message_id: messageId, rating, comment })
+  },
+  withTools: (agentId: string, message: string, sessionId?: string) => {
+    return api.post(`/chat/${agentId}/with-tools`, { message, session_id: sessionId })
+  },
 }
 
 export const knowledge = {

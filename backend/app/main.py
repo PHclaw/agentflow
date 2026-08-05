@@ -71,22 +71,33 @@ app.add_middleware(
 async def log_requests(request: Request, call_next):
     """记录所有请求"""
     start_time = time.time()
-    
+
     # 处理请求
     response = await call_next(request)
-    
+
     # 计算耗时
     duration_ms = (time.time() - start_time) * 1000
-    
+
     # 记录日志
     logger.info(
         f"{request.method} {request.url.path} - {response.status_code} - {duration_ms:.2f}ms"
     )
-    
+
+    # 记录到 metrics collector
+    try:
+        from app.core.monitoring import metrics_collector
+        metrics_collector.record_request(
+            endpoint=request.url.path,
+            duration_ms=duration_ms,
+            status_code=response.status_code
+        )
+    except Exception:
+        pass
+
     # 添加响应头
     response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
     response.headers["X-Service"] = "AgentFlow"
-    
+
     return response
 
 
@@ -98,8 +109,8 @@ app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agent"])
 app.include_router(templates.router, prefix="/api/v1/templates", tags=["模板"])
 app.include_router(knowledge_api_router, tags=["知识库"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
-app.include_router(billing.router, tags=["支付"])
-app.include_router(workflow_router, tags=["工作流"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
+app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
 
 # WebSocket 路由
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])

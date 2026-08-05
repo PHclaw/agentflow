@@ -179,42 +179,78 @@ class IntegratedAgentRuntime:
     ) -> str:
         """
         带工具调用的对话（整合版）
-        
-        使用 agent-tool-registry 管理工具
+
+        使用 OpenAI function calling 格式
         """
         await self._load_or_create_session(session_id)
-        
+
         # 获取工具 schema
         tools = tool_manager.get_tool_schemas()
-        
+
         # 获取历史
         history = await self.memory.get_history() if self.memory else []
         history.append({"role": "user", "content": message})
-        
-        # 调用 LLM（带工具）
-        # TODO: 实现 function calling
+
+        # 调用 LLM（带工具定义）
+        if self.llm.provider == "openai" and tools:
+            try:
+                client = self.llm._get_client()
+                response = await client.chat.completions.create(
+                    model=self.llm.model,
+                    messages=history,
+                    tools=tools,
+                    tool_choice="auto",
+                )
+                msg = response.choices[0].message
+
+                # 检查是否有工具调用
+                if msg.tool_calls:
+                    tool_call = msg.tool_calls[0]
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+
+                    # 执行工具
+                    tool_result = await tool_manager.execute(
+                        tool_name=tool_name,
+                        **tool_args,
+                    )
+
+                    # 将工具结果发回 LLM
+                    history.append({"role": "assistant", "content": None, "tool_calls": [{
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": tool_call.function.arguments}
+                    }]})
+                    history.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(tool_result, ensure_ascii=False),
+                    })
+
+                    final = await self.llm.chat(messages=history)
+                    return final
+            except Exception:
+                pass  # 降级到普通对话
+
+        # 降级：普通对话 + 正则解析工具调用
         response = await self.llm.chat(messages=history)
-        
-        # 解析工具调用
         parsed = output_parser.parse(response, format="tool_call")
-        
+
         if parsed and parsed.get("tool"):
-            # 执行工具
             tool_result = await tool_manager.execute(
                 tool_name=parsed["tool"],
-                **parsed.get("input", {})
+                **parsed.get("input", {}),
             )
-            
-            # 再次调用 LLM
+
             history.append({"role": "assistant", "content": response})
             history.append({
                 "role": "user",
-                "content": f"工具结果：{json.dumps(tool_result, ensure_ascii=False)}"
+                "content": f"工具结果：{json.dumps(tool_result, ensure_ascii=False)}",
             })
-            
+
             final_response = await self.llm.chat(messages=history)
             return final_response
-        
+
         return response
     
     async def multi_agent_chat(
@@ -224,46 +260,58 @@ class IntegratedAgentRuntime:
         session_id: Optional[str] = None,
     ) -> Dict[str, str]:
         """
-        多 Agent 协作（整合 agent-orchestrator）
-        
-        让多个 Agent 协作完成任务
+        多 Agent 协作（Pipeline 编排）
+
+        Agent A 的输出作为 Agent B 的输入，最终合并结果。
+        如果 agent-orchestrator 可用则使用真正的编排器。
         """
         try:
             from agent_orchestrator import Workflow, AgentWrapper, Context
-            
+
             # 创建 Agent 包装器
             agents = []
             for aid in agent_ids:
                 runtime = IntegratedAgentRuntime(aid, self.db, self.user_id)
                 await runtime.initialize()
-                
+
                 wrapper = AgentWrapper(
                     name=aid,
                     handler=lambda msg, r=runtime: r.chat(msg)
                 )
                 agents.append(wrapper)
-            
+
             # 创建工作流
             workflow = Workflow()
             workflow.sequential(agents)
-            
+
             # 执行
             context = Context()
             context.set_state("input", message)
-            
+
             result = await workflow.run(context)
-            
+
             return {"result": result.get_state("output", "")}
-            
+
         except ImportError:
-            # 回退：顺序执行
+            # 回退：Pipeline 编排（A → B → C，每个看到前面的结果）
             results = {}
+            accumulated_context = message
+
             for aid in agent_ids:
                 runtime = IntegratedAgentRuntime(aid, self.db, self.user_id)
                 await runtime.initialize()
-                results[aid] = await runtime.chat(message, session_id)
-            
-            return results
+
+                # 将之前的上下文传给下一个 Agent
+                prompt = f"原始请求：{message}\n\n前序 Agent 的处理结果：{accumulated_context}\n\n请基于以上信息继续处理："
+                response = await runtime.chat(prompt, session_id)
+
+                results[aid] = response
+                accumulated_context += f"\n\n---\n[{aid} 的回答]: {response}"
+
+            return {
+                "pipeline_result": accumulated_context,
+                "individual_results": results,
+            }
     
     async def _load_or_create_session(self, session_id: Optional[str]):
         """加载或创建会话"""
