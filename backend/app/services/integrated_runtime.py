@@ -7,7 +7,6 @@ from typing import Optional, List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import json
-import logging
 
 from ..models.agent import Agent, ChatSession
 from ..integrations import config, tracer
@@ -66,11 +65,10 @@ class IntegratedAgentRuntime:
         
         # 初始化记忆管理（只初始化一次）
         if not self.memory:
-            memory_manager = MemoryManager(
+            _memory_manager = MemoryManager(
                 backend=config.get("MEMORY_BACKEND", "in_memory"),
                 config={"redis_url": config.redis_url}
             )
-            # 先创建会话，再初始化记忆
             # memory 会在 chat() 中初始化
         
         # 初始化知识库

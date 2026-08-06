@@ -41,7 +41,7 @@ def cleanup_expired_sessions():
 
     async def _cleanup():
         from app.core.database import get_async_session_factory
-        from sqlalchemy import delete, select
+        from sqlalchemy import delete
         from app.models.agent import ChatSession
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=30)

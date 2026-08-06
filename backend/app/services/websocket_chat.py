@@ -2,13 +2,10 @@
 WebSocket 实时对话服务
 支持流式响应和实时更新
 """
-import asyncio
-import json
-from typing import Dict, List, Optional
-from fastapi import WebSocket, WebSocketDisconnect, Depends
+from typing import Dict, List
+from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.database import get_db
 from ..services.llm import LLMService
 
 

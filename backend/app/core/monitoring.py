@@ -1,7 +1,7 @@
 """健康检查和指标监控"""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List
 from pydantic import BaseModel
 from sqlalchemy import text
 import psutil

@@ -40,7 +40,7 @@ async def list_models():
 async def list_templates(db: AsyncSession = Depends(get_db)):
     """获取公开模板列表"""
     result = await db.execute(
-        select(WorkflowTemplate).where(WorkflowTemplate.is_public == True)
+        select(WorkflowTemplate).where(WorkflowTemplate.is_public)
     )
     templates = result.scalars().all()
     return [
@@ -64,7 +64,7 @@ async def get_template(template_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(WorkflowTemplate).where(
             WorkflowTemplate.id == template_id,
-            WorkflowTemplate.is_public == True,
+            WorkflowTemplate.is_public,
         )
     )
     template = result.scalar_one_or_none()

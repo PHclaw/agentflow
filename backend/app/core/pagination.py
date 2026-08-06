@@ -1,7 +1,7 @@
 """
 分页工具
 """
-from typing import List, Optional, TypeVar, Generic
+from typing import List, TypeVar, Generic
 from pydantic import BaseModel
 
 

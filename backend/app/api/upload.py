@@ -3,7 +3,6 @@
 """
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-import os
 import uuid
 from pathlib import Path
 

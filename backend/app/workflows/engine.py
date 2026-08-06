@@ -1,10 +1,9 @@
 """
 工作流引擎 - 基于 LangGraph
 """
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-import json
 
 
 class WorkflowState(TypedDict):

@@ -4,7 +4,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional, AsyncIterator
+from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
 import asyncio
