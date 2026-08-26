@@ -349,9 +349,13 @@ export default function WorkflowPage() {
     setNodeExecutionStates(newStates)
 
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch('/api/v1/workflow/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           workflow_definition: {
             nodes: nodes.map(n => ({ id: n.id, type: n.type, data: n.data })),

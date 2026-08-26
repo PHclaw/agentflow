@@ -59,11 +59,13 @@ export default function SkillChatPage() {
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const [sessionId, setSessionId] = useState<string | undefined>()
   const [downloads, setDownloads] = useState<string[]>([])
 
   useEffect(() => {
     if (!id) return
+    setLoadError('')
     skillsApi
       .get(id)
       .then((data) =>
@@ -74,7 +76,13 @@ export default function SkillChatPage() {
           specialty: data.specialty,
         })
       )
-      .catch(() => navigate('/skills'))
+      .catch((e: { message?: string }) => {
+        const msg = e?.message || '加载 Skill 失败'
+        setLoadError(msg)
+        if (msg.includes('登录') || msg.includes('401') || msg.includes('未登录')) {
+          setTimeout(() => navigate('/login'), 1500)
+        }
+      })
   }, [id, navigate])
 
   useEffect(() => {
@@ -148,6 +156,14 @@ export default function SkillChatPage() {
         </div>
       </header>
 
+      {loadError && (
+        <div className="px-4 pt-4 max-w-4xl mx-auto w-full">
+          <Card className="p-4 border-red-200 bg-red-50 text-red-700 text-sm">
+            {loadError}
+          </Card>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-4">
         {skill?.description && messages.length === 0 && (
           <Card className="p-4 text-sm text-slate-600 whitespace-pre-line">
@@ -193,20 +209,22 @@ export default function SkillChatPage() {
 
       {downloads.length > 0 && (
         <div className="px-4 pb-2 max-w-4xl mx-auto w-full">
-          <Card className="p-3 flex flex-wrap gap-2 items-center">
-            <span className="text-sm text-slate-600 mr-2">生成文件：</span>
+          <Card className="p-4 border-indigo-200 bg-indigo-50/50">
+            <p className="text-sm font-medium text-slate-700 mb-2">生成文件</p>
+            <div className="flex flex-wrap gap-2">
             {downloads.map((url) => (
               <a
                 key={url}
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline"
+                className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors"
               >
                 <Download className="w-4 h-4" />
-                {url.split('/').pop()}
+                {url.split('/').pop() || '下载'}
               </a>
             ))}
+            </div>
           </Card>
         </div>
       )}

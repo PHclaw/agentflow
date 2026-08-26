@@ -1,8 +1,9 @@
 """
 核心配置
 """
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import Any, List
 from functools import lru_cache
 
 
@@ -29,12 +30,29 @@ class Settings(BaseSettings):
     ANTHROPIC_MODEL: str = "claude-3-haiku"
     DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com"
+
+    # Skill 运行时（Model Lab 兼容）
+    DASHSCOPE_API_KEY: str = ""
+    MODEL_BASE_URL: str = ""
+    CHATZOC_API_KEY: str = ""
+    CHATZOC_BASE_URL: str = ""
+    CHATZOC_AGENT_TYPE: str = "chatzoc_9b_B"
+    DEFAULT_MODEL: str = ""
+    OPTIMIZE_MODEL: str = ""
+    SEMANTIC_SCHOLAR_API_KEY: str = ""
     
     # Embedding
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
-    # CORS
+    # CORS（支持逗号分隔字符串，便于 docker-compose 注入）
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(",") if x.strip()]
+        return v
     
     # 文件存储
     UPLOAD_DIR: str = "./uploads"

@@ -86,7 +86,27 @@ export default function KnowledgePage() {
   const loadDocuments = async (kbId: string) => {
     try {
       const data = await api.get(`/knowledge/${kbId}/documents`)
-      setDocuments(Array.isArray(data?.documents) ? data.documents : [])
+      const raw = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.documents)
+          ? data.documents
+          : []
+      setDocuments(
+        raw.map((d: Record<string, unknown>) => ({
+          id: d.id as number,
+          name: String(d.filename ?? d.name ?? ''),
+          type: String(d.file_type ?? d.type ?? ''),
+          size: Number(d.file_size ?? d.size ?? 0),
+          chunks: Number(d.chunk_count ?? d.chunks ?? 0),
+          status:
+            d.status === 'failed'
+              ? 'failed'
+              : d.status === 'processing' || d.status === 'indexing'
+                ? 'processing'
+                : 'completed',
+          created_at: String(d.created_at ?? ''),
+        }))
+      )
     } catch (error) {
       console.error('Failed to load documents:', error)
       setDocuments([])

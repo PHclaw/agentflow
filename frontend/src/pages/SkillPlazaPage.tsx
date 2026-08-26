@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Search,
   Sparkles,
@@ -74,7 +74,16 @@ export default function SkillPlazaPage() {
       </div>
 
       {error && (
-        <Card className="p-4 border-red-200 bg-red-50 text-red-700">{error}</Card>
+        <Card className="p-4 border-red-200 bg-red-50 text-red-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <span>{error}</span>
+          {(error.includes('登录') || error.includes('401') || error.includes('未登录')) && (
+            <Link to="/login">
+              <Button size="sm" variant="outline">
+                去登录
+              </Button>
+            </Link>
+          )}
+        </Card>
       )}
 
       {loading ? (

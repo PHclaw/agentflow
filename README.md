@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.0.1-6366F1?style=for-the-badge&logo=robot&logoColor=white)
+![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.0.2-6366F1?style=for-the-badge&logo=robot&logoColor=white)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat-square&logo=react&logoColor=white)](https://react.dev)
@@ -127,15 +127,19 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 | Redis | 7+ |
 | Docker（推荐） | 20+ |
 
-### Docker 一键部署（推荐）
+### Docker 一键部署（推荐，内网演示）
 
 ```bash
 git clone https://github.com/PHclaw/agentflow.git
 cd agentflow
-cp .env.example .env   # 编辑填入 API Keys
-docker-compose up -d
-open http://localhost:3000
+cp .env.example .env   # 必填：JWT_SECRET_KEY、OPENAI_API_KEY（或 CHATZOC_* / DASHSCOPE_*）
+docker compose up --build
+# 前端 http://localhost:3000  后端 http://localhost:8001
 ```
+
+**内网可用流程**：注册账号 → 登录（自动进入 `/skills`）→ 选择 Skill → 上传/粘贴内容 → 下载 `/static/generated/*` 生成物。
+
+> **规划中（当前版本未完整实现）**：Stripe 订阅计费、Google OAuth、Browser-Use、Ollama 本地模型。
 
 ### 本地开发
 

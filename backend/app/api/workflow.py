@@ -11,8 +11,9 @@ import asyncio
 
 from ..core.database import get_db
 from ..services.workflow_runtime import workflow_runtime, NodeStatus
+from app.api.auth import get_current_user_id
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user_id)])
 
 
 class WorkflowExecutionRequest(BaseModel):

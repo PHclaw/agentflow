@@ -26,7 +26,7 @@ export default function LoginPage() {
       if (response.user) {
         setUser(response.user)
       }
-      navigate('/dashboard')
+      navigate('/skills')
     } catch (err: any) {
       setError(err.message || '登录失败，请检查邮箱和密码')
     } finally {

@@ -13,14 +13,19 @@ from pathlib import Path
 
 from ..core.config import settings
 from ..core.database import get_db
+from ..core.paths import uploads_root
 from ..models.agent import KnowledgeBase
 from ..models.document import Document
 from ..services.knowledge import KnowledgeService
+from app.api.auth import get_current_user_id
 
-router = APIRouter(prefix="/api/v1/knowledge", tags=["知识库"])
+router = APIRouter(
+    prefix="/api/v1/knowledge",
+    tags=["知识库"],
+    dependencies=[Depends(get_current_user_id)],
+)
 
-UPLOAD_DIR = Path(settings.UPLOAD_DIR)
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = uploads_root()
 
 
 class CreateKBRequest(BaseModel):

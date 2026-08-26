@@ -792,7 +792,6 @@ async def call_agent(
         )
         agent.model_name = model
         agent.workflow = _sync_workflow_model(agent.workflow, model)
-        save_skill(agent)
 
     if agent_loop_output and not skip_tools:
         result = ChatResult(output=agent_loop_output, latency_ms=extra_latency)
@@ -841,9 +840,8 @@ async def call_agent(
     wall_ms = int((time.perf_counter() - started) * 1000)
     result.latency_ms = wall_ms
 
-    # 调用计数写回 SKILL.md；usage 可选记库（无 FK）
+    # 内网演示：不在每次调用时写回 SKILL.md，避免 git 脏文件
     agent.total_calls = int(agent.total_calls or 0) + 1
-    save_skill(agent)
     logger.info(
         "call skill=%s skillId=%s specialty=%s version=%s model=%s caller=%s "
         "latencyMs=%s tokensIn=%s tokensOut=%s outChars=%s sysChars=%s userChars=%s",

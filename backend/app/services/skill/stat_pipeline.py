@@ -9,12 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from app.logging_setup import get_logger
+from app.core.paths import generated_root, skills_root
 
 logger = get_logger("stat")
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[4] / "skills" / "statistical-analyst" / "scripts"
-)
+SCRIPTS_DIR = skills_root() / "statistical-analyst" / "scripts"
 WHITELIST = {
     "hypothesis": "hypothesis_tester.py",
     "sample_size": "sample_size_calculator.py",

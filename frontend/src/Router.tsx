@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toast } from './components/ui/Toast'
 import { AppLayout, AuthLayout } from './components/layout'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
 
 // Pages
 import HomePage from './pages/HomePage'
@@ -27,6 +28,14 @@ function DashboardLayout({ children }: { children: React.ReactNode }) {
   return <AppLayout hideSidebar={false}>{children}</AppLayout>
 }
 
+function ProtectedDashboard({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <DashboardLayout>{children}</DashboardLayout>
+    </ProtectedRoute>
+  )
+}
+
 export default function Router() {
   return (
     <BrowserRouter>
@@ -41,24 +50,24 @@ export default function Router() {
         <Route path="/register" element={<RegisterPage />} />
 
         {/* Protected Routes with Sidebar */}
-        <Route path="/dashboard" element={<DashboardLayout><DashboardPage /></DashboardLayout>} />
-        <Route path="/agents" element={<DashboardLayout><AgentListPage /></DashboardLayout>} />
-        <Route path="/agents/new" element={<DashboardLayout><AgentCreatePage /></DashboardLayout>} />
-        <Route path="/agents/:id/edit" element={<DashboardLayout><AgentCreatePage /></DashboardLayout>} />
-        <Route path="/conversations" element={<DashboardLayout><AgentListPage /></DashboardLayout>} />
-        <Route path="/knowledge" element={<DashboardLayout><KnowledgePage /></DashboardLayout>} />
-        <Route path="/skills" element={<DashboardLayout><SkillPlazaPage /></DashboardLayout>} />
-        <Route path="/settings" element={<DashboardLayout><SettingsPage /></DashboardLayout>} />
-        <Route path="/help" element={<DashboardLayout><HelpPage /></DashboardLayout>} />
+        <Route path="/dashboard" element={<ProtectedDashboard><DashboardPage /></ProtectedDashboard>} />
+        <Route path="/agents" element={<ProtectedDashboard><AgentListPage /></ProtectedDashboard>} />
+        <Route path="/agents/new" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
+        <Route path="/agents/:id/edit" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
+        <Route path="/conversations" element={<ProtectedDashboard><AgentListPage /></ProtectedDashboard>} />
+        <Route path="/knowledge" element={<ProtectedDashboard><KnowledgePage /></ProtectedDashboard>} />
+        <Route path="/skills" element={<ProtectedDashboard><SkillPlazaPage /></ProtectedDashboard>} />
+        <Route path="/settings" element={<ProtectedDashboard><SettingsPage /></ProtectedDashboard>} />
+        <Route path="/help" element={<ProtectedDashboard><HelpPage /></ProtectedDashboard>} />
 
         {/* Skill Chat - Full Screen */}
-        <Route path="/skills/:id" element={<SkillChatPage />} />
+        <Route path="/skills/:id" element={<ProtectedRoute><SkillChatPage /></ProtectedRoute>} />
 
         {/* Chat Page - Full Screen */}
-        <Route path="/agents/:id/chat" element={<ChatPage />} />
+        <Route path="/agents/:id/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
 
         {/* Workflow Editor Page - Full Screen */}
-        <Route path="/workflow/:id" element={<WorkflowPage />} />
+        <Route path="/workflow/:id" element={<ProtectedRoute><WorkflowPage /></ProtectedRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

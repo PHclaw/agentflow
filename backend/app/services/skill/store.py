@@ -255,10 +255,18 @@ def invalidate_cache(slug: str | None = None) -> None:
         _CACHE.pop(slug, None)
 
 
+def _is_valid_skill_id(sid: str) -> bool:
+    if not sid:
+        return False
+    if ".." in sid or "/" in sid or "\\" in sid or "\x00" in sid:
+        return False
+    return True
+
+
 def get_skill(skill_id: str) -> FileSkill | None:
     """Load by folder slug (= id)."""
     sid = (skill_id or "").strip()
-    if not sid:
+    if not _is_valid_skill_id(sid):
         return None
     folder = skills_root() / sid
     md_path = folder / SKILL_FILENAME
