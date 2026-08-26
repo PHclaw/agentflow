@@ -530,6 +530,7 @@ MIT © 2025 [PHclaw](https://github.com/PHclaw)
 <div align="center">
 
 **觉得有用？给个 ⭐ 吧！**
+**开箱即用，一键三连吧！**
 
 [⭐ Star](https://github.com/PHclaw/agentflow) · [🍴 Fork](https://github.com/PHclaw/agentflow/fork) · [🐛 Issues](https://github.com/PHclaw/agentflow/issues)
 
