@@ -32,6 +32,7 @@ Thumbs.db
 
 # Uploads
 uploads/
+static/generated/
 
 # Logs
 *.log
