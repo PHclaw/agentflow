@@ -12,8 +12,9 @@ from app.logging_setup import get_logger
 
 logger = get_logger("pdf")
 
-ROOT = Path(__file__).resolve().parents[4]
-GENERATED_DIR = ROOT / "static" / "generated"
+from app.core.paths import generated_root
+
+GENERATED_DIR = generated_root()
 _WM_FONT: str | None = None
 _CJK_FONT_CANDIDATES = (
     Path(r"C:\Windows\Fonts\msyh.ttc"),

@@ -2,9 +2,7 @@
 AgentFlow - AI Agent 部署平台
 生产级架构，支持 WebSocket、缓存、监控、日志
 """
-from pathlib import Path
-
-from fastapi import FastAPI, Request
+from app.core.paths import generated_root, static_root
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -116,9 +114,8 @@ app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
 
 # Skill 工具产出（Excel/PDF/PPT 等）
-_static_root = Path(__file__).resolve().parents[3] / "static"
-_static_root.mkdir(parents=True, exist_ok=True)
-(_static_root / "generated").mkdir(parents=True, exist_ok=True)
+_static_root = static_root()
+generated_root()
 app.mount("/static", StaticFiles(directory=str(_static_root)), name="static")
 
 # WebSocket 路由

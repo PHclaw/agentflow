@@ -258,3 +258,84 @@ export const billing = {
     return api.post('/billing/portal', data)
   },
 }
+
+export interface SkillPlazaItem {
+  id: string
+  name: string
+  description: string
+  specialty: string
+  category?: string
+  categoryName?: string
+  routerBlurb?: string
+  triggers: string[]
+  tags?: string[]
+  authorName?: string
+  version: string
+  totalCalls?: number
+}
+
+export interface SkillCallResponse {
+  output: string
+  latencyMs?: number
+  agentVersion?: string
+  toolTrace?: {
+    downloadUrl?: string
+    downloadUrls?: string[]
+    imageUrl?: string
+  }
+  sessionId?: string
+}
+
+export const skills = {
+  plaza: (params?: { specialty?: string; category?: string }) => {
+    const query = params
+      ? '?' +
+        new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()
+      : ''
+    return api.get(`/skills/plaza${query}`) as Promise<SkillPlazaItem[]>
+  },
+  get: (id: string) => api.get(`/skills/${id}`),
+  call: (id: string, variables: Record<string, string>, sessionId?: string) =>
+    api.post(`/skills/${id}/call`, {
+      variables,
+      sessionId,
+    }) as Promise<SkillCallResponse>,
+  callWithFiles: async (
+    id: string,
+    message: string,
+    files: File[],
+    sessionId?: string
+  ): Promise<SkillCallResponse> => {
+    const formData = new FormData()
+    formData.append('message', message)
+    if (sessionId) formData.append('session_id', sessionId)
+    files.forEach((f) => formData.append('files', f))
+
+    const headers: Record<string, string> = {}
+    const token = localStorage.getItem('token')
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const response = await fetch(`/api/v1/skills/${id}/call-with-files`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!response.ok) {
+      let errorMsg = '请求失败'
+      try {
+        const body = await response.json()
+        errorMsg = body.detail || body.message || errorMsg
+      } catch {
+        errorMsg = `错误 (${response.status})`
+      }
+      throw new Error(errorMsg)
+    }
+    return response.json()
+  },
+  resolve: (query: string) => api.post('/skills/resolve', { query }),
+  categories: () => api.get('/skills/categories'),
+}

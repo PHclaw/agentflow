@@ -11,8 +11,9 @@ from app.logging_setup import get_logger
 
 logger = get_logger("excel")
 
-ROOT = Path(__file__).resolve().parents[4]
-GENERATED_DIR = ROOT / "static" / "generated"
+from app.core.paths import generated_root
+
+GENERATED_DIR = generated_root()
 TABULAR_SUFFIX = {".xlsx", ".xls", ".csv", ".tsv"}
 _SQL_FORBIDDEN = re.compile(
     r"\b(insert|update|delete|drop|alter|attach|copy|pragma|install|export|create\s+or)\b",

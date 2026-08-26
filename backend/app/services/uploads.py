@@ -7,8 +7,9 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-ROOT = Path(__file__).resolve().parents[4]
-UPLOAD_ROOT = ROOT / "uploads"
+from app.core.paths import uploads_root
+
+UPLOAD_ROOT = uploads_root()
 ALLOWED_SUFFIX = {
     ".csv",
     ".json",

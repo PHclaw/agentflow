@@ -5,7 +5,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-CATALOG_PATH = Path(__file__).resolve().parents[4] / "config" / "models.json"
+from app.core.paths import models_catalog_path
+
+CATALOG_PATH = models_catalog_path()
 
 
 @lru_cache
