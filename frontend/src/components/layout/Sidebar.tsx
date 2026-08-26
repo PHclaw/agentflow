@@ -22,6 +22,7 @@ import { Button } from '../ui/Button'
 const navItems = [
   { icon: LayoutDashboard, label: '控制台', href: '/dashboard' },
   { icon: MessageSquare, label: 'Agent', href: '/agents' },
+  { icon: Sparkles, label: 'Skill 广场', href: '/skills' },
   { icon: Workflow, label: '工作流', href: '/workflow/new' },
   { icon: FileText, label: '知识库', href: '/knowledge' },
 ]

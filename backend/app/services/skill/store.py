@@ -14,7 +14,8 @@ from app.logging_setup import get_logger
 
 logger = get_logger("skillstore")
 
-SKILLS_ROOT = Path(__file__).resolve().parents[4] / "skills"
+from app.core.paths import skills_root as _skills_root_path
+
 SKILL_FILENAME = "SKILL.md"
 
 _CACHE: dict[str, tuple[float, "FileSkill"]] = {}
@@ -75,8 +76,10 @@ class FileSkill:
 
 
 def skills_root() -> Path:
-    SKILLS_ROOT.mkdir(parents=True, exist_ok=True)
-    return SKILLS_ROOT
+    root = _skills_root_path()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
 
 
 def slugify(name: str, *, fallback: str = "skill") -> str:

@@ -15,6 +15,8 @@ import HelpPage from './pages/HelpPage'
 import KnowledgePage from './pages/KnowledgePage'
 import WorkflowPage from './pages/WorkflowPage'
 import TemplateMarket from './pages/TemplateMarket'
+import SkillPlazaPage from './pages/SkillPlazaPage'
+import SkillChatPage from './pages/SkillChatPage'
 
 // Pages wrapper components
 function LandingPage() {
@@ -45,8 +47,12 @@ export default function Router() {
         <Route path="/agents/:id/edit" element={<DashboardLayout><AgentCreatePage /></DashboardLayout>} />
         <Route path="/conversations" element={<DashboardLayout><AgentListPage /></DashboardLayout>} />
         <Route path="/knowledge" element={<DashboardLayout><KnowledgePage /></DashboardLayout>} />
+        <Route path="/skills" element={<DashboardLayout><SkillPlazaPage /></DashboardLayout>} />
         <Route path="/settings" element={<DashboardLayout><SettingsPage /></DashboardLayout>} />
         <Route path="/help" element={<DashboardLayout><HelpPage /></DashboardLayout>} />
+
+        {/* Skill Chat - Full Screen */}
+        <Route path="/skills/:id" element={<SkillChatPage />} />
 
         {/* Chat Page - Full Screen */}
         <Route path="/agents/:id/chat" element={<ChatPage />} />

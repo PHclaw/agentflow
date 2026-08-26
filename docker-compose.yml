@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -29,24 +27,34 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
+      AGENTFLOW_REPO_ROOT: /repo
+      AGENTFLOW_UPLOADS_DIR: /repo/uploads
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agentflow
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      CHATZOC_API_KEY: ${CHATZOC_API_KEY:-}
+      CHATZOC_BASE_URL: ${CHATZOC_BASE_URL:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:3001
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
-      - ./uploads:/app/uploads
+      - ./skills:/repo/skills
+      - ./config:/repo/config
+      - ./static:/repo/static
+      - ./uploads:/repo/uploads
 
   frontend:
     build:
@@ -55,19 +63,33 @@ services:
     depends_on:
       - backend
     ports:
-      - "3001:3000"
+      - "3000:3000"
 
   celery-worker:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     command: celery -A app.celery_app worker --loglevel=info
     environment:
+      AGENTFLOW_REPO_ROOT: /repo
+      AGENTFLOW_UPLOADS_DIR: /repo/uploads
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agentflow
       REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      CHATZOC_API_KEY: ${CHATZOC_API_KEY:-}
+      CHATZOC_BASE_URL: ${CHATZOC_BASE_URL:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
     depends_on:
       - postgres
       - redis
+    volumes:
+      - ./skills:/repo/skills
+      - ./config:/repo/config
+      - ./static:/repo/static
+      - ./uploads:/repo/uploads
 
 volumes:
   postgres_data:

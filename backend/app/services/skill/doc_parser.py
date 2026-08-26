@@ -16,8 +16,9 @@ from app.logging_setup import get_logger
 
 logger = get_logger("docparse")
 
-ROOT = Path(__file__).resolve().parents[4]
-GENERATED_DIR = ROOT / "static" / "generated"
+from app.core.paths import generated_root
+
+GENERATED_DIR = generated_root()
 DEFAULT_JAR = ROOT / "demo-1.1-SNAPSHOT.jar"
 
 PARSEABLE_SUFFIX = {
