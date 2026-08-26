@@ -35,6 +35,18 @@ class ApiClient {
       headers,
     })
 
+    if (response.status === 401) {
+      this.clearToken()
+      if (
+        typeof window !== 'undefined' &&
+        !window.location.pathname.startsWith('/login') &&
+        !window.location.pathname.startsWith('/register')
+      ) {
+        window.location.href = '/login'
+      }
+      throw new Error('未登录或登录已过期，请重新登录')
+    }
+
     if (!response.ok) {
       let errorMsg = '请求失败'
       try {
@@ -96,6 +108,17 @@ class ApiClient {
       body: formData,
     })
 
+    if (response.status === 401) {
+      this.clearToken()
+      if (
+        typeof window !== 'undefined' &&
+        !window.location.pathname.startsWith('/login')
+      ) {
+        window.location.href = '/login'
+      }
+      throw new Error('未登录或登录已过期，请重新登录')
+    }
+
     if (!response.ok) {
       throw new Error('上传失败')
     }
@@ -117,7 +140,7 @@ export const auth = {
     api.clearToken()
   },
   getCurrentUser: () => {
-    return api.get('/auth/me')
+    return api.get('/users/me')
   },
 }
 

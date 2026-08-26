@@ -3,6 +3,7 @@ AgentFlow - AI Agent 部署平台
 生产级架构，支持 WebSocket、缓存、监控、日志
 """
 from app.core.paths import generated_root, static_root
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -50,7 +51,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AgentFlow API",
     description="🚀 AI Agent 部署平台 | 可视化工作流 | RAG 知识库 | 多模型集成",
-    version="2.1.0",
+    version="2.0.2",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -130,7 +131,7 @@ async def root():
     """根路径"""
     return {
         "name": "AgentFlow API",
-        "version": "2.1.0",
+        "version": "2.0.2",
         "docs": "/docs",
         "health": "/api/v1/monitoring/health",
         "features": [
@@ -150,7 +151,7 @@ async def health():
     return {
         "status": "healthy",
         "service": "AgentFlow",
-        "version": "2.1.0",
+        "version": "2.0.2",
         "timestamp": time.time()
     }
 

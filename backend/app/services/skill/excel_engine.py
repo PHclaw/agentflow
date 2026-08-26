@@ -19,7 +19,18 @@ _SQL_FORBIDDEN = re.compile(
     r"\b(insert|update|delete|drop|alter|attach|copy|pragma|install|export|create\s+or)\b",
     re.I,
 )
-_CJK_FONT = Path(r"C:\Windows\Fonts\msyh.ttc")
+_CJK_FONT_CANDIDATES = (
+    Path(r"C:\Windows\Fonts\msyh.ttc"),
+    Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"),
+    Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+)
+
+
+def _resolve_cjk_font() -> Path | None:
+    for candidate in _CJK_FONT_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _public_url(name: str) -> str:
@@ -1429,8 +1440,9 @@ def wants_split_series(text: str) -> bool:
 def _cjk_fontprops():
     from matplotlib.font_manager import FontProperties
 
-    if _CJK_FONT.is_file():
-        return FontProperties(fname=str(_CJK_FONT))
+    font = _resolve_cjk_font()
+    if font is not None:
+        return FontProperties(fname=str(font))
     return None
 
 
@@ -1716,12 +1728,13 @@ def _setup_matplotlib() -> None:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    if _CJK_FONT.is_file():
+    font = _resolve_cjk_font()
+    if font is not None:
         try:
             from matplotlib import font_manager
 
-            font_manager.fontManager.addfont(str(_CJK_FONT))
-            plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial"]
+            font_manager.fontManager.addfont(str(font))
+            plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "WenQuanYi Zen Hei", "SimHei", "Arial"]
         except Exception:  # noqa: BLE001
             plt.rcParams["font.sans-serif"] = ["SimHei", "Arial"]
     plt.rcParams["axes.unicode_minus"] = False

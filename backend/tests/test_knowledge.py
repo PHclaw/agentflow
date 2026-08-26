@@ -24,7 +24,9 @@ class TestKnowledgeAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert isinstance(data, dict)
+        assert "knowledge_bases" in data
+        assert isinstance(data["knowledge_bases"], list)
     
     @pytest.mark.asyncio
     async def test_create_knowledge_base(
@@ -111,5 +113,4 @@ class TestKnowledgeAPI:
     ):
         """测试未授权访问"""
         response = await async_client.get("/api/v1/knowledge")
-        # knowledge 可能不需要认证，检查返回格式
-        assert response.status_code in [200, 401]
+        assert response.status_code == 401

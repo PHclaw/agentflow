@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from app.logging_setup import get_logger
+from app.core.paths import generated_root, repo_root, skills_root, static_root
 
 logger = get_logger("ppt.html")
 
-ROOT = Path(__file__).resolve().parents[4]
-SRC_ASSETS = ROOT / "skills" / "html-ppt-skill-main" / "assets"
-STATIC_ASSETS = ROOT / "static" / "html-ppt"
-GENERATED_DIR = ROOT / "static" / "generated"
+ROOT = repo_root()
+SRC_ASSETS = skills_root() / "html-ppt-skill-main" / "assets"
+STATIC_ASSETS = static_root() / "html-ppt"
+GENERATED_DIR = generated_root()
 
 THEME_ALIAS = {
     "keynote": "corporate-clean",

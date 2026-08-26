@@ -15,11 +15,11 @@ from pathlib import Path
 import httpx
 
 from app.logging_setup import get_logger
+from app.core.paths import generated_root
 
 logger = get_logger("academic")
 
-ROOT = Path(__file__).resolve().parents[4]
-SEARCH_STATE_DIR = ROOT / "static" / "generated" / "academic-search"
+SEARCH_STATE_DIR = generated_root() / "academic-search"
 
 ATOM = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"

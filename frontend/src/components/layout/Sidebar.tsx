@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
   Users, 
@@ -15,9 +15,12 @@ import {
   HelpCircle,
   Sparkles,
   FileText,
+  LogOut,
 } from 'lucide-react'
 import { Logo } from './Logo'
 import { Button } from '../ui/Button'
+import { auth } from '../../services/api'
+import { useAuthStore } from '../../stores'
 
 const navItems = [
   { icon: LayoutDashboard, label: '控制台', href: '/dashboard' },
@@ -35,6 +38,14 @@ const bottomNavItems = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
+  const logout = useAuthStore((s) => s.logout)
+
+  const handleLogout = () => {
+    auth.logout()
+    logout()
+    navigate('/login')
+  }
 
   return (
     <aside
@@ -150,6 +161,14 @@ export function Sidebar() {
               {!collapsed && <span>{item.label}</span>}
             </NavLink>
           ))}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all"
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span>退出登录</span>}
+          </button>
         </div>
       </div>
     </aside>

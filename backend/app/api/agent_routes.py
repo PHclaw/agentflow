@@ -11,8 +11,17 @@ from app.core.logging import get_logger
 from app.core.database import get_db
 from app.api.auth import get_current_user_id
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user_id)])
 logger = get_logger("agent_routes")
+
+
+async def _require_agent(agent_id: str, user_id: str, db: AsyncSession) -> Agent:
+    agent = await db.get(Agent, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent 不存在")
+    if agent.user_id != user_id:
+        raise HTTPException(status_code=403, detail="无权访问此 Agent")
+    return agent
 
 
 # ===== 请求/响应模型 =====
@@ -50,11 +59,13 @@ class AgentExportResponse(BaseModel):
 # ===== Agent 统计 API =====
 
 @router.get("/{agent_id}/stats", response_model=AgentStatsResponse)
-async def get_agent_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def get_agent_stats(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
     """获取 Agent 使用统计"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     # 查询会话统计
     stats = await db.execute(
@@ -91,11 +102,13 @@ async def get_agent_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{agent_id}/versions", response_model=AgentVersionResponse)
-async def get_agent_versions(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def get_agent_versions(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
     """获取 Agent 版本历史"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     # 从 settings.versions 读取版本历史
     agent_settings = agent.settings or {}
@@ -124,12 +137,13 @@ async def get_agent_versions(agent_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/{agent_id}/versions/{version}/rollback")
 async def rollback_agent_version(
-    agent_id: str, version: str, db: AsyncSession = Depends(get_db)
+    agent_id: str,
+    version: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """回滚到指定版本"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     agent_settings = agent.settings or {}
     versions_data = agent_settings.get("versions", [])
@@ -168,15 +182,16 @@ async def rollback_agent_version(
 
 @router.post("/{agent_id}/duplicate")
 async def duplicate_agent(
-    agent_id: str, request: AgentDuplicateRequest, db: AsyncSession = Depends(get_db)
+    agent_id: str,
+    request: AgentDuplicateRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """复制 Agent"""
-    original = await db.get(Agent, agent_id)
-    if not original:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    original = await _require_agent(agent_id, user_id, db)
 
     new_agent = Agent(
-        user_id=original.user_id,
+        user_id=user_id,
         name=request.name,
         description=request.description or f"{request.name} 的副本",
         workflow_definition=original.workflow_definition,
@@ -203,11 +218,10 @@ async def export_agent(
     agent_id: str,
     include_knowledge: bool = True,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """导出 Agent 配置"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     export_data = {
         "agent_id": agent.id,
@@ -241,13 +255,12 @@ async def import_agent(
     agent_id: str,
     data: dict,
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """导入 Agent 配置"""
     logger.info(f"Importing agent data for {agent_id}")
 
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     config = data.get("config", {})
     agent.name = config.get("name", agent.name)
@@ -268,11 +281,13 @@ async def import_agent(
 
 
 @router.get("/{agent_id}/health")
-async def check_agent_health(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def check_agent_health(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
     """检查 Agent 健康状态"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     is_valid = bool(agent.workflow_definition and agent.workflow_definition.get("nodes"))
 
@@ -290,11 +305,13 @@ async def check_agent_health(agent_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{agent_id}/validate")
-async def validate_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def validate_agent(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
     """验证 Agent 配置"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     issues = []
     warnings = []
@@ -332,13 +349,13 @@ async def validate_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{agent_id}/performance/tokens")
 async def get_token_usage(
-    agent_id: str, days: int = Query(default=7, ge=1, le=90),
+    agent_id: str,
+    days: int = Query(default=7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """获取 Token 使用统计"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     total_msgs = agent.message_count or 0
     avg_tokens_per_msg = 400
@@ -366,11 +383,13 @@ async def get_token_usage(
 
 
 @router.get("/{agent_id}/performance/latency")
-async def get_latency_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def get_latency_stats(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
     """获取响应延迟统计"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     # 从 settings 读取真实延迟数据
     agent_settings = agent.settings or {}
@@ -392,13 +411,13 @@ async def get_latency_stats(agent_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/{agent_id}/performance/errors")
 async def get_error_stats(
-    agent_id: str, days: int = Query(default=7, ge=1, le=90),
+    agent_id: str,
+    days: int = Query(default=7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
 ):
     """获取错误统计"""
-    agent = await db.get(Agent, agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent 不存在")
+    agent = await _require_agent(agent_id, user_id, db)
 
     agent_settings = agent.settings or {}
     error_stats = agent_settings.get("errors", {})
