@@ -2,12 +2,9 @@
 AgentFlow - AI Agent 部署平台
 生产级架构，支持 WebSocket、缓存、监控、日志
 """
-from pathlib import Path
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import time
 
@@ -16,7 +13,7 @@ from app.core.database import init_db, get_async_session_factory
 from app.core.logging import setup_logging, logger
 from app.core.monitoring import router as monitoring_router
 from app.core.websocket import router as websocket_router
-from app.api import auth, users, agents, templates, chat, billing, skills
+from app.api import auth, users, agents, templates, chat, billing
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.api.agent_routes import router as agent_routes_router
@@ -113,13 +110,6 @@ app.include_router(knowledge_api_router, tags=["知识库"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
 app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
-app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
-
-# Skill 工具产出（Excel/PDF/PPT 等）
-_static_root = Path(__file__).resolve().parents[3] / "static"
-_static_root.mkdir(parents=True, exist_ok=True)
-(_static_root / "generated").mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(_static_root)), name="static")
 
 # WebSocket 路由
 app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
@@ -142,7 +132,6 @@ async def root():
             "多模型集成 (OpenAI/Claude/DeepSeek)",
             "实时 WebSocket 通信",
             "工作流版本控制",
-            "Model Lab Skill 广场（Excel/PDF/PPT/统计等）",
         ]
     }
 
