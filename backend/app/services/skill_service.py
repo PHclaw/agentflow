@@ -792,7 +792,6 @@ async def call_agent(
         )
         agent.model_name = model
         agent.workflow = _sync_workflow_model(agent.workflow, model)
-        save_skill(agent)
 
     if agent_loop_output and not skip_tools:
         result = ChatResult(output=agent_loop_output, latency_ms=extra_latency)

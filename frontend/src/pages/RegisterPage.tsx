@@ -29,7 +29,7 @@ export default function RegisterPage() {
         setUser(response.user)
       }
       addToast({ type: 'success', message: '注册成功！' })
-      navigate('/dashboard')
+      navigate('/skills')
     } catch (err: any) {
       setError(err.message || '注册失败，请重试')
     } finally {
