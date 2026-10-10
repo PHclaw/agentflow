@@ -17,6 +17,18 @@ class ApiClient {
     localStorage.removeItem('token')
   }
 
+  /**
+   * 每次请求时实时解析 token。
+   *
+   * 不能只依赖构造函数里缓存的那一份：登录成功后 token 是写进 localStorage /
+   * zustand store 的，而这个实例在模块加载时就已经创建，内存中的 this.token
+   * 仍是 null，会导致登录后首个请求 401 并被踢回登录页。
+   */
+  private resolveToken(): string | null {
+    if (typeof window === 'undefined') return this.token
+    return localStorage.getItem('token') ?? this.token
+  }
+
   private async request(
     endpoint: string,
     options: RequestInit = {}
@@ -26,8 +38,9 @@ class ApiClient {
       ...(options.headers as Record<string, string>),
     }
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+    const token = this.resolveToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -98,8 +111,9 @@ class ApiClient {
     formData.append('file', file)
 
     const headers: Record<string, string> = {}
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`
+    const token = this.resolveToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
     }
 
     const response = await fetch(`${API_BASE}${endpoint}`, {
