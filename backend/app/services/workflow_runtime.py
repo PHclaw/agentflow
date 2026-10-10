@@ -544,9 +544,10 @@ class WorkflowRuntime:
         for edge in edges:
             source = edge.get("source")
             target = edge.get("target")
-            if source and target:
+            # 忽略指向不存在节点的悬空边，否则后续遍历邻接表会 KeyError
+            if source in adjacency and target in adjacency:
                 adjacency[source].append(target)
-                in_degree[target] = in_degree.get(target, 0) + 1
+                in_degree[target] += 1
         
         # Kahn's algorithm
         queue = [n for n, d in in_degree.items() if d == 0]

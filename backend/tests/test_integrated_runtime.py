@@ -134,7 +134,11 @@ class TestIntegratedAgentRuntime:
             )
             
             assert results is not None
-            assert "result" in results or test_agent.id in results
+            # multi_agent_chat 返回汇总结果 + 每个 agent 的独立结果
+            assert "pipeline_result" in results
+            assert "individual_results" in results
+            assert test_agent.id in results["individual_results"]
+            assert results["individual_results"][test_agent.id] == "Agent response"
     
     @pytest.mark.asyncio
     async def test_get_stats(
