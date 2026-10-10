@@ -228,3 +228,143 @@ class TestKnowledgeAPI:
         """测试未授权访问"""
         response = await async_client.get("/api/v1/knowledge")
         assert response.status_code == 401
+
+class TestAgentFileUpload:
+    """聊天上传：文件应落在该 Agent 的工作目录里，且按账号隔离"""
+
+    @pytest.mark.asyncio
+    async def test_upload_list_and_download(
+        self, async_client, auth_headers, async_db, test_user, tmp_path, monkeypatch
+    ):
+        import app.core.paths as paths_mod
+
+        monkeypatch.setattr("app.core.paths.uploads_root", lambda: tmp_path / "up")
+        from app.models.agent import Agent
+        from app.api import pi_agent as pi_api
+
+        agent = Agent(
+            id="upload-agent-001",
+            user_id=test_user.external_id,
+            name="上传测试",
+            description="",
+            model_config={"model": "gpt-4o-mini"},
+        )
+        async_db.add(agent)
+        await async_db.commit()
+
+        resp = await async_client.post(
+            f"/api/v1/agents/{agent.id}/files",
+            headers=auth_headers,
+            files={"file": ("需求.md", "内容".encode("utf-8"), "text/markdown")},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["name"] == "需求.md"
+        assert body["size"] == len("内容".encode("utf-8"))
+
+        # 文件确实落在工作目录里（模型运行时 cwd 就是这里）
+        saved = tmp_path / "up" / "pi_workspace" / agent.id / "需求.md"
+        assert saved.exists() and saved.read_text(encoding="utf-8") == "内容"
+
+        listing = await async_client.get(f"/api/v1/agents/{agent.id}/files", headers=auth_headers)
+        assert listing.status_code == 200
+        assert [f["name"] for f in listing.json()["files"]] == ["需求.md"]
+
+        download = await async_client.get(
+            f"/api/v1/agents/{agent.id}/files/{'需求.md'}", headers=auth_headers
+        )
+        assert download.status_code == 200
+        assert download.content == "内容".encode("utf-8")
+
+    @pytest.mark.asyncio
+    async def test_filename_traversal_is_neutralized(
+        self, async_client, auth_headers, async_db, test_user, tmp_path, monkeypatch
+    ):
+        import app.core.paths as paths_mod
+
+        monkeypatch.setattr("app.core.paths.uploads_root", lambda: tmp_path / "up")
+        from app.models.agent import Agent
+
+        agent = Agent(
+            id="upload-agent-002",
+            user_id=test_user.external_id,
+            name="穿越测试",
+            description="",
+            model_config={"model": "gpt-4o-mini"},
+        )
+        async_db.add(agent)
+        await async_db.commit()
+
+        resp = await async_client.post(
+            f"/api/v1/agents/{agent.id}/files",
+            headers=auth_headers,
+            files={"file": ("../../evil.txt", b"x", "text/plain")},
+        )
+        assert resp.status_code == 200
+        # 文件名被压平，逃不出工作目录
+        assert "/" not in resp.json()["name"] and ".." not in resp.json()["name"]
+        assert (tmp_path / "up" / "pi_workspace" / agent.id).exists()
+        assert not (tmp_path / "up" / "evil.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_same_name_does_not_overwrite(
+        self, async_client, auth_headers, async_db, test_user, tmp_path, monkeypatch
+    ):
+        import app.core.paths as paths_mod
+
+        monkeypatch.setattr("app.core.paths.uploads_root", lambda: tmp_path / "up")
+        from app.models.agent import Agent
+
+        agent = Agent(
+            id="upload-agent-003",
+            user_id=test_user.external_id,
+            name="重名测试",
+            description="",
+            model_config={"model": "gpt-4o-mini"},
+        )
+        async_db.add(agent)
+        await async_db.commit()
+
+        for payload in (b"first", b"second"):
+            await async_client.post(
+                f"/api/v1/agents/{agent.id}/files",
+                headers=auth_headers,
+                files={"file": ("a.txt", payload, "text/plain")},
+            )
+
+        listing = await async_client.get(f"/api/v1/agents/{agent.id}/files", headers=auth_headers)
+        names = sorted(f["name"] for f in listing.json()["files"])
+        assert names == ["a(1).txt", "a.txt"]
+
+    @pytest.mark.asyncio
+    async def test_other_user_cannot_upload_or_read(
+        self, async_client, async_db, test_user
+    ):
+        from app.models.agent import Agent
+
+        agent = Agent(
+            id="upload-agent-004",
+            user_id=test_user.external_id,
+            name="隔离测试",
+            description="",
+            model_config={"model": "gpt-4o-mini"},
+        )
+        async_db.add(agent)
+        await async_db.commit()
+
+        other = await async_client.post(
+            "/api/v1/auth/register",
+            json={"email": "upload-other@test.com", "password": "Other@12345"},
+        )
+        assert other.status_code in (200, 201)
+        headers = {"Authorization": f"Bearer {other.json()['token']}"}
+
+        up = await async_client.post(
+            f"/api/v1/agents/{agent.id}/files",
+            headers=headers,
+            files={"file": ("x.txt", b"x", "text/plain")},
+        )
+        assert up.status_code == 404
+
+        ls = await async_client.get(f"/api/v1/agents/{agent.id}/files", headers=headers)
+        assert ls.status_code == 404

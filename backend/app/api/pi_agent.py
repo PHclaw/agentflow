@@ -14,11 +14,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,9 @@ from app.services.pi_agent import AgentContext, build_agent_context, pi_agent_ru
 router = APIRouter(
     dependencies=[Depends(get_current_user_id)],
 )
+
+#: 单个上传文件的大小上限。超过就拒绝，避免一个请求把磁盘塞满。
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 class PiChatRequest(BaseModel):

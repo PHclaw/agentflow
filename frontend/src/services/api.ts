@@ -602,6 +602,14 @@ export interface PiStreamEvent {
   session_id?: string | null
 }
 
+/** 用户上传到 Agent 工作目录的文件 */
+export interface UploadedFile {
+  name: string
+  size: number
+  path: string
+  url: string
+}
+
 export interface PiChatBody {
   message: string
   session_id?: string | null
@@ -712,4 +720,12 @@ export const pi = {
     streamSse<PiStreamEvent>(`/api/v1/pi/${agentId}/stream`, data, signal),
   downloadArtifact: (agentId: string, path: string) =>
     api.getBlob(`/pi/${agentId}/files/${path}`),
+  /** 把文件上传到该 Agent 的工作目录（模型可直接读取） */
+  uploadToWorkspace: (agentId: string, file: File) =>
+    api.uploadFile(`/agents/${agentId}/files`, file),
+  /** 工作目录里已上传的文件 */
+  listWorkspaceFiles: (agentId: string) =>
+    api.get(`/agents/${agentId}/files`) as Promise<{ files: UploadedFile[] }>,
+  downloadWorkspaceFile: (agentId: string, name: string) =>
+    api.getBlob(`/agents/${agentId}/files/${encodeURIComponent(name)}`),
 }

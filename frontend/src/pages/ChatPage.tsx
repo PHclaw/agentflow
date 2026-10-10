@@ -24,8 +24,15 @@ import {
   Zap,
 } from 'lucide-react'
 import { api } from '../services/api'
-import { chat as chatApi, pi, type PiArtifact, type PiStatus } from '../services/api'
+import {
+  chat as chatApi,
+  pi,
+  type PiArtifact,
+  type PiStatus,
+  type UploadedFile,
+} from '../services/api'
 import { Markdown } from '../components/ui/Markdown'
+import { useToastStore } from '../stores'
 import { Modal } from '../components/ui/Modal'
 
 interface Message {
@@ -37,6 +44,8 @@ interface Message {
   thinking?: string
   /** PiAgent 引擎生成的可下载附件 */
   files?: PiArtifact[]
+  /** 用户随这条消息上传到工作目录的文件 */
+  attachments?: UploadedFile[]
 }
 
 interface AgentInfo {
@@ -85,6 +94,17 @@ interface ChatSessionProps {
   onSwitchAgent?: () => void
 }
 
+/** 单个文件上限，与后端 MAX_UPLOAD_BYTES 保持一致 */
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+/** 单条消息最多带的文件数 */
+const MAX_FILES_PER_MESSAGE = 50
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
 export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const navigate = useNavigate()
   // 从「对话记录」点进来时会带?session=xxx，据此加载指定的那一段
@@ -120,6 +140,11 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const [piLive, setPiLive] = useState<PiLiveState>(EMPTY_PI_LIVE)
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  /** 待发送的附件（已上传到该 Agent 的工作目录） */
+  const [attachments, setAttachments] = useState<UploadedFile[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   /** 该 Agent 是否配置了工作流（配了则由工作流编排执行） */
   const [hasWorkflow, setHasWorkflow] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -391,21 +416,32 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   }
 
   const handleSend = async () => {
-    if (!inputMessage.trim() || isLoading) return
+    if ((!inputMessage.trim() && attachments.length === 0) || isLoading || uploading) return
 
+    const pendingFiles = attachments
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: inputMessage,
       timestamp: new Date().toISOString(),
+      ...(pendingFiles.length ? { attachments: pendingFiles } : {}),
     }
 
     setMessages((prev) => [...prev, userMessage])
     const currentInput = inputMessage
     setInputMessage('')
+    setAttachments([])
     setIsLoading(true)
     setStreamingContent('')
     setShowPanel(false)
+
+    // 附件清单随消息一起给模型，否则它不知道工作目录里多了哪些文件
+    const outgoingText =
+      pendingFiles.length > 0
+        ? `${currentInput}\n\n[用户上传了以下文件，已存放在工作目录：${pendingFiles
+            .map((f) => f.name)
+            .join('、')}]`
+        : currentInput
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -423,12 +459,12 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       if (startNewSession) setStartNewSession(false)
 
       if (effectiveEngine === 'pi') {
-        const result = await sendWithPi(currentInput, controller.signal, newSession)
+        const result = await sendWithPi(outgoingText, controller.signal, newSession)
         assistantMessage.content = result.content
         assistantMessage.files = result.files
         assistantMessage.thinking = result.thinking
       } else {
-        const result = await sendWithBuiltin(currentInput, controller.signal, newSession)
+        const result = await sendWithBuiltin(outgoingText, controller.signal, newSession)
         assistantMessage.content = result.content
         if (result.files.length) assistantMessage.files = result.files
       }
@@ -458,8 +494,76 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
 
   // ---------------------------------------------------------------- 输入区
 
-  /** 输入框上方附挂的功能项。全部对应真实可用的能力，不放占位按钮。 */
+  /**
+   * 选择文件后立即上传到该 Agent 的工作目录。
+   *
+   * 之所以先传再发消息：文件落在模型运行时的工作目录里，
+   * 消息里带上文件名，模型才能读到这些内容；
+   * 若先发消息再传，模型这一轮根本看不到文件。
+   */
+  const handlePickFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    const { addToast } = useToastStore.getState()
+    const incoming = Array.from(fileList)
+    const room = MAX_FILES_PER_MESSAGE - attachments.length
+    if (room <= 0) {
+      addToast({ type: 'error', message: `单条消息最多 ${MAX_FILES_PER_MESSAGE} 个文件` })
+      return
+    }
+
+    setUploading(true)
+    const accepted: UploadedFile[] = []
+    for (const file of incoming.slice(0, room)) {
+      if (file.size > MAX_FILE_BYTES) {
+        addToast({ type: 'error', message: `${file.name} 超过 10MB 上限` })
+        continue
+      }
+      try {
+        const uploaded = await pi.uploadToWorkspace(id!, file)
+        accepted.push(uploaded)
+      } catch (error: any) {
+        addToast({
+          type: 'error',
+          message: `${file.name} 上传失败：${error?.message || '未知错误'}`,
+        })
+      }
+    }
+    if (accepted.length) setAttachments((prev) => [...prev, ...accepted])
+    if (incoming.length > room) {
+      addToast({ type: 'error', message: `一次最多 ${MAX_FILES_PER_MESSAGE} 个文件，多余的已忽略` })
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const removeAttachment = (name: string) => {
+    setAttachments((prev) => prev.filter((f) => f.name !== name))
+  }
+
+  /** 下载用户上传的文件 */
+  const handleDownloadUploaded = async (file: UploadedFile) => {
+    try {
+      const blob = await pi.downloadWorkspaceFile(id!, file.name)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
+    }
+  }
+
+  /** 输入框上方附挂的功能项。全部对应真实可用的能力，不放占位按钮。*/
   const panelItems: PanelItem[] = [
+    {
+      key: 'upload',
+      icon: Paperclip,
+      label: '添加文件',
+      hint: `上传到该 Agent 的工作目录，单个不超过 10MB、最多 ${MAX_FILES_PER_MESSAGE} 个`,
+      onClick: () => fileInputRef.current?.click(),
+    },
     {
       key: 'engine',
       icon: Sparkles,
@@ -560,11 +664,71 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       )}
 
       {/* 输入卡片 */}
-      <div className="rounded-[26px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_2px_20px_rgba(15,23,42,0.06)] dark:shadow-none focus-within:border-slate-300 dark:focus-within:border-slate-700 transition-colors">
+      <div
+        className="rounded-[26px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_2px_20px_rgba(15,23,42,0.06)] dark:shadow-none focus-within:border-slate-300 dark:focus-within:border-slate-700 transition-colors"
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          handlePickFiles(e.dataTransfer.files)
+        }}
+      >
+        {/* 待发送的附件 */}
+        {attachments.length > 0 && (
+          <div className="px-5 pt-4 flex flex-wrap gap-2">
+            {attachments.map((file) => (
+              <span
+                key={file.name}
+                className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 animate-fade-in"
+              >
+                <Paperclip className="w-3 h-3 flex-shrink-0" />
+                <span className="max-w-[160px] truncate">{file.name}</span>
+                <span className="text-slate-400">{formatBytes(file.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(file.name)}
+                  title="移除"
+                  className="p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {uploading && (
+          <p className="px-5 pt-3 text-xs text-slate-400">正在上传到工作目录…</p>
+        )}
+
+        {dragOver && (
+          <p className="px-5 pt-3 text-xs text-indigo-500">松开即可上传到工作目录</p>
+        )}
+
+        {/* 真实的文件选择控件：面板里的「添加文件」点它 */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => handlePickFiles(e.target.files)}
+        />
         <textarea
           ref={inputRef}
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
+          onPaste={(e) => {
+            // 粘贴截图/文件时直接收下，剪贴板里的图片在对话里很常用
+            const files = Array.from(e.clipboardData?.files ?? [])
+            if (files.length > 0) {
+              e.preventDefault()
+              handlePickFiles(files as unknown as FileList)
+            }
+          }}
           onKeyDown={handleKeyDown}
           placeholder="尽管问，带图也行"
           rows={1}
@@ -909,6 +1073,22 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
                 message.role === 'user' ? (
                   <div key={message.id} className="flex justify-end">
                     <div className="max-w-[80%]">
+                      {message.attachments?.length ? (
+                        <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+                          {message.attachments.map((file) => (
+                            <button
+                              key={file.name}
+                              onClick={() => handleDownloadUploaded(file)}
+                              title={`下载 ${file.name}`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+                            >
+                              <Paperclip className="w-3 h-3 flex-shrink-0" />
+                              <span className="max-w-[180px] truncate">{file.name}</span>
+                              <span className="text-slate-400">{formatBytes(file.size)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                       <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2.5 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap">
                         {message.content}
                       </div>

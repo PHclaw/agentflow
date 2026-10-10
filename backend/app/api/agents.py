@@ -1,13 +1,18 @@
 """
 Agent CRUD API — 数据库版本
 """
-from fastapi import APIRouter, Depends, HTTPException
+import re
+from pathlib import Path
 from typing import Optional, List, Union
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..core.database import get_db
+from ..core.paths import pi_agent_workspace
 from ..models.agent import Agent
 from ..services.workflow_runtime import normalize_workflow_definition
 from .auth import get_current_user_id
@@ -173,6 +178,113 @@ async def list_agents(
     result = await db.execute(stmt)
     agents = result.scalars().all()
     return [_agent_to_dict(a) for a in agents]
+
+
+# ----- 聊天上传：文件存进该 Agent 的工作目录 -----
+#
+# 放在这里而不是 pi_agent.py：这些是 Agent 级的能力，与用哪个引擎无关。
+# 落到 pi 工作区是因为那是 AI Agent 引擎运行时的 cwd，
+# 上传完模型可以直接读取/处理，不需要用户再手工搬一次。
+
+#: 单个上传文件的大小上限，超出直接拒绝，避免一个请求把磁盘塞满
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+async def _load_owned_agent(db: AsyncSession, agent_id: str, user_id: str) -> Agent:
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Agent 不存在")
+    return agent
+
+
+@router.post("/{agent_id}/files")
+async def upload_agent_file(
+    agent_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """上传文件到该 Agent 的工作目录"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    # 文件名由前端提供，必须净化：只取 basename、挡掉分隔符与控制字符
+    raw_name = Path(file.filename or "").name.strip() or "upload.bin"
+    safe_name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", raw_name)[:120]
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{safe_name} 超过 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB 上限",
+        )
+
+    workspace = pi_agent_workspace(agent_id)
+    # 同名文件不覆盖：加序号，避免重复上传同一份资料时把前一份弄丢
+    target = workspace / safe_name
+    if target.exists():
+        stem, suffix = target.stem, target.suffix
+        for i in range(1, 100):
+            candidate = workspace / f"{stem}({i}){suffix}"
+            if not candidate.exists():
+                target = candidate
+                break
+    target.write_bytes(content)
+
+    return {
+        "name": target.name,
+        "size": len(content),
+        "path": target.name,
+        "url": f"/api/v1/agents/{agent_id}/files/{target.name}",
+    }
+
+
+@router.get("/{agent_id}/files")
+async def list_agent_files(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """列出该 Agent 工作目录下的文件"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    workspace = pi_agent_workspace(agent_id)
+    files = []
+    for path in sorted(workspace.iterdir()):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        files.append({
+            "name": path.name,
+            "size": size,
+            "path": path.name,
+            "url": f"/api/v1/agents/{agent_id}/files/{path.name}",
+        })
+    return {"files": files}
+
+
+@router.get("/{agent_id}/files/{file_path:path}")
+async def download_agent_file(
+    agent_id: str,
+    file_path: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """下载已上传的文件"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    workspace = pi_agent_workspace(agent_id).resolve()
+    target = (workspace / file_path).resolve()
+    if workspace != target and workspace not in target.parents:
+        raise HTTPException(status_code=403, detail="禁止访问工作目录之外的文件")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(target, filename=target.name)
 
 
 @router.get("/{agent_id}")
