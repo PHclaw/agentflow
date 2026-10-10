@@ -25,8 +25,13 @@ class ApiClient {
    * 仍是 null，会导致登录后首个请求 401 并被踢回登录页。
    */
   private resolveToken(): string | null {
-    if (typeof window === 'undefined') return this.token
-    return localStorage.getItem('token') ?? this.token
+    // 以 localStorage 为准；不可用时（SSR / 测试环境）退回内存中的值
+    try {
+      const stored = globalThis.localStorage?.getItem('token')
+      return stored ?? this.token
+    } catch {
+      return this.token
+    }
   }
 
   private async request(
@@ -239,6 +244,13 @@ export const chat = {
   withTools: (agentId: string, message: string, sessionId?: string) => {
     return api.post(`/chat/${agentId}/with-tools`, { message, session_id: sessionId })
   },
+  /** 内置链路的流式对话（SSE：session / chunk / done / error） */
+  stream: (agentId: string, message: string, sessionId?: string | null, signal?: AbortSignal) =>
+    streamSse<{ type: string; content?: string; session_id?: string; error?: string }>(
+      `/api/v1/chat/${agentId}`,
+      { message, session_id: sessionId, stream: true },
+      signal
+    ),
 }
 
 export const knowledge = {
@@ -410,4 +422,135 @@ export const skills = {
   },
   resolve: (query: string) => api.post('/skills/resolve', { query }),
   categories: () => api.get('/skills/categories'),
+}
+
+// ---------------------------------------------------------------------------
+// SSE 流式客户端
+// ---------------------------------------------------------------------------
+
+/**
+ * 逐帧解析 SSE 响应。
+ *
+ * 不能按“每次 read 到的 chunk”切行：一个事件帧可能被拆到两次读取里，
+ * 那样会丢掉前半段。这里用 buffer 累积，只按完整的 `\n\n` 分帧。
+ *
+ * 事件源需要自定义 Authorization 头，因此不能用 EventSource，改为
+ * fetch + ReadableStream。
+ */
+export async function* streamSse<T = any>(
+  url: string,
+  body: unknown,
+  signal?: AbortSignal
+): AsyncGenerator<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = localStorage.getItem('token')
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+  })
+
+  if (!response.ok) {
+    let errorMsg = `请求失败 (${response.status})`
+    try {
+      const errBody: any = await response.json()
+      if (errBody?.detail) errorMsg = String(errBody.detail)
+    } catch {
+      // 响应体不是 JSON，保留默认提示
+    }
+    throw new Error(errorMsg)
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) return
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  const parseFrames = (text: string): T[] => {
+    const events: T[] = []
+    for (const frame of text.split('\n\n')) {
+      for (const line of frame.split('\n')) {
+        if (!line.startsWith('data:')) continue
+        const payload = line.slice(5).trim()
+        if (!payload) continue
+        try {
+          events.push(JSON.parse(payload) as T)
+        } catch {
+          // 忽略无法解析的行（例如注释或心跳）
+        }
+      }
+    }
+    return events
+  }
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // 最后一个片段可能是不完整帧，留到下一轮
+      const lastBreak = buffer.lastIndexOf('\n\n')
+      if (lastBreak === -1) continue
+
+      const complete = buffer.slice(0, lastBreak + 2)
+      buffer = buffer.slice(lastBreak + 2)
+
+      for (const event of parseFrames(complete)) yield event
+    }
+
+    // 冲刷没有以 \n\n 收尾的残留
+    if (buffer.trim()) {
+      for (const event of parseFrames(buffer)) yield event
+    }
+  } finally {
+    reader.releaseLock?.()
+  }
+}
+
+export interface PiArtifact {
+  name: string
+  path: string
+  size: number
+  modified: number
+  url: string
+}
+
+export interface PiStreamEvent {
+  type: 'log' | 'thinking' | 'text' | 'tool_call' | 'done' | 'error'
+  content?: string
+  files?: PiArtifact[]
+  session_id?: string | null
+}
+
+export interface PiChatBody {
+  message: string
+  session_id?: string | null
+  skills?: string[]
+  timeout?: number
+}
+
+export interface PiStatus {
+  enabled: boolean
+  available: boolean
+  exe: string | null
+  timeout: number
+  workspace_root: string
+  skills_root: string
+  skills: string[]
+}
+
+export const pi = {
+  status: () => api.get('/pi/status') as Promise<PiStatus>,
+  workspace: (agentId: string) => api.get(`/pi/${agentId}/workspace`),
+  run: (agentId: string, data: PiChatBody) => api.post(`/pi/${agentId}/run`, data),
+  stream: (agentId: string, data: PiChatBody, signal?: AbortSignal) =>
+    streamSse<PiStreamEvent>(`/api/v1/pi/${agentId}/stream`, data, signal),
+  downloadArtifact: (agentId: string, path: string) =>
+    api.getBlob(`/pi/${agentId}/files/${path}`),
 }

@@ -17,9 +17,14 @@ import {
   Zap,
   Check,
   X,
+  Paperclip,
+  Download,
+  Terminal,
+  Brain,
+  ChevronDown,
 } from 'lucide-react'
 import { api } from '../services/api'
-import { chat as chatApi } from '../services/api'
+import { chat as chatApi, pi, type PiArtifact, type PiStatus } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -31,6 +36,10 @@ interface Message {
   timestamp: string
   sources?: any[]
   thinking?: string
+  /** PiAgent 引擎生成的可下载附件 */
+  files?: PiArtifact[]
+  /** PiAgent 引擎执行过程中的工具调用记录 */
+  toolCalls?: string[]
 }
 
 interface AgentInfo {
@@ -38,6 +47,16 @@ interface AgentInfo {
   name: string
   description: string
   model: string
+}
+
+type Engine = 'builtin' | 'pi'
+
+/** PiAgent 运行过程中的实时事件状态 */
+interface PiLiveState {
+  logs: string[]
+  toolCalls: string[]
+  thinking: string
+  text: string
 }
 
 export default function ChatPage() {
@@ -60,10 +79,38 @@ export default function ChatPage() {
     systemPrompt: '',
   })
 
+  // PiAgent 引擎相关状态
+  const [engine, setEngine] = useState<Engine>('builtin')
+  const [piStatus, setPiStatus] = useState<PiStatus | null>(null)
+  const [piLive, setPiLive] = useState<PiLiveState>({
+    logs: [],
+    toolCalls: [],
+    thinking: '',
+    text: '',
+  })
+  const [showThinking, setShowThinking] = useState(false)
+  const [piSessionId, setPiSessionId] = useState<string | null>(null)
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  const abortRef = useRef<AbortController | null>(null)
+
+  const piReady = Boolean(piStatus?.enabled && piStatus?.available)
+
   useEffect(() => {
     loadAgent()
     loadHistory()
+    loadPiStatus()
   }, [id])
+
+  const loadPiStatus = async () => {
+    try {
+      const status = await pi.status()
+      setPiStatus(status)
+      // pi 引擎就绪时默认使用它
+      if (status.enabled && status.available) setEngine('pi')
+    } catch {
+      setPiStatus(null)
+    }
+  }
 
   useEffect(() => {
     scrollToBottom()
@@ -109,6 +156,27 @@ export default function ChatPage() {
     navigator.clipboard.writeText(content)
   }
 
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
+
+  /** 下载 PiAgent 工作区产物 */
+  const handleDownloadArtifact = async (file: PiArtifact) => {
+    try {
+      const blob = await pi.downloadArtifact(id!, file.path)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
+    }
+  }
+
   const handleFeedback = async (messageId: string, rating: string) => {
     try {
       await chatApi.feedback(id!, messageId, rating)
@@ -134,6 +202,91 @@ export default function ChatPage() {
     setTimeout(() => handleSend(), 100)
   }
 
+  const handleStop = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsLoading(false)
+  }
+
+  /** 内置链路：直连大模型（SSE：session / chunk / done / error） */
+  const sendWithBuiltin = async (message: string, signal: AbortSignal): Promise<string> => {
+    let fullContent = ''
+
+    for await (const event of chatApi.stream(id!, message, conversationId, signal)) {
+      if (event.type === 'session' && event.session_id) {
+        setConversationId(event.session_id)
+      } else if (event.type === 'chunk' && event.content) {
+        fullContent += event.content
+        setStreamingContent(fullContent)
+      } else if (event.type === 'done') {
+        if (event.content) fullContent = event.content
+        if (event.session_id) setConversationId(event.session_id)
+      } else if (event.type === 'error') {
+        throw new Error(event.error || '对话失败')
+      }
+    }
+
+    return fullContent || '抱歉，我暂时无法回答这个问题。'
+  }
+
+  /** PiAgent 链路：外部 agent CLI，带思考/工具调用/产物 */
+  const sendWithPi = async (message: string, signal: AbortSignal) => {
+    let text = ''
+    let thinking = ''
+    const toolCalls: string[] = []
+    const logs: string[] = []
+    let files: PiArtifact[] = []
+
+    setPiLive({ logs: [], toolCalls: [], thinking: '', text: '' })
+
+    for await (const event of pi.stream(
+      id!,
+      {
+        message,
+        session_id: piSessionId,
+        skills: selectedSkills.length ? selectedSkills : undefined,
+      },
+      signal
+    )) {
+      switch (event.type) {
+        case 'log':
+          if (event.content) {
+            logs.push(event.content)
+            setPiLive((prev) => ({ ...prev, logs: [...logs] }))
+          }
+          break
+        case 'thinking':
+          thinking += event.content || ''
+          setPiLive((prev) => ({ ...prev, thinking }))
+          break
+        case 'tool_call':
+          if (event.content) {
+            toolCalls.push(event.content)
+            setPiLive((prev) => ({ ...prev, toolCalls: [...toolCalls] }))
+          }
+          break
+        case 'text':
+          text += event.content || ''
+          setPiLive((prev) => ({ ...prev, text }))
+          break
+        case 'done':
+          if (event.content) text = event.content
+          files = event.files || []
+          if (event.session_id) setPiSessionId(event.session_id)
+          break
+        case 'error':
+          throw new Error(event.content || 'PiAgent 执行失败')
+      }
+    }
+
+    return {
+      content: text || '（PiAgent 未返回内容）',
+      files,
+      toolCalls,
+      thinking,
+    }
+  }
+
   const handleSend = async () => {
     if (!inputMessage.trim() || isLoading) return
 
@@ -150,71 +303,47 @@ export default function ChatPage() {
     setIsLoading(true)
     setStreamingContent('')
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
-      const response = await fetch(`/api/v1/chat/${id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {}),
-        },
-        body: JSON.stringify({
-          message: currentInput,
-          session_id: conversationId,
-          stream: true,
-        }),
-      })
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.type === 'session' && data.session_id) {
-                  setConversationId(data.session_id)
-                } else if (data.type === 'chunk' && data.content) {
-                  fullContent += data.content
-                  setStreamingContent(fullContent)
-                } else if (data.type === 'done') {
-                  fullContent = data.content || fullContent
-                  if (data.session_id) setConversationId(data.session_id)
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: fullContent || '抱歉，我暂时无法回答这个问题。',
+        content: '',
         timestamp: new Date().toISOString(),
       }
 
-      setMessages((prev) => [...prev, assistantMessage])
-    } catch (error) {
-      console.error('Chat error:', error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '抱歉，发生了错误。请稍后重试。',
-        timestamp: new Date().toISOString(),
+      if (engine === 'pi') {
+        const result = await sendWithPi(currentInput, controller.signal)
+        assistantMessage.content = result.content
+        assistantMessage.files = result.files
+        assistantMessage.toolCalls = result.toolCalls
+        assistantMessage.thinking = result.thinking
+      } else {
+        assistantMessage.content = await sendWithBuiltin(currentInput, controller.signal)
       }
-      setMessages((prev) => [...prev, errorMessage])
+
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (error: any) {
+      // 用户主动停止不算错误
+      if (error?.name !== 'AbortError') {
+        console.error('Chat error:', error)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: error?.message || '抱歉，发生了错误。请稍后重试。',
+            timestamp: new Date().toISOString(),
+          },
+        ])
+      }
     } finally {
       setIsLoading(false)
       setStreamingContent('')
+      setPiLive({ logs: [], toolCalls: [], thinking: '', text: '' })
+      abortRef.current = null
     }
   }
 
@@ -239,12 +368,42 @@ export default function ChatPage() {
                   {agent?.name || 'AI Assistant'}
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {agent?.model || 'gpt-4o-mini'}
+                  {engine === 'pi' ? 'PiAgent 引擎' : agent?.model || 'gpt-4o-mini'}
                 </p>
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 引擎切换 */}
+            <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5">
+              <button
+                onClick={() => setEngine('builtin')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors ${
+                  engine === 'builtin'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                内置模型
+              </button>
+              <button
+                onClick={() => piReady && setEngine('pi')}
+                disabled={!piReady}
+                title={
+                  piReady
+                    ? 'PiAgent 引擎（外部 agent CLI）'
+                    : 'PiAgent 未就绪：后端需设置 PIAGENT_ENABLED=true 并安装 pi CLI'
+                }
+                className={`px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors ${
+                  engine === 'pi'
+                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                } ${piReady ? '' : 'opacity-40 cursor-not-allowed'}`}
+              >
+                PiAgent
+                {piReady && piStatus?.skills?.length ? ` · ${piStatus.skills.length} 技能` : ''}
+              </button>
+            </div>
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
@@ -302,11 +461,49 @@ export default function ChatPage() {
                     type="text"
                     value={settings.systemPrompt}
                     onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-                    placeholder="自定义系统提示词..."
+                    placeholder="（Agent 侧配置优先）"
                     className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
                   />
                 </div>
               </div>
+
+              {engine === 'pi' && (
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    启用技能
+                    <span className="ml-2 text-xs font-normal text-slate-400">
+                      来自仓库 skills/ 目录，不选则不加载任何技能
+                    </span>
+                  </label>
+                  {piStatus?.skills?.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {piStatus.skills.map((name) => {
+                        const active = selectedSkills.includes(name)
+                        return (
+                          <button
+                            key={name}
+                            onClick={() =>
+                              setSelectedSkills((prev) =>
+                                prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
+                              )
+                            }
+                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border transition-colors ${
+                              active
+                                ? 'bg-indigo-500 border-indigo-500 text-white'
+                                : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-300'
+                            }`}
+                          >
+                            {active && <Check className="w-3 h-3" />}
+                            {name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400">未发现可用技能</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -382,6 +579,39 @@ export default function ChatPage() {
                     }`}
                   >
                     <p className="whitespace-pre-wrap">{message.content}</p>
+
+                    {/* 工具调用记录 */}
+                    {message.role === 'assistant' && message.toolCalls?.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {message.toolCalls.map((tool, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300"
+                          >
+                            <Terminal className="w-3 h-3" />
+                            {tool}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {/* 生成的文件附件 */}
+                    {message.role === 'assistant' && message.files?.length ? (
+                      <div className="mt-3 space-y-2">
+                        {message.files.map((file) => (
+                          <button
+                            key={file.path}
+                            onClick={() => handleDownloadArtifact(file)}
+                            className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-indigo-300 dark:hover:border-indigo-500 text-sm text-left transition-colors"
+                          >
+                            <Paperclip className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                            <span className="flex-1 truncate">{file.name}</span>
+                            <span className="text-xs text-slate-400">{formatSize(file.size)}</span>
+                            <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   {/* Actions */}
@@ -441,8 +671,8 @@ export default function ChatPage() {
               </div>
             ))}
 
-            {/* Streaming indicator */}
-            {streamingContent && (
+            {/* 内置链路：流式正文 */}
+            {engine === 'builtin' && streamingContent && (
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
                   <Bot className="w-5 h-5 text-white" />
@@ -458,8 +688,8 @@ export default function ChatPage() {
               </div>
             )}
 
-            {/* Loading indicator */}
-            {isLoading && !streamingContent && (
+            {/* 内置链路：等待中 */}
+            {engine === 'builtin' && isLoading && !streamingContent && (
               <div className="flex gap-4">
                 <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
                   <Bot className="w-5 h-5 text-white" />
@@ -470,6 +700,66 @@ export default function ChatPage() {
                       <RefreshCw className="w-4 h-4 animate-spin" />
                       <span>思考中...</span>
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* PiAgent 引擎：实时过程（工具调用 / 思考 / 正文） */}
+            {engine === 'pi' && isLoading && (
+              <div className="flex gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 max-w-2xl space-y-2">
+                  {piLive.toolCalls.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {piLive.toolCalls.map((tool, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300"
+                        >
+                          <Terminal className="w-3 h-3" />
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {piLive.thinking && (
+                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+                      <button
+                        onClick={() => setShowThinking(!showThinking)}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      >
+                        <Brain className="w-3.5 h-3.5" />
+                        <span>思考过程</span>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 ml-auto transition-transform ${
+                            showThinking ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+                      {showThinking && (
+                        <p className="px-4 pb-3 text-xs text-slate-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
+                          {piLive.thinking}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
+                    {piLive.text ? (
+                      <div className="flex items-center gap-2">
+                        <span className="whitespace-pre-wrap">{piLive.text}</span>
+                        <span className="w-2 h-5 bg-indigo-500 animate-pulse rounded" />
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-500">
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>{piLive.logs[piLive.logs.length - 1] || 'PiAgent 启动中...'}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -498,15 +788,18 @@ export default function ChatPage() {
               }}
             />
             <button
-              onClick={handleSend}
-              disabled={!inputMessage.trim() || isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors"
+              onClick={isLoading ? handleStop : handleSend}
+              disabled={!isLoading && !inputMessage.trim()}
+              title={isLoading ? '停止生成' : '发送'}
+              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                isLoading ? 'bg-slate-400 hover:bg-slate-500' : 'bg-indigo-500 hover:bg-indigo-600'
+              }`}
             >
-              <Send className="w-5 h-5" />
+              {isLoading ? <X className="w-5 h-5" /> : <Send className="w-5 h-5" />}
             </button>
           </div>
           <p className="text-xs text-slate-400 mt-2 text-center">
-            {agent?.name} 可能会产生不准确的信息，请斟酌参考。
+            {engine === 'pi' ? 'PiAgent 引擎会实际读写工作区文件' : `${agent?.name}`} 可能会产生不准确的信息，请斟酌参考。
           </p>
         </div>
       </footer>
