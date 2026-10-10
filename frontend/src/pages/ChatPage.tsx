@@ -443,7 +443,14 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
           placeholder="尽管问，带图也行"
           rows={1}
-          className="w-full bg-transparent px-5 pt-4 pb-1 text-[15px] text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none"
+          /*
+           * 这里要显式清掉焦点环：
+           * index.css 有一条全局 *:focus-visible { ring-2 ring-indigo-500 }，
+           * ring 是 box-shadow 而非 outline，所以只写 focus:outline-none 挡不住它，
+           * 会在输入框四周描出一圈紫色方框（且不跟随卡片圆角）。
+           * 聚焦反馈由外层卡片的 focus-within:border-* 承担。
+           */
+          className="w-full bg-transparent px-5 pt-4 pb-1 text-[15px] text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
           style={{ maxHeight: '200px' }}
         />
 
