@@ -157,6 +157,32 @@ npm run dev
 # 访问 http://localhost:5173
 ```
 
+### SQLite 轻量模式（无需 Docker / PostgreSQL / Redis）
+
+只想把后端跑起来、不想装数据库和一堆重型依赖时，用一键脚本：
+
+```powershell
+.\scripts\dev-backend.ps1                # 启动在 http://127.0.0.1:8001
+.\scripts\dev-backend.ps1 -Port 8002     # 指定端口
+.\scripts\dev-backend.ps1 -SkipServe     # 只准备环境，不启动服务
+.\scripts\dev-backend.ps1 -Reinstall     # 强制重装依赖
+```
+
+脚本会自动完成：探测 Python 3.11+ → 创建 `backend/.venv` → 安装 `backend/requirements-lite.txt` → 生成 `.env`（默认 `DATABASE_URL` 为 SQLite）→ 启动 uvicorn。
+
+**轻量依赖集 vs 完整依赖集**
+
+`requirements-lite.txt` 刻意排除了以下包，以缩短安装时间并避免版本冲突：
+
+| 排除的包 | 影响 |
+|:---------|:-----|
+| `sentence-transformers` | 会拖入 torch（约 2GB）。本地嵌入不可用，知识库改用 OpenAI embeddings 不受影响 |
+| `faiss-cpu` | Python 3.13 常无预编译 wheel。基于 faiss 的本地向量检索不可用 |
+| `playwright` / `browser-use` | 浏览器自动化节点不可用，需另行安装并下载浏览器内核 |
+| `asyncpg` / `pgvector` | 仅 PostgreSQL 需要，SQLite 模式用不到 |
+
+需要完整功能时，改用 `pip install -r requirements.txt`（注意 `langgraph==0.0.20` + `langchain==0.1.4` 的锁定组合较旧，Python 3.13 下可能需要放宽松版本）。
+
 ---
 
 ## 🌐 生产环境部署

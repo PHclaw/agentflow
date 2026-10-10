@@ -1,0 +1,79 @@
+# AgentFlow 后端「轻量开发依赖集」
+#
+# 用途：在 SQLite 模式下本地启动后端 + 跑测试所需的最小依赖。
+# 相比 requirements.txt，刻意排除了以下重型/易冲突的包：
+#   - sentence-transformers（会拖入 torch，约 2GB）
+#   - faiss-cpu（Python 3.13 常无预编译 wheel）
+#   - playwright / browser-use（浏览器自动化，需额外下载浏览器内核）
+#   - asyncpg / pgvector（仅 PostgreSQL 需要）
+#
+# 因此下列功能在轻量模式下不可用：
+#   - 本地 sentence-transformers 嵌入（知识库改用 OpenAI embeddings 不受影响）
+#   - 基于 faiss 的本地向量检索
+#   - Browser-Use 浏览器自动化
+#
+# 安装：
+#   uv pip install -r requirements-lite.txt
+# 或
+#   pip install -r requirements-lite.txt
+
+# Web
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
+
+# Database
+sqlalchemy[asyncio]
+aiosqlite
+
+# Config / Validation
+pydantic
+pydantic-settings
+python-dotenv
+
+# Auth
+python-jose[cryptography]
+passlib
+bcrypt
+
+# LLM
+openai
+anthropic
+httpx
+
+# LLM Orchestration（workflow engine / 知识库链路使用）
+langgraph
+langchain-core
+langchain-openai
+langchain-text-splitters
+langchain-community
+
+# Task Queue
+celery
+redis
+
+# Payments
+stripe
+
+# Monitoring
+psutil
+
+# File Processing / Skill runtime
+pandas
+openpyxl
+python-docx
+pypdf
+pdfplumber
+python-pptx
+reportlab
+Pillow
+matplotlib
+duckdb
+lunar-python
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+pytest-timeout
