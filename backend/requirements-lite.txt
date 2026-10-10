@@ -34,6 +34,7 @@ python-dotenv
 
 # Auth
 python-jose[cryptography]
+email-validator
 passlib
 bcrypt
 

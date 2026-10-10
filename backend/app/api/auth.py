@@ -3,7 +3,7 @@
 """
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
@@ -45,7 +45,7 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
 
 
 class RegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
     nickname: str = None
 
@@ -79,7 +79,7 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
