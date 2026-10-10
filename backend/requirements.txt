@@ -32,9 +32,14 @@ langchain-core==0.1.20
 langchain-openai==0.0.5
 langchain-community==0.0.17
 langchain-text-splitters==0.0.1
-langchain-chroma==0.1.0
 langchain-pg==0.0.1
 faiss-cpu==1.7.4
+
+# 向量库：langchain_community.vectorstores.Chroma 在运行时依赖 chromadb。
+# 注意：原先这里写的是 langchain-chroma==0.1.0，但该版本在 PyPI 上并不存在
+# （最早是 0.1.2），导致这一步永远装不上、文档索引必然报
+# "Could not import chromadb"。这里直接装运行时真正需要的 chromadb。
+chromadb>=1.0.0
 
 # 工作流编排：使用 app/services/workflow_runtime.py 的自研实现，不再依赖 LangGraph
 
@@ -50,7 +55,8 @@ python-dotenv==1.0.0
 # File Processing
 python-docx==1.1.0
 openpyxl==3.1.2
-PyPDF2==3.0.1
+# PDF 解析统一走 pypdf（见 api/knowledge.py 的 extract_text）；
+# PyPDF2 已不再被代码引用，留着只会误导。
 
 # Skill runtime (Model Lab integration)
 pandas>=2.2.0

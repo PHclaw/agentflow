@@ -36,7 +36,10 @@ class TestVectorStorePath:
     """向量存储路径"""
 
     def test_path_is_namespaced_by_kb(self, monkeypatch, tmp_path):
-        monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+        # 向量库必须与 API 存原始文件的目录同源，因此跟随 uploads_root()
+        # （认AGENTFLOW_UPLOADS_DIR），而不是相对的 settings.UPLOAD_DIR ——
+        # 后者会解析到进程工作目录（backend/）下，与 uploads/ 不是同一处
+        monkeypatch.setenv("AGENTFLOW_UPLOADS_DIR", str(tmp_path))
         service = KnowledgeService(db=None, kb_id="kb-1")
 
         path = service._get_vector_store_path("kb-1")
@@ -50,7 +53,7 @@ class TestCreateKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_creates_row_and_directory(self, async_db, monkeypatch, tmp_path):
-        monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
+        monkeypatch.setenv("AGENTFLOW_UPLOADS_DIR", str(tmp_path))
         service = KnowledgeService(db=async_db)
 
         kb = await service.create_knowledge_base(name="产品文档", description="对外文档")

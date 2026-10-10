@@ -112,11 +112,17 @@ async def test_agent(async_db: AsyncSession, test_user: User) -> Agent:
 
 
 @pytest.fixture
-async def test_knowledge_base(async_db: AsyncSession) -> KnowledgeBase:
-    """创建测试知识库"""
+async def test_knowledge_base(
+    async_db: AsyncSession, test_user: User
+) -> KnowledgeBase:
+    """创建测试知识库
+
+    必须带上user_id：知识库现在按账号隔离，接口会校验归属。
+    """
     kb = KnowledgeBase(
         id="test-kb-001",
         agent_id="test-agent-001",
+        user_id=test_user.external_id,
         name="Test KB",
         description="A test knowledge base",
     )

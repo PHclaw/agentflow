@@ -159,7 +159,23 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      throw new Error('上传失败')
+      // 必须把后端返回的 detail 带出来：它才是用户能行动的原因
+      // （例如「请在设置 → 模型配置中填写 API Key」），
+      // 笼统的「上传失败」会让界面无法给出有用提示
+      let detail = ''
+      try {
+        const body: any = await response.json()
+        if (Array.isArray(body)) {
+          detail = body.map((e: any) => e?.msg || JSON.stringify(e)).join('; ')
+        } else if (typeof body?.detail === 'string') {
+          detail = body.detail
+        } else if (body?.detail) {
+          detail = JSON.stringify(body.detail)
+        }
+      } catch {
+        // 响应体不是 JSON，沿用兜底文案
+      }
+      throw new Error(detail || `上传失败（HTTP ${response.status}）`)
     }
 
     return response.json()

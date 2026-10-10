@@ -154,7 +154,21 @@ class TestUploadPrecondition:
     ):
         from app.core.config import settings
 
+        # 凭证判断已改为「实际能否拿到」：设置页配置的库 + .env 都要清掉，
+        # 只清 OPENAI_API_KEY 时若MODEL_BASE_URL 仍有值就不该再报 503
         monkeypatch.setattr(settings, "OPENAI_API_KEY", "")
+        monkeypatch.setattr(settings, "MODEL_BASE_URL", "", raising=False)
+
+        from app.services import knowledge as knowledge_mod
+
+        def no_credentials(self):
+            raise knowledge_mod.EmbeddingNotConfiguredError(
+                "知识库需要向量模型凭证：请在「设置 → 模型配置」中填写 API Key"
+            )
+
+        monkeypatch.setattr(
+            knowledge_mod.KnowledgeService, "_get_embeddings", no_credentials
+        )
 
         response = await async_client.post(
             f"/api/v1/knowledge/{test_knowledge_base.id}/documents",
@@ -163,4 +177,4 @@ class TestUploadPrecondition:
         )
 
         assert response.status_code == 503
-        assert "OPENAI_API_KEY" in response.json()["detail"]
+        assert "模型配置" in response.json()["detail"]

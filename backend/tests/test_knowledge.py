@@ -126,6 +126,101 @@ class TestKnowledgeAPI:
         assert "query" in data
     
     @pytest.mark.asyncio
+    async def test_knowledge_base_is_scoped_to_owner(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_knowledge_base: KnowledgeBase,
+    ):
+        """别人的知识库既看不到也删不掉"""
+        # 另造一个账号，用它的令牌访问
+        other = await async_client.post(
+            "/api/v1/auth/register",
+            json={"email": "kb-other@test.com", "password": "Other@12345"},
+        )
+        assert other.status_code in (200, 201), other.text
+        other_headers = {"Authorization": f"Bearer {other.json()['token']}"}
+
+        listing = await async_client.get("/api/v1/knowledge", headers=other_headers)
+        assert all(
+            item["id"] != test_knowledge_base.id for item in listing.json()["knowledge_bases"]
+        )
+
+        detail = await async_client.get(
+            f"/api/v1/knowledge/{test_knowledge_base.id}", headers=other_headers
+        )
+        assert detail.status_code == 404
+
+        removal = await async_client.delete(
+            f"/api/v1/knowledge/{test_knowledge_base.id}", headers=other_headers
+        )
+        assert removal.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_upload_without_embedding_credentials_explains_why(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_knowledge_base: KnowledgeBase,
+        monkeypatch,
+    ):
+        """没配向量凭证时要给出可操作提示，而不是无信息的 500"""
+        from app.services import knowledge as knowledge_mod
+
+        monkeypatch.setattr(knowledge_mod.settings, "OPENAI_API_KEY", "", raising=False)
+        monkeypatch.setattr(knowledge_mod.settings, "MODEL_BASE_URL", "", raising=False)
+
+        def no_credentials(self):
+            raise knowledge_mod.EmbeddingNotConfiguredError("知识库需要向量模型凭证：请在「设置 → 模型配置」中填写 API Key")
+
+        monkeypatch.setattr(
+            knowledge_mod.KnowledgeService, "_get_embeddings", no_credentials
+        )
+
+        response = await async_client.post(
+            f"/api/v1/knowledge/{test_knowledge_base.id}/documents",
+            headers=auth_headers,
+            files={"file": ("a.txt", b"hello", "text/plain")},
+        )
+
+        assert response.status_code == 503
+        assert "模型配置" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_search_keeps_relevance_order(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+    ):
+        """检索分数是「相关性」，不能再取 1-score 把排名反转
+
+        此前会把最相关的结果算成 0.05，永远过不了阈值。
+        """
+        from app.services import knowledge as knowledge_mod
+
+        class FakeStore:
+            def similarity_search_with_relevance_scores(self, query, k, filter=None):
+                from langchain_core.documents import Document as LCDoc
+
+                return [
+                    (LCDoc(page_content="最相关", metadata={"source": "a.md"}), 0.95),
+                    (LCDoc(page_content="一般", metadata={"source": "a.md"}), 0.72),
+                    (LCDoc(page_content="不相关", metadata={"source": "a.md"}), 0.31),
+                ]
+
+        service = knowledge_mod.KnowledgeService(None, "kb-x")
+
+        async def fake_store(kb_id):
+            return FakeStore()
+
+        service._get_or_create_vector_store = fake_store
+
+        results = await service.search("问题", ["kb-x"], top_k=5, threshold=0.5)
+
+        assert [r["content"] for r in results] == ["最相关", "一般"]
+        assert results[0]["score"] == pytest.approx(0.95)
+
+    @pytest.mark.asyncio
     async def test_unauthorized_access(
         self,
         async_client: AsyncClient,

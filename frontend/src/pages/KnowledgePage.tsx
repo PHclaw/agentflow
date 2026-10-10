@@ -64,7 +64,31 @@ export default function KnowledgePage() {
   const [newKBDescription, setNewKBDescription] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  /** 上传失败原因（后端返回的可读提示），空串表示没有失败 */
+  const [uploadMessage, setUploadMessage] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  /** 语义检索 */
+  const [semanticQuery, setSemanticQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [searchedOnce, setSearchedOnce] = useState(false)
+
+  const handleSemanticSearch = async () => {
+    if (!selectedKB || !semanticQuery.trim()) return
+    setSearching(true)
+    setSearchError('')
+    try {
+      const data = await knowledge.search(semanticQuery.trim(), [selectedKB.id], 5)
+      setSearchResults(data?.results ?? [])
+      setSearchedOnce(true)
+    } catch (err: any) {
+      setSearchResults([])
+      setSearchError(err?.message || '检索失败')
+    } finally {
+      setSearching(false)
+    }
+  }
 
   useEffect(() => {
     loadKnowledgeBases()
@@ -135,24 +159,43 @@ export default function KnowledgePage() {
 
     setUploading(true)
     setUploadProgress(0)
+    setUploadMessage('')
+
+    const succeeded: string[] = []
+    const failed: string[] = []
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        
+
         // 模拟上传进度
         for (let progress = 0; progress <= 100; progress += 10) {
           setUploadProgress(progress)
           await new Promise(resolve => setTimeout(resolve, 100))
         }
 
-        await api.uploadFile(`/knowledge/${selectedKB.id}/documents`, file)
+        try {
+          await api.uploadFile(`/knowledge/${selectedKB.id}/documents`, file)
+          succeeded.push(file.name)
+        } catch (err: any) {
+          // 逐个文件收集失败原因：整体try 会让第一个失败就把后面的文件全丢掉
+          failed.push(`${file.name}：${err?.message || '上传失败'}`)
+        }
       }
 
       loadDocuments(selectedKB.id)
-      setShowUploadModal(false)
-    } catch (error) {
-      console.error('Upload failed:', error)
+      // 知识库列表里的文档数/分块数也要刷新：
+      // 只刷文档列表会让顶部统计一直停在「0 个文档」
+      loadKnowledgeBases()
+      if (failed.length === 0) {
+        setShowUploadModal(false)
+      } else {
+        // 此前失败只写console.error，界面上毫无提示，
+        // 用户看到进度条走完就没了，完全不知道发生了什么
+        setUploadMessage(
+          `成功 ${succeeded.length} 个，失败 ${failed.length} 个：\n${failed.join('\n')}`
+        )
+      }
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -356,6 +399,59 @@ export default function KnowledgePage() {
                     </Button>
                   </div>
                 </div>
+              </Card>
+
+              {/* 语义检索：后端 /search 一直存在但前端从未调用过 */}
+              <Card className="p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={semanticQuery}
+                    onChange={(e) => setSemanticQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSemanticSearch()
+                    }}
+                    placeholder={`在「${selectedKB.name}」里检索内容…`}
+                    className="flex-1 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400 transition-colors"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSemanticSearch}
+                    disabled={searching || !semanticQuery.trim()}
+                    leftIcon={searching ? undefined : <Search className="w-4 h-4" />}
+                  >
+                    {searching ? '检索中' : '检索'}
+                  </Button>
+                </div>
+
+                {searchError && (
+                  <p className="mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-600 dark:text-red-400">
+                    {searchError}
+                  </p>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {searchResults.map((r, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
+                      >
+                        <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
+                          {r.content}
+                        </p>
+                        <p className="mt-1.5 text-xs text-slate-400 flex items-center gap-2">
+                          <span className="truncate">{r.filename}</span>
+                          <span>· 相关度 {(r.score * 100).toFixed(0)}%</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {searchResults.length === 0 && searchedOnce && !searchError && (
+                  <p className="mt-3 text-xs text-slate-400">没有找到相关内容</p>
+                )}
               </Card>
 
               {/* Documents */}
@@ -609,6 +705,16 @@ export default function KnowledgePage() {
               )}
             </label>
           </div>
+
+          {/* 上传失败原因：必须让用户看到，否则只会觉得「点了没反应」 */}
+          {uploadMessage && (
+            <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">部分文件未上传</p>
+              <p className="text-xs text-red-600/80 dark:text-red-400/80 whitespace-pre-wrap break-words">
+                {uploadMessage}
+              </p>
+            </div>
+          )}
 
           <div className="text-sm text-slate-500 dark:text-slate-400">
             <p className="font-medium mb-2">上传提示：</p>
