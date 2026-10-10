@@ -14,6 +14,7 @@ import json
 from ..core.database import get_db
 from ..models.agent import Agent, ChatSession
 from ..services.integrated_runtime import IntegratedAgentRuntime
+from ..services.llm import LLMNotConfiguredError, humanize_llm_error
 from .auth import get_current_user_id
 
 router = APIRouter()
@@ -164,7 +165,8 @@ async def chat(
                 yield f"data: {json.dumps({'type': 'done', 'content': full_response, 'session_id': runtime.session.id})}\n\n"
 
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                # 界面会原样展示这个字符串，必须翻译成用户能行动的中文提示
+                yield f"data: {json.dumps({'type': 'error', 'error': humanize_llm_error(e)}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             generate_sse(),
@@ -198,8 +200,11 @@ async def chat(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except LLMNotConfiguredError as e:
+        # 属于配置缺失而非服务故障，用 503 让前端能区分并提供引导
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
 
 
 @router.post("/{agent_id}/with-tools", response_model=ChatResponse)
@@ -238,8 +243,11 @@ async def chat_with_tools(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except LLMNotConfiguredError as e:
+        # 属于配置缺失而非服务故障，用 503 让前端能区分并提供引导
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
 
 
 @router.get("/{agent_id}/history")

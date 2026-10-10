@@ -612,7 +612,12 @@ async def test_connection(
 
     except Exception as exc:  # noqa: BLE001 - 需要翻译成用户可读提示
         logger.info("连接测试失败 base_url=%s err=%r", base_url, exc)
-        return False, _friendly_error(exc)
+        return False, humanize_provider_error(exc)
+
+
+def humanize_provider_error(exc: Exception) -> str:
+    """面向用户的模型调用错误提示（连接测试与运行时共用一套翻译）。"""
+    return _friendly_error(exc)
 
 
 async def record_test_result(

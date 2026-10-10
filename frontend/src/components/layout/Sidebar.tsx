@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { 
   LayoutDashboard, 
@@ -19,8 +19,14 @@ import {
 } from 'lucide-react'
 import { Logo } from './Logo'
 import { Button } from '../ui/Button'
-import { auth } from '../../services/api'
+import { agents as agentsApi, auth } from '../../services/api'
 import { useAuthStore } from '../../stores'
+
+interface RecentAgent {
+  id: string
+  name: string
+  description?: string
+}
 
 const navItems = [
   { icon: LayoutDashboard, label: '控制台', href: '/dashboard' },
@@ -40,6 +46,26 @@ export function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
+  const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([])
+
+  // 「最近」此前是写死的假数据（智能客服助手 / HR 工作台 / 产品推荐），
+  // 点了没有任何反应。改为拉取该账号真实的 Agent。
+  useEffect(() => {
+    let cancelled = false
+    agentsApi
+      .list({ limit: 3 })
+      .then((data: any) => {
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : data?.items ?? data?.agents ?? []
+        setRecentAgents(list.slice(0, 3))
+      })
+      .catch(() => {
+        if (!cancelled) setRecentAgents([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname])
 
   const handleLogout = () => {
     auth.logout()
@@ -124,19 +150,27 @@ export function Sidebar() {
               最近
             </h3>
             <div className="space-y-1">
-              {[
-                { name: '智能客服助手', avatar: '🤖' },
-                { name: 'HR 工作台', avatar: '👥' },
-                { name: '产品推荐', avatar: '🛍️' },
-              ].map((agent) => (
-                <button
-                  key={agent.name}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-600 hover:bg-slate-50 transition-all"
-                >
-                  <span className="text-lg">{agent.avatar}</span>
-                  <span className="truncate">{agent.name}</span>
-                </button>
-              ))}
+              {recentAgents.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-slate-400">暂无 Agent</p>
+              ) : (
+                recentAgents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    onClick={() => navigate(`/agents/${agent.id}/chat`)}
+                    title={agent.description || agent.name}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all ${
+                      location.pathname === `/agents/${agent.id}/chat`
+                        ? 'bg-indigo-50 text-indigo-600'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="w-6 h-6 flex-shrink-0 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs font-medium flex items-center justify-center">
+                      {agent.name.slice(0, 1)}
+                    </span>
+                    <span className="truncate">{agent.name}</span>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         )}

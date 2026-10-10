@@ -36,7 +36,7 @@ interface KnowledgeBase {
   chunk_count: number
   created_at: string
   updated_at: string
-  status: 'ready' | 'indexing' | 'error'
+  status: 'ready' | 'indexing' | 'empty' | 'error'
 }
 
 interface Document {
@@ -298,6 +298,8 @@ export default function KnowledgePage() {
                         <CheckCircle className="w-4 h-4 text-emerald-500" />
                       ) : kb.status === 'indexing' ? (
                         <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                      ) : kb.status === 'empty' ? (
+                        <FolderOpen className="w-4 h-4 text-slate-400" />
                       ) : (
                         <AlertCircle className="w-4 h-4 text-red-500" />
                       )}

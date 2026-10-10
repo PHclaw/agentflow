@@ -12,7 +12,12 @@
 import pytest
 
 from app.services import llm as llm_module
-from app.services.llm import LLMService
+from app.services.llm import (
+    LLMNotConfiguredError,
+    LLMService,
+    humanize_llm_error,
+    is_retryable_error,
+)
 
 
 class TestDefaultModel:
@@ -100,7 +105,7 @@ class TestRetry:
         async def flaky():
             calls["n"] += 1
             if calls["n"] < 3:
-                raise RuntimeError("transient")
+                raise RuntimeError("503 Service Unavailable")
             return "recovered"
 
         assert await svc._retry(flaky) == "recovered"
@@ -114,13 +119,106 @@ class TestRetry:
 
         async def always_fail():
             calls["n"] += 1
-            raise RuntimeError("down")
+            raise RuntimeError("503 Service Unavailable")
 
-        with pytest.raises(RuntimeError, match="down"):
+        with pytest.raises(RuntimeError, match="503"):
             await svc._retry(always_fail)
 
         assert calls["n"] == 3
         assert no_sleep == [1, 2]
+
+    @pytest.mark.asyncio
+    async def test_configuration_error_is_not_retried(self, no_sleep):
+        """配置类错误重试不会成功，必须立刻抛出（曾导致请求卡 25 秒）"""
+        svc = LLMService(provider="openai")
+        calls = {"n": 0}
+
+        async def bad_config():
+            calls["n"] += 1
+            raise RuntimeError("Connection error.")
+
+        with pytest.raises(RuntimeError, match="Connection error"):
+            await svc._retry(bad_config)
+
+        assert calls["n"] == 1
+        assert no_sleep == []
+
+
+class TestRetryableClassification:
+    """哪些异常值得重试"""
+
+    @pytest.mark.parametrize(
+        "message",
+        ["Request timed out", "Rate limit reached (429)", "502 Bad Gateway", "server overloaded"],
+    )
+    def test_retryable(self, message):
+        assert is_retryable_error(RuntimeError(message)) is True
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Connection error.",
+            "Invalid API key",
+            "Incorrect API key provided",
+            "model does not exist",
+            "nodename nor servname provided",
+        ],
+    )
+    def test_not_retryable(self, message):
+        assert is_retryable_error(RuntimeError(message)) is False
+
+
+class TestCredentialGuard:
+    """没有凭证时必须快速失败，而不是让 SDK 重试到超时"""
+
+    @pytest.mark.asyncio
+    async def test_raises_without_any_credentials(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OPENAI_API_KEY", "")
+        svc = LLMService(provider="openai")
+        monkeypatch.setattr(svc, "_active_credentials", lambda: (None, None))
+
+        with pytest.raises(LLMNotConfiguredError) as exc:
+            svc.ensure_configured()
+        assert "模型配置" in str(exc.value)
+
+    @pytest.mark.asyncio
+    async def test_passes_with_env_key(self, monkeypatch):
+        monkeypatch.setattr(llm_module.settings, "OPENAI_API_KEY", "sk-test")
+        svc = LLMService(provider="openai")
+        monkeypatch.setattr(svc, "_active_credentials", lambda: (None, None))
+
+        svc.ensure_configured()
+
+    @pytest.mark.asyncio
+    async def test_passes_with_only_base_url(self, monkeypatch):
+        """本地端点常常没有密钥，只有 base_url 也应视为已配置"""
+        monkeypatch.setattr(llm_module.settings, "OPENAI_API_KEY", "")
+        svc = LLMService(provider="openai")
+        monkeypatch.setattr(
+            svc, "_active_credentials", lambda: (None, "http://localhost:11434/v1")
+        )
+
+        svc.ensure_configured()
+
+
+class TestHumanizeError:
+    """错误信息必须翻译成用户能行动的中文"""
+
+    def test_not_configured_message_is_actionable(self):
+        msg = humanize_llm_error(
+            LLMNotConfiguredError("尚未配置大模型 API：请在「设置 → 模型配置」中添加密钥与端点")
+        )
+        assert "模型配置" in msg
+
+    def test_bare_connection_error_is_translated(self):
+        """只给一句 'Connection error.' 用户完全无从下手"""
+        msg = humanize_llm_error(RuntimeError("Connection error."))
+
+        assert msg != "Connection error."
+        assert "无法连接到端点" in msg
+
+    def test_auth_error_is_translated(self):
+        assert "认证失败" in humanize_llm_error(RuntimeError("401 Invalid API key"))
 
 
 class TestEmbed:

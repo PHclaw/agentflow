@@ -60,7 +60,8 @@ async def list_knowledge_bases(db: AsyncSession = Depends(get_db)):
             "name": kb.name,
             "description": kb.description,
             "document_count": doc_count,
-            "status": "ready" if doc_count > 0 else "indexing",
+            # 空知识库没有可索引内容，不应该永远显示「索引中」
+            "status": "ready" if doc_count > 0 else "empty",
             "created_at": kb.created_at.isoformat() if kb.created_at else None,
             "updated_at": kb.updated_at.isoformat() if kb.updated_at else None,
         })

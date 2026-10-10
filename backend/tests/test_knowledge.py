@@ -29,6 +29,25 @@ class TestKnowledgeAPI:
         assert isinstance(data["knowledge_bases"], list)
     
     @pytest.mark.asyncio
+    async def test_empty_knowledge_base_is_not_marked_indexing(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        test_knowledge_base: KnowledgeBase,
+    ):
+        """空知识库不应永远停留在「索引中」状态"""
+        response = await async_client.get("/api/v1/knowledge", headers=auth_headers)
+
+        assert response.status_code == 200
+        kb = next(
+            item
+            for item in response.json()["knowledge_bases"]
+            if item["id"] == test_knowledge_base.id
+        )
+        assert kb["document_count"] == 0
+        assert kb["status"] == "empty"
+
+    @pytest.mark.asyncio
     async def test_create_knowledge_base(
         self,
         async_client: AsyncClient,
