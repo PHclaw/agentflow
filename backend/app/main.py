@@ -17,7 +17,7 @@ from app.core.logging import setup_logging, logger
 from app.core.monitoring import router as monitoring_router
 from app.core.websocket import router as websocket_router
 from app.api import auth, users, agents, templates, chat, billing, skills
-from app.api import pi_agent as pi_agent_api
+from app.api import llm_configs, pi_agent as pi_agent_api
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.api.agent_routes import router as agent_routes_router
@@ -42,7 +42,16 @@ async def lifespan(app: FastAPI):
     async with get_async_session_factory()() as db:
         await seed_templates(db)
         logger.info("Templates seeded")
-    
+
+        # 预加载「大模型 API 配置」的生效快照，保证首个请求就能用上
+        from app.services import llm_config
+        active = await llm_config.ensure_fresh(db, force=True)
+        logger.info(
+            "LLM config loaded: alias=%s source=%s",
+            active.alias if active else "-",
+            active.source if active else "none",
+        )
+
     yield
     
     # 关闭时清理资源
@@ -67,6 +76,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 大模型配置热刷新中间件
+# 快照带 TTL，这里只在过期时才查库，因此正常请求几乎无额外开销；
+# 多 worker 部署时依靠它让「改了配置」在 TTL 秒内对所有进程生效。
+@app.middleware("http")
+async def refresh_llm_config(request: Request, call_next):
+    try:
+        from app.services import llm_config
+
+        if llm_config.is_stale():
+            async with get_async_session_factory()() as db:
+                await llm_config.ensure_fresh(db)
+    except Exception:  # noqa: BLE001 - 刷新失败不应阻断请求（会继续用旧快照）
+        logger.warning("刷新大模型配置快照失败", exc_info=True)
+
+    return await call_next(request)
+
 
 # 请求日志中间件
 @app.middleware("http")
@@ -115,6 +141,7 @@ app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
 app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
 app.include_router(pi_agent_api.router, prefix="/api/v1/pi", tags=["PiAgent 引擎"])
+app.include_router(llm_configs.router, prefix="/api/v1/llm-configs", tags=["大模型 API 配置"])
 
 # Skill 工具产出（Excel/PDF/PPT 等）
 _static_root = static_root()

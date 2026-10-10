@@ -9,6 +9,8 @@ from sqlalchemy.pool import StaticPool
 from .config import settings
 from .seed import seed_templates
 from .base import Base
+# 显式导入全部模型，确保 create_all 能建出所有表（含后续新增的表）
+import app.models  # noqa: F401
 
 # 数据库状态
 USE_MEMORY_MODE = False

@@ -19,3 +19,10 @@ def decrypt_text(cipher: str) -> str:
         return _fernet().decrypt(cipher.encode("utf-8")).decode("utf-8")
     except InvalidToken as exc:
         raise ValueError("解密失败") from exc
+
+
+def encrypt_text(plain: str) -> str:
+    """对称加密（用于 API Key 等敏感配置落库）。"""
+    if plain is None:
+        raise ValueError("待加密内容不能为空")
+    return _fernet().encrypt(plain.encode("utf-8")).decode("utf-8")

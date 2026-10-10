@@ -104,6 +104,7 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 |:-----|:-----|:-----|
 | 🎨 **拖拽式工作流编辑器** | ReactFlow 画布，LLM / Condition / Tool / Knowledge 节点自由组合 | ✅ |
 | 🤖 **多模型支持** | GPT-4o / GPT-4.1 / o3 / Claude Sonnet 4 / DeepSeek R1 / Ollama 本地模型 | ✅ |
+| 🔑 **大模型 API 配置** | 自行填写密钥与端点，别名、默认项、连接测试、热切换 | ✅ |
 | 📚 **知识库 RAG** | 文档上传 → 自动分块 → 向量嵌入 → 检索增强生成 | ✅ |
 | 🔧 **工具调用系统** | 内置搜索 / 计算 + 自定义 API 扩展 | ✅ |
 | 🌐 **浏览器自动化** | 内置 Browser-Use 引擎，AI 控制浏览器执行任务 | ✅ |
@@ -245,6 +246,53 @@ pi 子进程，无需重复配置。
 - 工作区新旧文件对比，新增文件自动作为可下载附件回传
 - 过滤「我将读取文件…」这类过程性叙述，避免向用户暴露内部机制
 - Windows 下自动改用 `node + cli.js` 绕过 `.cmd`，避免 subprocess 兼容问题
+
+---
+
+## 🔑 大模型 API 配置（支持热切换）
+
+在 **设置 → 模型配置** 里可以自行填写 API Key 与端点，**不用改 .env、也不用重启服务**。
+
+| 能力 | 说明 |
+|:-----|:-----|
+| 增删改查 | 别名、服务商、Base URL、模型、温度、最大 tokens、备注 |
+| 别名与默认项 | 别名唯一（重复会明确提示）；「设为默认」即刻生效 |
+| 启用/停用 | 可临时停用某套配置；默认项不允许停用，避免出现无可用配置 |
+| 连接测试 | 保存前可先测；先探测 `/models`（不消耗 token），不可用时退回一次最小对话请求 |
+| 错误提示 | 认证失败 / 域名解析失败 / 连接被拒绝 / 路径需要 `/v1` / 模型不存在 / 超时，分别给出可操作提示 |
+| 密钥安全 | Fernet 加密落库，接口只返回脱敏值（如 `sk-l******7890`），明文不出后端 |
+| 热切换 | 写操作立即让运行时快照失效，**下一条请求**就用新配置 |
+
+**热切换是怎么做到的**
+
+全项目的模型凭证只有一个出口：`app/services/model_runtime.py` 的 `resolve_credentials()`。
+它优先读内存中的「生效配置快照」，快照由 `app/services/llm_config.py` 维护：
+
+- 启动时预加载一次（`main.py` 的 lifespan）
+- 任何增删改都会 `invalidate()`，立刻刷新快照并清空底层 SDK 客户端缓存
+- 请求级中间件只在快照过期时查库，因此多 worker 部署下最迟
+  `LLM_CONFIG_CACHE_TTL_SECONDS`（默认 5 秒）对所有进程一致
+
+**回退行为**：一套配置都没有时，继续使用 `.env` 里的凭证，原有部署不受影响；
+界面会标注「当前来自 .env 回退」。
+
+**接口**
+
+| 方法 | 路径 | 说明 |
+|:-----|:-----|:-----|
+| GET | `/api/v1/llm-configs` | 列表（脱敏）+ 当前生效项 |
+| POST | `/api/v1/llm-configs` | 新增 |
+| PUT | `/api/v1/llm-configs/{id}` | 更新（不传 `api_key` 表示保留原密钥）|
+| DELETE | `/api/v1/llm-configs/{id}` | 删除（删掉默认项会自动补一个）|
+| POST | `/api/v1/llm-configs/{id}/default` | 设为默认并立即生效 |
+| POST | `/api/v1/llm-configs/{id}/active` | 启用 / 停用 |
+| POST | `/api/v1/llm-configs/{id}/test` | 测试已保存配置并记录结果 |
+| POST | `/api/v1/llm-configs/test` | 测试未保存的草稿 |
+| GET | `/api/v1/llm-configs/active` | 当前真正生效的配置 |
+| GET | `/api/v1/llm-configs/providers` | 可选服务商预设与建议模型 |
+
+> 仅支持 **OpenAI 兼容协议** 的端点（OpenAI / DeepSeek / Ollama / 百炼 / vLLM / OneAPI 等）。
+> 原生 Anthropic 协议需要额外的适配器，暂不在本系统范围内。
 
 ---
 

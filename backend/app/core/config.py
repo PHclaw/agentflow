@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # Embedding
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
+    # 大模型 API 配置热加载：生效配置的快照最多缓存多少秒
+    # 同一进程内改完立即生效；多 worker 部署下最迟该秒数后一致
+    LLM_CONFIG_CACHE_TTL_SECONDS: int = 5
+    # 连接测试超时（秒）
+    LLM_CONFIG_TEST_TIMEOUT: int = 20
+    
     # PiAgent 运行时（可选引擎，参考 AlphaLens 的 piagent 实现）
     # 开启后可通过 /api/v1/pi/{agent_id}/stream 调用外部 agent CLI（pi）
     PIAGENT_ENABLED: bool = False

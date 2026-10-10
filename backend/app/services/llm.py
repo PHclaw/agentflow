@@ -25,15 +25,34 @@ class LLMService:
         }
         return defaults.get(provider, "gpt-4o-mini")
     
+    def _active_credentials(self) -> tuple[str | None, str | None]:
+        """取「大模型 API 配置」中当前生效的凭证（仅 OpenAI 兼容协议适用）。
+
+        未配置或配置来自 .env 快照时返回 (None, None)，由调用方回退到 settings。
+        """
+        from app.services.llm_config import get_active
+
+        active = get_active()
+        if active is None or active.source != "database":
+            return None, None
+        return (active.api_key or None), (active.base_url or None)
+
     def _get_client(self):
         if self._client:
             return self._client
-        
+
+        api_key, base_url = self._active_credentials()
+
         if self.provider == "openai":
-            self._client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+            # base_url 为空时交给 SDK 用官方默认值
+            self._client = AsyncOpenAI(
+                api_key=api_key or settings.OPENAI_API_KEY,
+                **({"base_url": base_url} if base_url else {}),
+            )
         elif self.provider == "anthropic":
+            # Anthropic 走原生协议，不套用 OpenAI 兼容端点
             self._client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-        
+
         return self._client
     
     async def chat(
@@ -161,9 +180,10 @@ class LLMService:
         max_tokens: int,
     ) -> str:
         async def _call():
+            api_key, base_url = self._active_credentials()
             client = AsyncOpenAI(
-                api_key=settings.DEEPSEEK_API_KEY,
-                base_url=settings.DEEPSEEK_BASE_URL + "/v1",
+                api_key=api_key or settings.DEEPSEEK_API_KEY,
+                base_url=base_url or settings.DEEPSEEK_BASE_URL + "/v1",
             )
             response = await client.chat.completions.create(
                 model=self.model,

@@ -27,6 +27,7 @@ import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
 import { Modal } from '../components/ui/Modal'
 import { useThemeStore } from '../hooks/useTheme'
+import LlmConfigPanel from '../components/LlmConfigPanel'
 
 type Tab = 'profile' | 'api-keys' | 'models' | 'appearance' | 'notifications' | 'billing'
 
@@ -38,18 +39,9 @@ interface APIKey {
   last_used: string | null
 }
 
-interface ModelConfig {
-  id: string
-  name: string
-  provider: 'openai' | 'anthropic' | 'deepseek'
-  api_key: string
-  enabled: boolean
-}
-
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('profile')
   const [apiKeys, setApiKeys] = useState<APIKey[]>([])
-  const [models, setModels] = useState<ModelConfig[]>([])
   const [showCreateKeyModal, setShowCreateKeyModal] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
   const [showNewKey, setShowNewKey] = useState(false)
@@ -81,29 +73,7 @@ export default function SettingsPage() {
       },
     ])
 
-    setModels([
-      {
-        id: '1',
-        name: 'OpenAI',
-        provider: 'openai',
-        api_key: '',
-        enabled: true,
-      },
-      {
-        id: '2',
-        name: 'Anthropic Claude',
-        provider: 'anthropic',
-        api_key: '',
-        enabled: true,
-      },
-      {
-        id: '3',
-        name: 'DeepSeek',
-        provider: 'deepseek',
-        api_key: '',
-        enabled: false,
-      },
-    ])
+    // 模型配置改为由 LlmConfigPanel 直接对接后端 /api/v1/llm-configs
   }
 
   const handleCreateKey = async () => {
@@ -126,13 +96,6 @@ export default function SettingsPage() {
       ...apiKeys,
     ])
     setNewKeyName('')
-    setSaving(false)
-  }
-
-  const handleSaveModel = async (model: ModelConfig) => {
-    setSaving(true)
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    setModels(models.map((m) => (m.id === model.id ? model : m)))
     setSaving(false)
   }
 
@@ -268,79 +231,13 @@ export default function SettingsPage() {
 
           {activeTab === 'models' && (
             <Card className="p-6">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-6">
-                模型配置
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+                大模型 API 配置
               </h2>
-              <div className="space-y-6">
-                {models.map((model) => (
-                  <div
-                    key={model.id}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-700"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          model.provider === 'openai'
-                            ? 'bg-emerald-100 text-emerald-600'
-                            : model.provider === 'anthropic'
-                            ? 'bg-orange-100 text-orange-600'
-                            : 'bg-blue-100 text-blue-600'
-                        }`}>
-                          <Code className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 dark:text-white">
-                            {model.name}
-                          </p>
-                          <p className="text-sm text-slate-500 capitalize">
-                            {model.provider}
-                          </p>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={model.enabled}
-                          onChange={(e) =>
-                            setModels(
-                              models.map((m) =>
-                                m.id === model.id ? { ...m, enabled: e.target.checked } : m
-                              )
-                            )
-                          }
-                          className="sr-only peer"
-                        />
-                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
-                      </label>
-                    </div>
-
-                    <div className="space-y-4">
-                      <Input
-                        label="API Key"
-                        type="password"
-                        placeholder="输入 API Key"
-                        value={model.api_key}
-                        onChange={(e) =>
-                          setModels(
-                            models.map((m) =>
-                              m.id === model.id ? { ...m, api_key: e.target.value } : m
-                            )
-                          )
-                        }
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          onClick={() => handleSaveModel(model)}
-                          disabled={saving}
-                        >
-                          保存
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                填写自己的密钥与端点。保存后立即生效，无需重启服务。
+              </p>
+              <LlmConfigPanel />
             </Card>
           )}
 

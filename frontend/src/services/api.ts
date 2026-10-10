@@ -545,6 +545,89 @@ export interface PiStatus {
   skills: string[]
 }
 
+// ---------------------------------------------------------------------------
+// 大模型 API 配置
+// ---------------------------------------------------------------------------
+
+export interface LlmConfig {
+  id: string
+  alias: string
+  provider: string
+  base_url: string
+  model: string
+  temperature: number
+  max_tokens: number
+  description: string
+  is_default: boolean
+  is_active: boolean
+  has_api_key: boolean
+  api_key_masked: string
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_error: string | null
+  created_at: string | null
+  updated_at: string | null
+  is_effective: boolean
+}
+
+export interface LlmProviderPreset {
+  value: string
+  label: string
+  base_url: string
+  requires_key: boolean
+  hint: string
+  models: { name: string; display_name: string }[]
+}
+
+export interface LlmConfigPayload {
+  alias: string
+  provider: string
+  base_url: string
+  model: string
+  api_key?: string
+  description?: string
+  temperature?: number
+  max_tokens?: number
+  is_default?: boolean
+}
+
+export interface EffectiveConfig {
+  source: 'database' | 'env' | 'none'
+  id?: string | null
+  alias: string | null
+  provider: string | null
+  base_url: string
+  model: string
+  api_key_masked: string
+  message: string
+}
+
+export const llmConfigs = {
+  list: () =>
+    api.get('/llm-configs') as Promise<{
+      configs: LlmConfig[]
+      effective_id: string | null
+      effective_source: string
+    }>,
+  active: () => api.get('/llm-configs/active') as Promise<EffectiveConfig>,
+  providers: () =>
+    api.get('/llm-configs/providers') as Promise<{
+      providers: LlmProviderPreset[]
+      protocol_note: string
+    }>,
+  create: (data: LlmConfigPayload) => api.post('/llm-configs', data) as Promise<LlmConfig>,
+  update: (id: string, data: Partial<LlmConfigPayload>) =>
+    api.put(`/llm-configs/${id}`, data) as Promise<LlmConfig>,
+  remove: (id: string) => api.delete(`/llm-configs/${id}`),
+  setDefault: (id: string) => api.post(`/llm-configs/${id}/default`) as Promise<LlmConfig>,
+  setActive: (id: string, isActive: boolean) =>
+    api.post(`/llm-configs/${id}/active`, { is_active: isActive }) as Promise<LlmConfig>,
+  test: (id: string) =>
+    api.post(`/llm-configs/${id}/test`) as Promise<{ ok: boolean; message: string }>,
+  testDraft: (data: { provider: string; base_url: string; model: string; api_key: string }) =>
+    api.post('/llm-configs/test', data) as Promise<{ ok: boolean; message: string }>,
+}
+
 export const pi = {
   status: () => api.get('/pi/status') as Promise<PiStatus>,
   workspace: (agentId: string) => api.get(`/pi/${agentId}/workspace`),
