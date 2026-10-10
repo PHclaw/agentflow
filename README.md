@@ -556,6 +556,9 @@ cd backend && pytest tests/ -v --cov=app
 # 前端类型检查
 cd frontend && npm run typecheck
 
+# 对话页 UI 冒烟测试（Edge headless，零依赖；需前后端已在运行）
+node scripts/ui-smoke.mjs <agent_id> ["可选的消息内容"]
+
 # 数据库迁移（backend 目录下执行，连接串取自 .env）
 alembic upgrade head                     # 新库建表
 alembic revision --autogenerate -m "desc"  # 改完模型后生成迁移

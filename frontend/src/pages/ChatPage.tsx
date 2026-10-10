@@ -799,7 +799,8 @@ export default function ChatPage() {
             </button>
           </div>
           <p className="text-xs text-slate-400 mt-2 text-center">
-            {engine === 'pi' ? 'PiAgent 引擎会实际读写工作区文件' : `${agent?.name}`} 可能会产生不准确的信息，请斟酌参考。
+            {engine === 'pi' ? 'PiAgent 引擎会实际读写工作区文件。' : ''}
+            {agent?.name} 可能会产生不准确的信息，请斟酌参考。
           </p>
         </div>
       </footer>
