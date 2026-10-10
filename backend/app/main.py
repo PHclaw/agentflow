@@ -37,10 +37,9 @@ async def lifespan(app: FastAPI):
     
     # 播种模板数据
     from app.core.seed import seed_templates
-    async for db in get_async_session_factory()():
+    async with get_async_session_factory()() as db:
         await seed_templates(db)
         logger.info("Templates seeded")
-        break
     
     yield
     
