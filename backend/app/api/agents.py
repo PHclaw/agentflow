@@ -3,7 +3,7 @@ Agent CRUD API — 数据库版本
 """
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -15,16 +15,35 @@ router = APIRouter()
 
 
 class WorkflowNode(BaseModel):
-    """工作流节点"""
+    """工作流节点
+
+    字段必须与前端 ReactFlow 的节点结构对齐：前端保存的是
+    {id, type, position, data}，节点的配置（模型、提示词、响应模板等）全部在 data 里。
+
+    这里额外放开 extra：本类原先只声明 {id, type, config}，pydantic 默认忽略
+    未声明字段，导致前端传来的 position 与 data 被静默丢弃，
+    工作流保存后节点配置全部变为空。放开 extra 可避免以后前端新增字段时重蹈覆辙。
+    """
+    model_config = ConfigDict(extra="allow")
+
     id: str = ""
     type: str = "llm"
+    position: dict = {}
+    data: dict = {}
     config: dict = {}
 
 
 class WorkflowEdge(BaseModel):
-    """工作流边"""
+    """工作流边
+
+    sourceHandle 用于区分条件节点的 yes / no 分支，必须保留。
+    """
+    model_config = ConfigDict(extra="allow")
+
+    id: str = ""
     source: str = ""
     target: str = ""
+    sourceHandle: Optional[str] = None
     condition: Optional[dict] = None
 
 
@@ -73,6 +92,9 @@ def _agent_to_dict(agent: Agent) -> dict:
         "status": "active" if agent.is_active else "inactive",
         "message_count": agent.message_count or 0,
         "is_active": agent.is_active,
+        # 编辑器靠这个字段回填画布；此前这里漏了它，
+        # 导致每次打开工作流编辑器都是空画布，已保存的工作流看起来凭空消失
+        "workflow_definition": agent.workflow_definition or {"nodes": [], "edges": []},
         "created_at": agent.created_at.isoformat() if agent.created_at else "",
         "updated_at": agent.updated_at.isoformat() if agent.updated_at else "",
     }
