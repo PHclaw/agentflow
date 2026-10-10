@@ -44,6 +44,19 @@ class Settings(BaseSettings):
     # Embedding
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
+    # PiAgent 运行时（可选引擎，参考 AlphaLens 的 piagent 实现）
+    # 开启后可通过 /api/v1/pi/{agent_id}/stream 调用外部 agent CLI（pi）
+    PIAGENT_ENABLED: bool = False
+    PIAGENT_EXE: str = "pi"
+    PIAGENT_TIMEOUT: int = 180
+    # pi 默认 provider 是 google；这里可覆盖成 openai/anthropic 等与项目一致的厂商
+    PIAGENT_PROVIDER: str = ""
+    PIAGENT_MODEL: str = ""
+    # 每个 Agent 一个独立工作区；留空则用 uploads/pi_workspace/<agent_id>
+    PIAGENT_WORKSPACE_ROOT: str = ""
+    # 技能目录；留空则用仓库根的 skills/
+    PIAGENT_SKILLS_DIR: str = ""
+    
     # CORS（支持逗号分隔字符串，便于 docker-compose 注入）
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
 

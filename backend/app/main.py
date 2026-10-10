@@ -17,6 +17,7 @@ from app.core.logging import setup_logging, logger
 from app.core.monitoring import router as monitoring_router
 from app.core.websocket import router as websocket_router
 from app.api import auth, users, agents, templates, chat, billing, skills
+from app.api import pi_agent as pi_agent_api
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.api.agent_routes import router as agent_routes_router
@@ -113,6 +114,7 @@ app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
 app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
+app.include_router(pi_agent_api.router, prefix="/api/v1/pi", tags=["PiAgent 引擎"])
 
 # Skill 工具产出（Excel/PDF/PPT 等）
 _static_root = static_root()
