@@ -86,6 +86,7 @@ class KnowledgeService:
         file_type: str = "txt",
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
+        stored_path: str = None,
     ) -> Document:
         """添加文档 - 使用 LangChain 处理"""
         doc = Document(
@@ -93,6 +94,7 @@ class KnowledgeService:
             filename=filename,
             file_type=file_type,
             file_size=len(content),
+            stored_path=stored_path,
             status="processing",
         )
         self.db.add(doc)

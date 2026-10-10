@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import time
 
@@ -170,14 +171,17 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 404 处理
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
+# HTTPException 处理
+# 注意：不能直接注册 exception_handler(404)，那样会把所有业务 404（如「文档不存在」）
+# 的 detail 一并替换成「路由不存在」，前端只能拿到无意义的报错。
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail
+    if exc.status_code == 404 and detail in (None, "Not Found"):
+        detail = f"路由 {request.url.path} 不存在"
+
     return JSONResponse(
-        status_code=404,
-        content={
-            "error": "Not Found",
-            "message": f"Route {request.url.path} not found",
-            "path": request.url.path
-        }
+        status_code=exc.status_code,
+        content={"detail": detail, "path": request.url.path},
+        headers=getattr(exc, "headers", None),
     )

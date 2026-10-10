@@ -139,6 +139,38 @@ class ApiClient {
 
     return response.json()
   }
+
+  /**
+   * 下载二进制内容（如知识库文档的原始文件）。
+   * 失败时抛出后端返回的 detail 信息，便于界面提示具体原因。
+   */
+  async getBlob(endpoint: string): Promise<Blob> {
+    const headers: Record<string, string> = {}
+    const token = this.resolveToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, { headers })
+
+    if (response.status === 401) {
+      this.clearToken()
+      throw new Error('未登录或登录已过期，请重新登录')
+    }
+
+    if (!response.ok) {
+      let errorMsg = `下载失败 (${response.status})`
+      try {
+        const body: any = await response.json()
+        if (body?.detail) errorMsg = String(body.detail)
+      } catch {
+        // 响应体不是 JSON，保留默认提示
+      }
+      throw new Error(errorMsg)
+    }
+
+    return response.blob()
+  }
 }
 
 export const api = new ApiClient()
@@ -230,6 +262,9 @@ export const knowledge = {
   },
   deleteDocument: (kbId: string, docId: number) => {
     return api.delete(`/knowledge/${kbId}/documents/${docId}`)
+  },
+  downloadDocument: (kbId: string, docId: number) => {
+    return api.getBlob(`/knowledge/${kbId}/documents/${docId}/download`)
   },
   search: (query: string, kbIds?: string[], topK?: number) => {
     return api.post('/knowledge/search', { query, kb_ids: kbIds, top_k: topK || 5 })

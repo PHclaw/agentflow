@@ -22,7 +22,7 @@ import {
   Settings,
   FolderOpen,
 } from 'lucide-react'
-import { api } from '../services/api'
+import { api, knowledge } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -192,21 +192,17 @@ export default function KnowledgePage() {
   }
 
   const handleDownloadDoc = async (doc: Document) => {
+    if (!selectedKB) return
     try {
-      const response = await fetch(`/api/v1/upload/${doc.name}`)
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = doc.name
-        a.click()
-        URL.revokeObjectURL(url)
-      } else {
-        alert('文件下载失败，文件可能尚未保存到服务器')
-      }
-    } catch {
-      alert('下载失败')
+      const blob = await knowledge.downloadDocument(selectedKB.id, doc.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
     }
   }
 

@@ -2,7 +2,7 @@
 知识库 API - 文档管理和向量搜索
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -147,6 +147,14 @@ async def upload_document(
     db: AsyncSession = Depends(get_db)
 ):
     """上传文档到知识库"""
+    # 文档入库需要生成向量，缺凭证时提前给出可操作的提示，
+    # 而不是等到 OpenAIEmbeddings 内部抛错变成无信息的 500
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(
+            503,
+            "知识库需要 embedding 凭证：请在 backend/.env 中配置 OPENAI_API_KEY 后重试",
+        )
+
     # 验证文件类型
     allowed_types = {
         "text/plain": "txt",
@@ -167,21 +175,23 @@ async def upload_document(
     
     # 保存文件
     file_id = str(uuid.uuid4())
-    file_path = UPLOAD_DIR / f"{file_id}_{file.filename}"
-    
+    stored_name = f"{file_id}_{file.filename}"
+    file_path = UPLOAD_DIR / stored_name
+
     async with aiofiles.open(file_path, 'wb') as f:
         await f.write(content)
     
     # 提取文本内容
     text_content = await extract_text(content, file_type, file.filename)
     
-    # 添加到知识库
+    # 添加到知识库（记录原始文件位置，供后续下载）
     service = KnowledgeService(db, kb_id)
     doc = await service.add_document(
         kb_id=kb_id,
         filename=file.filename,
         content=text_content,
         file_type=file_type,
+        stored_path=stored_name,
     )
     
     return {
@@ -251,6 +261,33 @@ async def list_documents(
         "status": doc.status,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
     } for doc in docs]
+
+
+@router.get("/{kb_id}/documents/{doc_id}/download")
+async def download_document(
+    kb_id: str,
+    doc_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """下载文档的原始文件"""
+    doc = await db.get(Document, doc_id)
+    if not doc or doc.kb_id != kb_id:
+        raise HTTPException(404, "文档不存在")
+
+    if not doc.stored_path:
+        raise HTTPException(404, "该文档未保留原始文件（可能是早期上传的数据）")
+
+    # 只解析 UPLOAD_DIR 下的文件，并对文件名做净化，避免路径穿越
+    stored_name = Path(doc.stored_path).name
+    file_path = (UPLOAD_DIR / stored_name).resolve()
+    if file_path.parent != UPLOAD_DIR.resolve() or not file_path.is_file():
+        raise HTTPException(404, "原始文件已丢失，请重新上传")
+
+    return FileResponse(
+        file_path,
+        filename=doc.filename,
+        media_type="application/octet-stream",
+    )
 
 
 @router.delete("/{kb_id}/documents/{doc_id}")
