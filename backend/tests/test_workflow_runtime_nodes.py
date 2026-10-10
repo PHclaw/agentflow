@@ -22,6 +22,82 @@ from app.services.workflow_runtime import (
 )
 
 
+class TestNormalizeWorkflowDefinition:
+    """预置模板那套写法（from/to、start/output、config）必须归一化成运行时形状"""
+
+    def test_template_edges_are_mapped_to_source_target(self):
+        result = wr.normalize_workflow_definition(
+            {"edges": [{"from": "start", "to": "classify"}]}
+        )
+
+        assert result["edges"] == [{"source": "start", "target": "classify"}]
+
+    def test_empty_source_falls_back_to_from(self):
+        """API 模型会给 source/target 填默认空串，此时必须回退到 from/to
+
+        这是模板套用后连线全丢的根因：按「键是否存在」判断回退，
+        而空串让键一直是存在的，于是 source 保持为 ''，
+        画布一条线都没有、执行器拓扑排序认为没有依赖。
+        """
+        result = wr.normalize_workflow_definition(
+            {
+                "edges": [
+                    {
+                        "id": "",
+                        "source": "",
+                        "target": "",
+                        "sourceHandle": None,
+                        "condition": None,
+                        "from": "start",
+                        "to": "classify",
+                    }
+                ]
+            }
+        )
+
+        edge = result["edges"][0]
+        assert edge["source"] == "start"
+        assert edge["target"] == "classify"
+        # 旧字段要清掉，避免同一根线留两套键名
+        assert "from" not in edge and "to" not in edge
+
+    def test_editor_edges_are_left_intact(self):
+        result = wr.normalize_workflow_definition(
+            {"edges": [{"source": "t1", "target": "a1", "sourceHandle": "yes"}]}
+        )
+
+        assert result["edges"] == [{"source": "t1", "target": "a1", "sourceHandle": "yes"}]
+
+    def test_node_types_and_config_are_normalized(self):
+        result = wr.normalize_workflow_definition(
+            {
+                "nodes": [
+                    {"id": "start", "type": "start", "config": {"trigger_type": "message"}},
+                    {
+                        "id": "end",
+                        "type": "output",
+                        "label": "回复用户",
+                        "config": {"response_template": "done"},
+                    },
+                ]
+            }
+        )
+
+        assert result["nodes"][0]["type"] == "trigger"
+        assert result["nodes"][0]["data"]["trigger_type"] == "message"
+        assert result["nodes"][1]["type"] == "response"
+        assert result["nodes"][1]["data"]["template"] == "done"
+        assert result["nodes"][1]["data"]["label"] == "回复用户"
+
+    def test_invalid_position_is_dropped(self):
+        """空 position 是真值，会绕过前端的兜底并算出 NaN 坐标"""
+        result = wr.normalize_workflow_definition(
+            {"nodes": [{"id": "t1", "type": "trigger", "position": {}}]}
+        )
+
+        assert "position" not in result["nodes"][0]
+
+
 def make_state(context=None, node_outputs=None) -> WorkflowState:
     state = WorkflowState(workflow_id="wf-test")
     if context:

@@ -84,10 +84,21 @@ def normalize_workflow_definition(raw: Optional[Dict]) -> Dict:
     edges: List[Dict[str, Any]] = []
     for edge in raw.get("edges") or []:
         item = dict(edge)
-        if "source" not in item and "from" in item:
+        # 必须按「值是否为空」判断，不能按「键是否存在」：
+        # API 的 WorkflowEdge 模型声明了 source/target 默认空串，
+        # 模板那套 {from, to} 走一遍模型后会变成
+        # {"source": "", "target": "", "from": "start", "to": "classify"}，
+        # 键存在但值是空的，于是回退逻辑从不触发 —— 结果是画布一条线都没有，
+        # 执行器拓扑排序认为没有依赖，下游节点全部不执行。
+        if not item.get("source") and item.get("from"):
             item["source"] = item["from"]
-        if "target" not in item and "to" in item:
+        if not item.get("target") and item.get("to"):
             item["target"] = item["to"]
+        # 归一化后清掉旧字段，避免同一根线出现两套键名
+        item.pop("from", None)
+        item.pop("to", None)
+        if not item.get("id"):
+            item.pop("id", None)
         edges.append(item)
 
     normalized: Dict[str, Any] = {"nodes": nodes, "edges": edges}

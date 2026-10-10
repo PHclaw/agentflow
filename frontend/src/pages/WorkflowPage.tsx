@@ -163,7 +163,9 @@ export default function WorkflowPage() {
         const loadedNodes: Node[] = workflowDef.nodes.map((node: any, idx: number) => ({
           id: node.id || `node-${idx}`,
           type: node.type || 'llm',
-          position: node.position || { x: 250, y: 150 + idx * 150 },
+          // 模板节点没有坐标（归一化会丢掉不合法的 position），这里兜底排布。
+          // 步长必须大于节点卡片高度，否则卡片会互相压住；交错 x 让链路更易读
+          position: node.position || { x: 250 + (idx % 2) * 56, y: 120 + idx * 178 },
           data: {
             label: node.data?.label || node.type,
             description: node.data?.description || '',

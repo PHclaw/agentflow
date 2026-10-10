@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { templates } from '../services/api'
 
@@ -12,13 +12,34 @@ interface Template {
   color: string
 }
 
+/**
+ * 模板表里存的是内部英文分类值，界面要显示中文。
+ *
+ * 关键：筛选也必须按显示用的中文值比对。此前筛选用写死的中文列表
+ * 去比库里的英文值（'客服' vs 'customer_service'），点任何分类都是空网格。
+ */
+const CATEGORY_LABELS: Record<string, string> = {
+  customer_service: '客服',
+  sales: '销售',
+  hr: 'HR',
+  finance: '财务',
+  general: '通用',
+}
+
+const categoryLabel = (raw: string) => CATEGORY_LABELS[raw] ?? raw
+
 export default function TemplateMarket() {
   const [templateList, setTemplateList] = useState<Template[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  const categories = ['全部', '客服', '销售', 'HR', '财务', '通用']
+  // 筛选项从数据推导：写死一份清单既会与库里的分类值对不上，
+  // 也会出现「财务」这种一个模板都没有的空分类
+  const categories = useMemo(() => {
+    const labels = templateList.map((t) => categoryLabel(t.category))
+    return ['全部', ...Array.from(new Set(labels))]
+  }, [templateList])
 
   useEffect(() => {
     async function loadTemplates() {
@@ -35,7 +56,7 @@ export default function TemplateMarket() {
   }, [])
 
   const filteredTemplates = selectedCategory && selectedCategory !== '全部'
-    ? templateList.filter((t) => t.category === selectedCategory)
+    ? templateList.filter((t) => categoryLabel(t.category) === selectedCategory)
     : templateList
 
   if (loading) {
@@ -89,7 +110,7 @@ export default function TemplateMarket() {
               <div className={`bg-gradient-to-r ${template.color || 'from-blue-500 to-indigo-600'} p-6 text-white`}>
                 <div className="text-4xl mb-2">{template.icon || '🤖'}</div>
                 <h3 className="text-xl font-semibold">{template.name}</h3>
-                <span className="text-sm opacity-80">{template.category}</span>
+                <span className="text-sm opacity-80">{categoryLabel(template.category)}</span>
               </div>
 
               {/* Content */}
@@ -114,9 +135,6 @@ export default function TemplateMarket() {
                   >
                     使用模板
                   </button>
-                  <button className="py-2 px-4 border rounded-lg hover:bg-gray-50 transition">
-                    预览
-                  </button>
                 </div>
               </div>
             </div>
@@ -132,7 +150,7 @@ export default function TemplateMarket() {
             从零开始构建你的专属 AI Agent
           </p>
           <button
-            onClick={() => navigate('/create')}
+            onClick={() => navigate('/agents/new')}
             className="px-8 py-3 bg-white text-gray-900 rounded-xl font-medium hover:bg-gray-100 transition"
           >
             自定义创建
