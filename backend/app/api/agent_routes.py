@@ -9,6 +9,7 @@ from sqlalchemy import select, func
 from app.models.agent import Agent, ChatSession, KnowledgeBase, WorkflowTemplate
 from app.core.logging import get_logger
 from app.core.database import get_db
+from app.services.workflow_runtime import normalize_workflow_definition
 from app.api.auth import get_current_user_id
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
@@ -514,7 +515,8 @@ async def instantiate_template(
         user_id=user_id,
         name=name,
         description=tmpl.description,
-        workflow_definition=tmpl.workflow_definition,
+        # 模板走的是另一套写法，落库前先换算成运行时/编辑器都能用的形状
+        workflow_definition=normalize_workflow_definition(tmpl.workflow_definition),
         model_config={"model": "gpt-4o-mini", "temperature": 0.7},
     )
     db.add(new_agent)

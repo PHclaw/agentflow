@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea, Select } from '../components/ui/Input'
@@ -7,7 +7,7 @@ import { Tabs, TabPanel } from '../components/ui/Tabs'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
-import { api, models as modelsApi } from '../services/api'
+import { api, models as modelsApi, templates as templatesApi } from '../services/api'
 import { useToastStore } from '../stores'
 import type { Agent, WorkflowDefinition } from '../types'
 import {
@@ -38,9 +38,12 @@ const tabs = [
 
 export default function AgentCreatePage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { addToast } = useToastStore()
   const isEditing = !!id
+  /** 模板市场带过来的模板 id（/agents/new?template=xxx） */
+  const templateId = searchParams.get('template')
 
   const [activeTab, setActiveTab] = useState('basic')
   const [loading, setLoading] = useState(false)
@@ -57,6 +60,14 @@ export default function AgentCreatePage() {
   const [knowledgeBases, setKnowledgeBases] = useState<Array<{id: string, name: string, description: string, document_count: number}>>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [showKBSelector, setShowKBSelector] = useState(false)
+
+  /**
+   * 待保存的工作流定义。
+   *
+   * 编辑已有 Agent 时不下发该字段（见 handleSubmit 注释），
+   * 新建时若来自模板，则用模板自带的工作流。
+   */
+  const [workflowDefinition, setWorkflowDefinition] = useState<WorkflowDefinition | null>(null)
 
   // 加载模型列表
   useEffect(() => {
@@ -106,6 +117,26 @@ export default function AgentCreatePage() {
     }
   }, [id])
 
+  // 从模板市场进入：套用模板的名称、描述与工作流定义
+  useEffect(() => {
+    if (!templateId || isEditing) return
+    templatesApi
+      .get(templateId)
+      .then((tpl: any) => {
+        setFormData((prev) => ({
+          ...prev,
+          name: prev.name || tpl.name || '',
+          description: prev.description || tpl.description || '',
+        }))
+        setWorkflowDefinition(tpl.workflow_definition ?? null)
+        addToast({
+          type: 'info',
+          message: `已套用模板「${tpl.name}」，保存后即可使用其中编排`,
+        })
+      })
+      .catch(() => addToast({ type: 'error', message: '模板加载失败' }))
+  }, [templateId, isEditing])
+
   const fetchAgent = async (agentId: string) => {
     try {
       const agent = await api.get(`/agents/${agentId}`)
@@ -113,9 +144,10 @@ export default function AgentCreatePage() {
         name: agent.name,
         description: agent.description || '',
         model: agent.model_config?.model || 'gpt-4o-mini',
-        prompt: '',
+        prompt: agent.system_prompt || '',
         knowledgeBaseId: agent.knowledge_base_id || '',
       })
+      setWorkflowDefinition(agent.workflow_definition ?? null)
     } catch (error) {
       addToast({ type: 'error', message: '加载 Agent 失败' })
     }
@@ -129,14 +161,9 @@ export default function AgentCreatePage() {
 
     setLoading(true)
     try {
-      const data = {
+      const data: Record<string, unknown> = {
         name: formData.name,
         description: formData.description,
-        workflow_definition: {
-          nodes: [],
-          edges: [],
-          entry: 'start',
-        },
         llm_config: {
           provider: 'openai',
           model: formData.model,
@@ -144,6 +171,16 @@ export default function AgentCreatePage() {
           max_tokens: 2000,
         },
         knowledge_base_id: formData.knowledgeBaseId || undefined,
+        system_prompt: formData.prompt || undefined,
+      }
+
+      // 编辑时不下发 workflow_definition：
+      // 这里原先硬编码 {nodes: [], edges: [], entry: 'start'}，
+      // 结果只要用表单编辑一次 Agent，工作流编辑器里配好的内容就被清空了。
+      // 后端对 None 的字段会跳过，所以不发即为「保持不变」。
+      if (!isEditing) {
+        data.workflow_definition =
+          workflowDefinition || { nodes: [], edges: [], entry: 'start' }
       }
 
       if (isEditing && id) {

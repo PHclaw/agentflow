@@ -2,13 +2,14 @@
 Agent CRUD API — 数据库版本
 """
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Optional, List
+from typing import Optional, List, Union
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..core.database import get_db
 from ..models.agent import Agent
+from ..services.workflow_runtime import normalize_workflow_definition
 from .auth import get_current_user_id
 
 router = APIRouter()
@@ -44,7 +45,10 @@ class WorkflowEdge(BaseModel):
     source: str = ""
     target: str = ""
     sourceHandle: Optional[str] = None
-    condition: Optional[dict] = None
+    # 编辑器写对象、预置模板写字符串表达式（如 "intent == 'faq'"）。
+    # 执行时并不读这个字段（分支由 sourceHandle 决定），但类型太窄会让
+    # 套用模板直接 422：Input should be a valid dictionary
+    condition: Optional[Union[dict, str]] = None
 
 
 class WorkflowDefinition(BaseModel):
@@ -71,6 +75,9 @@ class AgentCreate(BaseModel):
     # 前端 Agent 表单会带上它；此前模型里没声明，pydantic 直接丢弃，
     # 于是选了知识库也存不下来，工作流的知识节点拿不到 kb_id
     knowledge_base_id: Optional[str] = None
+    # 系统提示词存在 settings JSON 里。前端表单收集了它但从没发出来，
+    # 导致这块一直是空的；工作流的 LLM 节点也拿不到 system_prompt
+    system_prompt: Optional[str] = None
 
 
 class AgentUpdate(BaseModel):
@@ -80,10 +87,26 @@ class AgentUpdate(BaseModel):
     workflow_definition: Optional[WorkflowDefinition] = None
     llm_config: Optional[ModelConfig] = None
     knowledge_base_id: Optional[str] = None
+    system_prompt: Optional[str] = None
     is_active: Optional[bool] = None
 
 
 # ----- 辅助 -----
+
+def _normalized_workflow(value) -> dict:
+    """把工作流定义换算成运行时形状后再落库。
+
+    读写边界都做归一化，好处是编辑器拿到的永远是可渲染的形状：
+    预置模板用的是另一套写法（节点类型 start/output、配置放 config、
+    边用 from/to、没有 position），原样存进去会让编辑器加载出
+    渲染不出的节点、NaN 坐标和断开的连线。
+    """
+    if value is None:
+        return {"nodes": [], "edges": []}
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+    return normalize_workflow_definition(value)
+
 
 def _agent_to_dict(agent: Agent) -> dict:
     """将 Agent ORM 对象转为前端需要的格式"""
@@ -97,8 +120,11 @@ def _agent_to_dict(agent: Agent) -> dict:
         "message_count": agent.message_count or 0,
         "is_active": agent.is_active,
         # 编辑器靠这个字段回填画布；此前这里漏了它，
-        # 导致每次打开工作流编辑器都是空画布，已保存的工作流看起来凭空消失
-        "workflow_definition": agent.workflow_definition or {"nodes": [], "edges": []},
+        # 导致每次打开工作流编辑器都是空画布，已保存的工作流看起来凭空消失。
+        # 读取时同样归一化：历史数据里可能存着模板那套写法
+        "workflow_definition": _normalized_workflow(agent.workflow_definition),
+        "system_prompt": (agent.settings or {}).get("system_prompt", ""),
+        "knowledge_base_id": agent.knowledge_base_id or "",
         "created_at": agent.created_at.isoformat() if agent.created_at else "",
         "updated_at": agent.updated_at.isoformat() if agent.updated_at else "",
     }
@@ -117,18 +143,14 @@ async def create_agent(
         user_id=user_id,
         name=data.name,
         description=data.description or "",
-        workflow_definition=(
-            data.workflow_definition.model_dump()
-            if data.workflow_definition
-            else {"nodes": [], "edges": []}
-        ),
+        workflow_definition=_normalized_workflow(data.workflow_definition),
         model_config=(
             data.llm_config.model_dump()
             if data.llm_config
             else {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7}
         ),
         knowledge_base_id=data.knowledge_base_id,
-        settings={},
+        settings=({"system_prompt": data.system_prompt} if data.system_prompt else {}),
         is_active=True,
     )
     db.add(agent)
@@ -187,10 +209,19 @@ async def update_agent(
         if value is None:
             continue
         db_key = key_map.get(key, key)
-        if db_key == "model_config" and hasattr(value, "model_dump"):
+        if db_key == "workflow_definition":
+            # 统一归一化后再落库：编辑器直接读取该字段，
+            # 若把预置模板的写法（start/output、config、from/to、无 position）
+            # 原样存进去，编辑器打开就是一堆渲染不出的节点和 NaN 坐标
+            agent.workflow_definition = _normalized_workflow(value)
+        elif db_key == "model_config" and hasattr(value, "model_dump"):
             setattr(agent, db_key, value.model_dump())
         elif db_key == "workflow_definition" and hasattr(value, "model_dump"):
             setattr(agent, db_key, value.model_dump())
+        elif db_key == "system_prompt":
+            # 系统提示词不是独立列，合并进 settings；
+            # 直接 setattr 只会挂一个不落库的 Python 属性
+            agent.settings = {**(agent.settings or {}), "system_prompt": value}
         else:
             setattr(agent, db_key, value)
 

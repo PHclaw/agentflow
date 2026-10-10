@@ -109,7 +109,7 @@ export default function TemplateMarket() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => navigate(`/create?template=${template.id}`)}
+                    onClick={() => navigate(`/agents/new?template=${template.id}`)}
                     className="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
                   >
                     使用模板

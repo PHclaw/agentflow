@@ -66,6 +66,18 @@ def normalize_workflow_definition(raw: Optional[Dict]) -> Dict:
                 merged[new_key] = merged[old_key]
 
         item["data"] = merged
+
+        # 坐标必须是带数字 x/y 的对象，否则编辑器会算出 NaN。
+        # 注意 {} 是真值，会绕过前端 `node.position || 兜底` 的写法，
+        # 所以这里直接删掉不合法的值，让前端用默认排布。
+        position = item.get("position")
+        if not (
+            isinstance(position, dict)
+            and isinstance(position.get("x"), (int, float))
+            and isinstance(position.get("y"), (int, float))
+        ):
+            item.pop("position", None)
+
         nodes.append(item)
 
     edges: List[Dict[str, Any]] = []
