@@ -71,8 +71,16 @@ interface PanelItem {
 
 const EMPTY_PI_LIVE: PiLiveState = { logs: [], toolCalls: [], thinking: '', text: '' }
 
-export default function ChatPage() {
-  const { id } = useParams<{ id: string }>()
+interface ChatSessionProps {
+  /** Agent id */
+  id: string
+  /** 从技能广场进入时携带的技能 id：自动启用该技能 */
+  skillId?: string
+  /** 技能流程下切换 Agent 的回调（不传则不显示切换入口） */
+  onSwitchAgent?: () => void
+}
+
+export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -124,6 +132,14 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom()
   }, [messages, streamingContent])
+
+  // 从技能广场进入：自动启用该技能。
+  // 技能只有 AI Agent 引擎支持（内置链路不传 skills），因此同时把引擎切过去。
+  useEffect(() => {
+    if (!skillId) return
+    setSelectedSkills((prev) => (prev.includes(skillId) ? prev : [...prev, skillId]))
+    if (piReady) setEngine('pi')
+  }, [skillId, piReady])
 
   // 输入框随内容增高（上限 200px），与参考实现的告示输入区一致
   useEffect(() => {
@@ -410,6 +426,35 @@ export default function ChatPage() {
 
   const renderComposer = (variant: 'hero' | 'docked') => (
     <div className={variant === 'hero' ? 'w-full max-w-2xl' : 'w-full max-w-2xl mx-auto'}>
+      {/* 已启用的技能：会随每次请求带给 AI Agent 引擎 */}
+      {selectedSkills.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {selectedSkills.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 animate-fade-in"
+            >
+              <Wrench className="w-3 h-3" />
+              {name}
+              <button
+                type="button"
+                onClick={() => setSelectedSkills((prev) => prev.filter((s) => s !== name))}
+                title="取消使用该技能"
+                className="p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {skillId && !piReady && (
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
+          该技能依赖 AI Agent 引擎，当前未启用；对话仍可继续，但技能不会被执行。
+        </p>
+      )}
+
       {/* 附挂功能项 */}
       {showPanel && panelItems.length > 0 && (
         <div className="mb-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-sm">
@@ -623,6 +668,15 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-1">
+            {onSwitchAgent && (
+              <button
+                onClick={onSwitchAgent}
+                title="换一个 Agent 使用该技能"
+                className="px-2.5 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+              >
+                切换 Agent
+              </button>
+            )}
             {!isEmptyState && (
               <button
                 onClick={handleNewChat}
@@ -886,4 +940,10 @@ export default function ChatPage() {
       )}
     </div>
   )
+}
+
+/** 路由包装：/agents/:id/chat */
+export default function ChatPage() {
+  const { id } = useParams<{ id: string }>()
+  return <ChatSession id={id ?? ''} />
 }

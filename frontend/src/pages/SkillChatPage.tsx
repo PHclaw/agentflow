@@ -1,25 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import {
-  ArrowLeft,
-  Send,
-  Bot,
-  User,
-  Paperclip,
-  Loader2,
-  Download,
-  X,
-} from 'lucide-react'
-import { skills as skillsApi, type SkillCallResponse } from '../services/api'
-import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
-import { Markdown } from '../components/ui/Markdown'
-
-interface Message {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-}
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, Sparkles, Wrench } from 'lucide-react'
+import { agents as agentsApi, skills as skillsApi } from '../services/api'
+import { ChatSession } from './ChatPage'
 
 interface SkillInfo {
   id: string
@@ -28,27 +11,39 @@ interface SkillInfo {
   specialty?: string
 }
 
+interface AgentItem {
+  id: string
+  name: string
+  description?: string
+}
+
+/**
+ * 技能广场的对话入口。
+ *
+ * 技能本身不能独立运行 —— 它需要挂在某个 Agent 上（由 AI Agent 引擎按
+ * agentId + skills 调用）。所以这里先给出 Agent 选择，选定后复用
+ * ChatSession 渲染与 Agent 对话页完全一致的界面。
+ *
+ * 选中的 Agent 存在 URL（?agent=xxx）上，刷新和浏览器前进/后退都能保持。
+ */
 export default function SkillChatPage() {
-  const { id } = useParams<{ id: string }>()
+  const { id: skillId } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [skill, setSkill] = useState<SkillInfo | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState('')
-  const [files, setFiles] = useState<File[]>([])
-  const [loading, setLoading] = useState(false)
+  const [agents, setAgents] = useState<AgentItem[]>([])
+  const [loadingAgents, setLoadingAgents] = useState(true)
   const [loadError, setLoadError] = useState('')
-  const [sessionId, setSessionId] = useState<string | undefined>()
-  const [downloads, setDownloads] = useState<string[]>([])
+
+  const selectedAgentId = searchParams.get('agent')
 
   useEffect(() => {
-    if (!id) return
+    if (!skillId) return
     setLoadError('')
     skillsApi
-      .get(id)
-      .then((data) =>
+      .get(skillId)
+      .then((data: any) =>
         setSkill({
           id: data.id,
           name: data.name,
@@ -56,217 +51,134 @@ export default function SkillChatPage() {
           specialty: data.specialty,
         })
       )
-      .catch((e: { message?: string }) => {
-        const msg = e?.message || '加载 Skill 失败'
-        setLoadError(msg)
-        if (msg.includes('登录') || msg.includes('401') || msg.includes('未登录')) {
-          setTimeout(() => navigate('/login'), 1500)
-        }
-      })
-  }, [id, navigate])
+      .catch((e: { message?: string }) => setLoadError(e?.message || '加载技能失败'))
+  }, [skillId])
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+    agentsApi
+      .list()
+      .then((data: any) => {
+        const list = Array.isArray(data) ? data : data?.items ?? data?.agents ?? []
+        setAgents(list)
+      })
+      .catch(() => setAgents([]))
+      .finally(() => setLoadingAgents(false))
+  }, [])
 
-  const collectDownloads = (res: SkillCallResponse) => {
-    const urls: string[] = []
-    const trace = res.toolTrace
-    if (trace?.downloadUrl) urls.push(trace.downloadUrl)
-    if (trace?.downloadUrls) urls.push(...trace.downloadUrls)
-    if (trace?.imageUrl) urls.push(trace.imageUrl)
-    setDownloads(Array.from(new Set(urls)))
+  const chooseAgent = (agentId: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('agent', agentId)
+    setSearchParams(next, { replace: true })
   }
 
-  const sendMessage = async () => {
-    if (!id || (!input.trim() && files.length === 0) || loading) return
+  const switchAgent = () => {
+    const next = new URLSearchParams(searchParams)
+    next.delete('agent')
+    setSearchParams(next, { replace: true })
+  }
 
-    const userText = input.trim() || '请处理上传的文件'
-    setMessages((prev) => [
-      ...prev,
-      { id: `u-${Date.now()}`, role: 'user', content: userText },
-    ])
-    setInput('')
-    setLoading(true)
-
-    try {
-      const res =
-        files.length > 0
-          ? await skillsApi.callWithFiles(id, userText, files, sessionId)
-          : await skillsApi.call(id, { input: userText }, sessionId)
-
-      if (res.sessionId) setSessionId(res.sessionId)
-      collectDownloads(res)
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          role: 'assistant',
-          content: res.output || '（无回复）',
-        },
-      ])
-      setFiles([])
-    } catch (e: any) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `e-${Date.now()}`,
-          role: 'assistant',
-          content: `调用失败：${e?.message || '未知错误'}`,
-        },
-      ])
-    } finally {
-      setLoading(false)
-    }
+  // 已选定 Agent：直接进入对话界面，技能自动挂载
+  if (selectedAgentId && skillId) {
+    return (
+      <ChatSession id={selectedAgentId} skillId={skillId} onSwitchAgent={switchAgent} />
+    )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={() => navigate('/skills')}>
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-semibold text-slate-900 truncate">
-            {skill?.name || 'Skill 对话'}
-          </h1>
-          {skill?.specialty && (
-            <p className="text-xs text-slate-500">{skill.specialty}</p>
-          )}
+    <div className="h-screen flex flex-col bg-white dark:bg-slate-950">
+      <header className="flex-shrink-0 px-4 py-3">
+        <div className="flex items-center gap-2 max-w-2xl mx-auto">
+          <button
+            onClick={() => navigate('/skills')}
+            title="返回技能广场"
+            className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <span className="text-[15px] font-medium text-slate-900 dark:text-white truncate">
+            {skill?.name || '技能'}
+          </span>
         </div>
       </header>
 
-      {loadError && (
-        <div className="px-4 pt-4 max-w-4xl mx-auto w-full">
-          <Card className="p-4 border-red-200 bg-red-50 text-red-700 text-sm">
-            {loadError}
-          </Card>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full space-y-4">
-        {skill?.description && messages.length === 0 && (
-          <Card className="p-4 text-sm text-slate-600 whitespace-pre-line">
-            {skill.description}
-          </Card>
-        )}
-
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : ''}`}
-          >
-            {m.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                <Bot className="w-4 h-4 text-indigo-600" />
-              </div>
-            )}
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-                m.role === 'user'
-                  ? 'bg-indigo-600 text-white whitespace-pre-wrap'
-                  : 'bg-white border border-slate-200 text-slate-800'
-              }`}
-            >
-              {m.role === 'assistant' ? <Markdown content={m.content} /> : m.content}
+      <main className="flex-1 overflow-y-auto px-6 pb-16">
+        <div className="max-w-2xl mx-auto pt-8">
+          {/* 技能介绍：与对话页空状态同一套排版 */}
+          <div className="text-center mb-10">
+            <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center">
+              <Sparkles className="w-6 h-6 text-white dark:text-slate-900" />
             </div>
-            {m.role === 'user' && (
-              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                <User className="w-4 h-4 text-slate-600" />
-              </div>
+            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
+              {skill?.name || '技能'}
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              {skill?.specialty || skill?.description || '选择一个 Agent 来使用这个技能'}
+            </p>
+            {loadError && (
+              <p className="mt-3 text-sm text-red-500">{loadError}</p>
             )}
           </div>
-        ))}
 
-        {loading && (
-          <div className="flex items-center gap-2 text-slate-500 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Skill 正在处理...
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {downloads.length > 0 && (
-        <div className="px-4 pb-2 max-w-4xl mx-auto w-full">
-          <Card className="p-4 border-indigo-200 bg-indigo-50/50">
-            <p className="text-sm font-medium text-slate-700 mb-2">生成文件</p>
-            <div className="flex flex-wrap gap-2">
-            {downloads.map((url) => (
-              <a
-                key={url}
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 text-sm px-3 py-2 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                {url.split('/').pop() || '下载'}
-              </a>
-            ))}
+          {skill?.description && skill?.specialty && (
+            <div className="mb-8 px-4 py-3 rounded-2xl bg-slate-100/70 dark:bg-slate-900 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-line">
+              {skill.description}
             </div>
-          </Card>
-        </div>
-      )}
+          )}
 
-      {files.length > 0 && (
-        <div className="px-4 pb-2 max-w-4xl mx-auto w-full flex flex-wrap gap-2">
-          {files.map((f) => (
-            <span
-              key={f.name}
-              className="inline-flex items-center gap-1 text-xs bg-white border rounded-full px-3 py-1"
-            >
-              {f.name}
-              <button
-                type="button"
-                onClick={() => setFiles((prev) => prev.filter((x) => x !== f))}
-              >
-                <X className="w-3 h-3" />
-              </button>
+          {/* Agent 选择 */}
+          <div className="flex items-center gap-2 mb-3">
+            <Wrench className="w-4 h-4 text-slate-400" />
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+              选择一个 Agent 开始对话
+            </h2>
+            <span className="text-xs text-slate-400">
+              技能会挂载到该 Agent 上执行
             </span>
-          ))}
-        </div>
-      )}
+          </div>
 
-      <div className="border-t bg-white p-4">
-        <div className="max-w-4xl mx-auto flex gap-2 items-end">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const picked = Array.from(e.target.files || [])
-              if (picked.length) setFiles((prev) => [...prev, ...picked])
-              e.target.value = ''
-            }}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            title="上传文件"
-          >
-            <Paperclip className="w-4 h-4" />
-          </Button>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                sendMessage()
-              }
-            }}
-            rows={2}
-            placeholder="输入问题，或上传 Excel/PDF 后描述需求..."
-            className="flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <Button onClick={sendMessage} disabled={loading}>
-            <Send className="w-4 h-4" />
-          </Button>
+          {loadingAgents ? (
+            <p className="text-sm text-slate-400 py-6 text-center">正在加载 Agent…</p>
+          ) : agents.length === 0 ? (
+            <div className="py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+              <p className="text-sm text-slate-500 mb-4">
+                你还没有创建 Agent，技能需要挂载在 Agent 上才能使用
+              </p>
+              <button
+                onClick={() => navigate('/agents/new')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm hover:opacity-90 transition-opacity"
+              >
+                <Sparkles className="w-4 h-4" />
+                创建 Agent
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {agents.map((agent) => (
+                <button
+                  key={agent.id}
+                  onClick={() => chooseAgent(agent.id)}
+                  className="w-full flex items-center gap-3 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 text-left transition-colors"
+                >
+                  <span className="w-9 h-9 flex-shrink-0 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-medium flex items-center justify-center">
+                    {agent.name.slice(0, 1)}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-sm font-medium text-slate-900 dark:text-white truncate">
+                      {agent.name}
+                    </span>
+                    {agent.description && (
+                      <span className="block text-xs text-slate-500 truncate">
+                        {agent.description}
+                      </span>
+                    )}
+                  </span>
+                  <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   )
 }
