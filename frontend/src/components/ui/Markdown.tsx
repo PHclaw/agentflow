@@ -31,6 +31,9 @@ const schema = {
   tagNames: [
     ...new Set([...(defaultSchema.tagNames ?? []), 'kbd', 'mark', 'details', 'summary']),
   ],
+  // 默认 schema 只「拆标签、留文本」，于是 <style>body{...}</style> 的 CSS
+  // 会变成可见正文。这里连子节点一起删掉。
+  strip: [...new Set([...(defaultSchema.strip ?? []), 'script', 'style'])],
 }
 
 // 显式标注类型：直接写字面量数组时，带参数的插件元组无法被正确推断
