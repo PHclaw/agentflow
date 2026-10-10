@@ -41,6 +41,11 @@ class SearchRequest(BaseModel):
     query: str
     kb_ids: Optional[List[str]] = None
     top_k: int = 5
+    #: 相关度下限。此前这个字段根本不存在，客户端传threshold 会被静默丢弃、
+    #: 一律按默认阈值过滤，表现为「明明有文档却一条都搜不到」。
+    #: 默认 0.4：实测中文嵌入模型下相关片段约 0.6、不相关约 0.2，
+    #:原来的 0.7 会把绝大多数有效结果挡掉。
+    threshold: float = 0.4
 
 
 async def _load_owned_kb(db: AsyncSession, kb_id: str, user_id: str) -> KnowledgeBase:
@@ -453,6 +458,7 @@ async def search_knowledge(
             query=data.query,
             kb_ids=kb_ids or None,
             top_k=data.top_k,
+            threshold=data.threshold,
         )
     except EmbeddingNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc))

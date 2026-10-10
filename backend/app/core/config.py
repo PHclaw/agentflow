@@ -42,7 +42,12 @@ class Settings(BaseSettings):
     SEMANTIC_SCHOLAR_API_KEY: str = ""
     
     # Embedding
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # 向量端点单独配置：知识库要用向量模型，通常和对话模型不是同一个，
+    # 不该为了知识库去改「设置」里正在用的对话模型。
+    # 本地 ollama 只需填 EMBEDDING_BASE_URL=http://localhost:11434/v1，无需密钥。
+    EMBEDDING_BASE_URL: str = ""
+    EMBEDDING_API_KEY: str = ""
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
     
     # 大模型 API 配置热加载：生效配置的快照最多缓存多少秒
     # 同一进程内改完立即生效；多 worker 部署下最迟该秒数后一致
