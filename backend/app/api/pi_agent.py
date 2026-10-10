@@ -28,7 +28,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.paths import pi_agent_workspace, pi_skills_root, pi_workspace_root
 from app.models.agent import Agent
-from app.services.pi_agent import pi_agent_runner
+from app.services.pi_agent import AgentContext, build_agent_context, pi_agent_runner
 
 router = APIRouter(
     dependencies=[Depends(get_current_user_id)],
@@ -40,18 +40,6 @@ class PiChatRequest(BaseModel):
     session_id: Optional[str] = None
     skills: Optional[list[str]] = None
     timeout: Optional[int] = None
-
-
-@dataclass
-class AgentContext:
-    """从 ORM 对象摘出来的只读上下文，避免流式过程中再触碰数据库会话。"""
-
-    id: str
-    name: str
-    description: str | None = None
-    system_prompt: str = ""
-    model_config: dict[str, Any] = field(default_factory=dict)
-    settings: dict[str, Any] = field(default_factory=dict)
 
 
 def _ensure_enabled() -> None:
@@ -67,20 +55,8 @@ async def _load_agent_context(db: AsyncSession, agent_id: str, user_id: str) -> 
     if not agent or agent.user_id != user_id:
         raise HTTPException(404, "Agent 不存在")
 
-    model_config = agent.model_config if isinstance(agent.model_config, dict) else {}
-    agent_settings = agent.settings if isinstance(agent.settings, dict) else {}
-
-    # 系统提示词优先取 Agent 自身配置，供 build_system_prompt 使用
-    system_prompt = str(model_config.get("system_prompt") or agent_settings.get("system_prompt") or "")
-
-    return AgentContext(
-        id=agent.id,
-        name=agent.name,
-        description=agent.description,
-        system_prompt=system_prompt,
-        model_config=dict(model_config),
-        settings=dict(agent_settings),
-    )
+    # 构造逻辑已下沉到 services/pi_agent.py，工作流的智能体节点共用
+    return build_agent_context(agent)
 
 
 def _list_available_skills() -> list[str]:

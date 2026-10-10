@@ -20,7 +20,7 @@ import 'reactflow/dist/style.css'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
-import { api, models, skills as skillsApi } from '../services/api'
+import { api, models, pi } from '../services/api'
 import { useToastStore } from '../stores'
 import {
   ArrowLeft,
@@ -35,7 +35,8 @@ import {
   Cpu,
   Database,
   Wrench,
-  Sparkles,
+  Bot,
+  Check,
   GitBranch,
   Send,
   Settings,
@@ -57,7 +58,7 @@ import { TriggerNode } from '../components/workflow/nodes/TriggerNode'
 import { LLMNode } from '../components/workflow/nodes/LLMNode'
 import { KnowledgeNode } from '../components/workflow/nodes/KnowledgeNode'
 import { ToolNode } from '../components/workflow/nodes/ToolNode'
-import { SkillNode } from '../components/workflow/nodes/SkillNode'
+import { AgentNode } from '../components/workflow/nodes/AgentNode'
 import { ConditionNode } from '../components/workflow/nodes/ConditionNode'
 import { ResponseNode } from '../components/workflow/nodes/ResponseNode'
 
@@ -66,7 +67,7 @@ const nodeTypes = {
   llm: LLMNode,
   knowledge: KnowledgeNode,
   tool: ToolNode,
-  skill: SkillNode,
+  agent: AgentNode,
   condition: ConditionNode,
   response: ResponseNode,
 }
@@ -83,7 +84,7 @@ const nodeCategories = [
     nodes: [
       { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-purple-500 to-violet-500' },
       { type: 'knowledge', label: '知识库检索', icon: Database, color: 'from-emerald-500 to-green-500' },
-      { type: 'skill', label: '技能调用', icon: Sparkles, color: 'from-teal-500 to-cyan-500' },
+      { type: 'agent', label: '智能体调用', icon: Bot, color: 'from-sky-500 to-indigo-500' },
     ],
   },
   {
@@ -174,7 +175,9 @@ export default function WorkflowPage() {
             top_k: node.data?.top_k || 5,
             tool_name: node.data?.tool_name || 'calculator',
             tool_params: node.data?.tool_params || {},
-            skill: node.data?.skill || '',
+            agent_id: node.data?.agent_id || '',
+            agent_name: node.data?.agent_name || '',
+            skills: Array.isArray(node.data?.skills) ? node.data.skills : [],
             input: node.data?.input || '',
             condition_type: node.data?.condition_type || 'contains',
             condition_value: node.data?.condition_value || '',
@@ -239,7 +242,9 @@ export default function WorkflowPage() {
         top_k: 5,
         tool_name: 'calculator',
         tool_params: {},
-        skill: '',
+        agent_id: '',
+        agent_name: '',
+        skills: [],
         input: '',
         condition_type: 'contains',
         condition_value: '',
@@ -585,7 +590,7 @@ export default function WorkflowPage() {
                   case 'llm': return '#8b5cf6'
                   case 'knowledge': return '#10b981'
                   case 'tool': return '#ec4899'
-                  case 'skill': return '#14b8a6'
+                  case 'agent': return '#0ea5e9'
                   case 'condition': return '#f59e0b'
                   case 'response': return '#6366f1'
                   default: return '#64748b'
@@ -689,26 +694,41 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
     fetchModels()
   }, [])
 
-  // 技能下拉：只有打开技能节点时才去拉，避免每次进编辑器都请求
+  // 智能体 / 技能下拉：只有打开该节点时才拉取，避免每次进编辑器都请求
+  const [agentOptions, setAgentOptions] = useState<{ value: string; label: string }[]>([])
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([])
-  const [skillsLoading, setSkillsLoading] = useState(false)
-  const [skillsError, setSkillsError] = useState<string | null>(null)
+  const [agentOptsLoading, setAgentOptsLoading] = useState(false)
+  const [skillOptsLoading, setSkillOptsLoading] = useState(false)
+  const [agentOptsError, setAgentOptsError] = useState<string | null>(null)
+  const [skillOptsError, setSkillOptsError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (node.type !== 'skill') return
-    if (skillOptions.length > 0 || skillsLoading) return
+    if (node.type !== 'agent' || agentOptions.length > 0 || agentOptsLoading) return
 
-    setSkillsLoading(true)
-    setSkillsError(null)
-    skillsApi
-      .plaza()
+    setAgentOptsLoading(true)
+    api
+      .get('/agents')
       .then((list: any) => {
-        const arr = Array.isArray(list) ? list : []
-        setSkillOptions(arr.map((s: any) => ({ value: s.id, label: s.name || s.id })))
+        const arr = Array.isArray(list) ? list : list?.items ?? []
+        setAgentOptions(arr.map((a: any) => ({ value: a.id, label: a.name })))
       })
-      .catch((e: any) => setSkillsError(e?.message || '技能列表加载失败'))
-      .finally(() => setSkillsLoading(false))
-  }, [node.type, skillOptions.length, skillsLoading])
+      .catch((e: any) => setAgentOptsError(e?.message || 'Agent 列表加载失败'))
+      .finally(() => setAgentOptsLoading(false))
+  }, [node.type, agentOptions.length, agentOptsLoading])
+
+  useEffect(() => {
+    if (node.type !== 'agent' || skillOptions.length > 0 || skillOptsLoading) return
+
+    setSkillOptsLoading(true)
+    // 取 AI Agent 引擎实际可用的技能：节点最终传给引擎的就是这一份
+    pi.status()
+      .then((st: any) => {
+        const names: string[] = Array.isArray(st?.skills) ? st.skills : []
+        setSkillOptions(names.map((s: string) => ({ value: s, label: s })))
+      })
+      .catch((e: any) => setSkillOptsError(e?.message || '技能列表加载失败'))
+      .finally(() => setSkillOptsLoading(false))
+  }, [node.type, skillOptions.length, skillOptsLoading])
 
   const renderConfig = () => {
     switch (node.type) {
@@ -787,28 +807,84 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
           </>
         )
       
-      case 'skill':
+      case 'agent':
         return (
           <>
             <Input label="节点名称" value={node.data.label} onChange={(e) => onUpdate({ label: e.target.value })} />
             <Select
-              label="技能"
-              value={node.data.skill || ''}
-              onChange={(e) => onUpdate({ skill: e.target.value })}
-              options={skillOptions}
-              disabled={skillsLoading}
-              placeholder="选择技能"
+              label="目标 Agent"
+              value={node.data.agent_id || ''}
+              onChange={(e) => {
+                const picked = agentOptions.find((o) => o.value === e.target.value)
+                onUpdate({ agent_id: e.target.value, agent_name: picked?.label || '' })
+              }}
+              options={agentOptions}
+              disabled={agentOptsLoading}
+              placeholder="留空则使用当前 Agent"
             />
-            {skillsLoading && <p className="text-xs text-slate-400 mt-1">加载技能中...</p>}
-            {skillsError && <p className="text-xs text-red-500 mt-1">{skillsError}</p>}
+            {agentOptsLoading && <p className="text-xs text-slate-400 mt-1">加载 Agent 中...</p>}
+            {agentOptsError && <p className="text-xs text-red-500 mt-1">{agentOptsError}</p>}
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                启用技能
+                <span className="ml-2 text-xs font-normal text-slate-400">
+                  不选则不加载任何技能
+                </span>
+              </label>
+              {skillOptsLoading ? (
+                <p className="text-xs text-slate-400">加载技能中...</p>
+              ) : skillOptions.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {skillOptions.map((option) => {
+                    const selected: string[] = Array.isArray(node.data.skills)
+                      ? node.data.skills
+                      : []
+                    const active = selected.includes(option.value)
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          onUpdate({
+                            skills: active
+                              ? selected.filter((s) => s !== option.value)
+                              : [...selected, option.value],
+                          })
+                        }
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                          active
+                            ? 'bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 dark:border-white'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400'
+                        }`}
+                      >
+                        {active && <Check className="w-3 h-3" />}
+                        {option.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  {skillOptsError || 'AI Agent 引擎未启用，没有可用技能'}
+                </p>
+              )}
+            </div>
+
             <Input
               label="输入内容"
               value={node.data.input || ''}
               onChange={(e) => onUpdate({ input: e.target.value })}
               placeholder="留空则自动取上游节点的输出"
             />
+            <Input
+              label="超时（秒，可选）"
+              value={node.data.timeout || ''}
+              onChange={(e) => onUpdate({ timeout: e.target.value })}
+              placeholder="留空用引擎默认值"
+            />
             <p className="text-xs text-slate-400">
-              技能产出可在响应节点用{' '}
+              Agent 产出可在响应节点用{' '}
               <code className="px-1 rounded bg-slate-100">{'{{节点ID.output}}'}</code> 引用
             </p>
           </>

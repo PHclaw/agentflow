@@ -12,6 +12,7 @@ from datetime import datetime
 
 from .llm import LLMService
 from .knowledge import KnowledgeService
+from ..core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -650,26 +651,24 @@ class ResponseNode(BaseNode):
         return re.sub(r'\{\{([^}]+)\}\}', replace_var, template)
 
 
-class SkillNode(BaseNode):
-    """技能节点 - 调用技能广场里的技能
+class AgentNode(BaseNode):
+    """智能体节点 - 调用一个 Agent，并可为它指定技能
 
-    在此之前技能只能由 AI Agent 引擎在对话时旁路调用，无法参与编排；
-    有了这个节点，技能可以像 LLM / 知识库节点一样被串进工作流。
+    为什么不是「技能节点」：Agent 才是行为的单元（它有自己的模型、
+    系统提示词与工作区），技能只是它的能力之一。直接调技能反而绕过了
+    Agent 这一层，且技能运行时与 AI Agent 引擎是两套不同的执行体。
+    这里统一走 AI Agent 引擎，与对话页里「选 Agent + 勾技能」的语义一致。
     """
 
     async def execute(self, state: WorkflowState) -> NodeResult:
         result = NodeResult(node_id=self.node_id, status=NodeStatus.RUNNING, start_time=datetime.now())
 
         try:
-            skill_id = str(
-                self.config.get("skill")
-                or self.config.get("skill_id")
-                or self.config.get("tool_name")
-                or ""
-            ).strip()
-            if not skill_id:
+            if not settings.PIAGENT_ENABLED:
                 result.status = NodeStatus.FAILED
-                result.error = "未配置技能"
+                result.error = (
+                    "AI Agent 引擎未启用：请在 backend/.env 中设置 PIAGENT_ENABLED=true"
+                )
                 return result
 
             db = state.context.get("db_session")
@@ -678,55 +677,70 @@ class SkillNode(BaseNode):
                 result.error = "数据库会话不可用"
                 return result
 
+            # 目标 Agent：节点指定优先；留空则用工作流所属的 Agent
+            target_id = str(
+                self.config.get("agent_id") or state.context.get("agent_id") or ""
+            ).strip()
+            if not target_id:
+                result.status = NodeStatus.FAILED
+                result.error = "未指定 Agent，且当前工作流没有归属的 Agent"
+                return result
+
+            # 延迟导入：pi 运行时依赖较重，避免拖慢工作流模块加载
+            from app.models.agent import Agent
+            from app.services.pi_agent import build_agent_context, pi_agent_runner
+
+            agent = await db.get(Agent, target_id)
+            if not agent:
+                result.status = NodeStatus.FAILED
+                result.error = f"Agent 不存在：{target_id}"
+                return result
+
             # 输入优先级：节点配置的 input > 上游节点输出 > 本轮用户消息
             raw_input = (
                 self.config.get("input")
                 or self.get_upstream_output(state)
                 or state.context.get("user_message", "")
             )
-            variables = {"input": str(raw_input)}
 
-            # 允许节点自定义变量，值支持 $user_message / $node_id.key 引用
-            extra_vars = self.config.get("variables")
-            if isinstance(extra_vars, dict):
-                for key, value in extra_vars.items():
-                    variables[str(key)] = str(self._resolve_variable(value, state))
+            # 技能：可写成数组或逗号分隔字符串
+            skills = self.config.get("skills") or []
+            if isinstance(skills, str):
+                skills = [part.strip() for part in skills.split(",") if part.strip()]
+            skills = [str(item).strip() for item in skills if str(item).strip()]
 
-            # 延迟导入：技能运行时依赖较多，避免拖慢工作流模块加载
-            from app.services import skill_service
-            from app.services.skill.store import get_skill
+            timeout = self.config.get("timeout")
+            try:
+                timeout_value = int(timeout) if timeout else None
+            except (TypeError, ValueError):
+                timeout_value = None
 
-            skill = get_skill(skill_id)
-            if not skill:
-                result.status = NodeStatus.FAILED
-                result.error = f"技能不存在：{skill_id}"
-                return result
-
-            response = await skill_service.call_agent(
-                db,
-                skill,
-                state.context.get("caller_id"),
-                variables,
-                conversation_id=state.context.get("skill_conversation_id"),
+            run_result = await pi_agent_runner.run(
+                message=str(raw_input),
+                agent_id=agent.id,
+                agent=build_agent_context(agent),
+                session_id=state.context.get("agent_session_id"),
+                skills=skills or None,
+                timeout=timeout_value,
             )
 
-            output = response.output or ""
-            self.set_output(state, "result", output)
-            self.set_output(state, "output", output)
-            self.set_output(state, "skill_id", skill_id)
-            self.set_output(state, "skill_name", getattr(skill, "name", skill_id))
-            self.set_output(state, "latency_ms", getattr(response, "latency_ms", 0))
+            if not run_result.get("success"):
+                result.status = NodeStatus.FAILED
+                result.error = run_result.get("error") or "Agent 执行失败"
+                return result
 
-            # 技能产物（表格 / 图片等）的下载地址，供后续响应节点展示
-            trace = getattr(response, "tool_trace", None) or {}
-            urls: List[str] = []
-            if trace.get("downloadUrl"):
-                urls.append(trace["downloadUrl"])
-            urls.extend(trace.get("downloadUrls") or [])
-            if trace.get("imageUrl"):
-                urls.append(trace["imageUrl"])
-            if urls:
-                self.set_output(state, "download_urls", list(dict.fromkeys(urls)))
+            content = run_result.get("content") or ""
+            self.set_output(state, "result", content)
+            self.set_output(state, "output", content)
+            self.set_output(state, "agent_id", agent.id)
+            self.set_output(state, "agent_name", agent.name)
+            if skills:
+                self.set_output(state, "skills", skills)
+
+            # Agent 在工作区生成的文件（表格、图片等）
+            files = run_result.get("files") or []
+            if files:
+                self.set_output(state, "files", files)
 
             result.status = NodeStatus.SUCCESS
 
@@ -750,7 +764,7 @@ class WorkflowRuntime:
             "knowledge": KnowledgeNode,
             "condition": ConditionNode,
             "tool": ToolNode,
-            "skill": SkillNode,
+            "agent": AgentNode,
             "response": ResponseNode,
         }
     

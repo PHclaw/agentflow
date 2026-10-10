@@ -26,6 +26,7 @@ import subprocess
 import sys
 import threading
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any, AsyncIterator, Iterable, Sequence
@@ -35,6 +36,39 @@ from app.core.paths import pi_agent_workspace, pi_skills_root
 from app.logging_setup import get_logger
 
 logger = get_logger("pi_agent")
+
+
+@dataclass
+class AgentContext:
+    """从 ORM 对象摘出来的只读上下文，避免执行过程中再触碰数据库会话。
+
+    HTTP 接口（app/api/pi_agent.py）与工作流的智能体节点共用这一份构造逻辑。
+    """
+
+    id: str
+    name: str
+    description: str | None = None
+    system_prompt: str = ""
+    model_config: dict[str, Any] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)
+
+
+def build_agent_context(agent) -> AgentContext:
+    """把 ORM Agent 转成执行上下文。"""
+    model_config = agent.model_config if isinstance(agent.model_config, dict) else {}
+    agent_settings = agent.settings if isinstance(agent.settings, dict) else {}
+
+    # 系统提示词优先取 Agent 自身配置，供 build_system_prompt 使用
+    system_prompt = str(model_config.get("system_prompt") or agent_settings.get("system_prompt") or "")
+
+    return AgentContext(
+        id=agent.id,
+        name=agent.name,
+        description=agent.description,
+        system_prompt=system_prompt,
+        model_config=dict(model_config),
+        settings=dict(agent_settings),
+    )
 
 # Windows 上 asyncio 的默认事件循环不支持 subprocess；PiAgent 用线程 + 同步
 # subprocess 绕开，这里仅保证策略正确，便于其它组件复用。
