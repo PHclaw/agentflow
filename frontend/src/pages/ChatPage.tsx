@@ -27,6 +27,7 @@ import {
 import { api } from '../services/api'
 import { chat as chatApi, pi, type PiArtifact, type PiStatus } from '../services/api'
 import { Markdown } from '../components/ui/Markdown'
+import { Modal } from '../components/ui/Modal'
 
 interface Message {
   id: string
@@ -701,19 +702,14 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         </div>
       </header>
 
-      {/* 设置面板 */}
-      {showSettings && (
-        <div className="flex-shrink-0 border-b border-slate-100 dark:border-slate-800 px-6 py-4">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">对话设置</h3>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                <X className="w-4 h-4 text-slate-500" />
-              </button>
-            </div>
+      {/* 对话设置：浮窗呈现。内容与之前的行内面板完全一致，
+          只是容器换成 Modal（自带遮罩、ESC 关闭、点击遮罩关闭、锁定背景滚动） */}
+      <Modal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        title="对话设置"
+        size="full"
+      >
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">模型</label>
@@ -791,9 +787,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
                 )}
               </div>
             )}
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {isEmptyState ? (
         /* 空状态：大字标题 + 居中输入区 */
