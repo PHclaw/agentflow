@@ -41,12 +41,25 @@ const bottomNavItems = [
   { icon: HelpCircle, label: '帮助', href: '/help' },
 ]
 
-export function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false)
+interface SidebarProps {
+  /** 折叠状态由 AppLayout 持有：内容区的左边距必须跟着一起变，否则会留出空隙 */
+  collapsed?: boolean
+  onToggleCollapsed?: (collapsed: boolean) => void
+}
+
+export function Sidebar({ collapsed: collapsedProp, onToggleCollapsed }: SidebarProps = {}) {
+  const [collapsedState, setCollapsedState] = useState(false)
+  const collapsed = collapsedProp ?? collapsedState
   const location = useLocation()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
   const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([])
+
+  const toggleCollapsed = () => {
+    const next = !collapsed
+    setCollapsedState(next)
+    onToggleCollapsed?.(next)
+  }
 
   // 「最近」此前是写死的假数据（智能客服助手 / HR 工作台 / 产品推荐），
   // 点了没有任何反应。改为拉取该账号真实的 Agent。
@@ -95,7 +108,7 @@ export function Sidebar() {
           </NavLink>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all"
         >
           {collapsed ? (

@@ -282,7 +282,7 @@ export default function AgentCreatePage() {
                     variant="outline"
                     size="sm"
                     leftIcon={<Zap className="w-4 h-4" />}
-                    onClick={() => window.open(`/workflow/${id || 'new'}`, '_blank')}
+                    onClick={() => navigate(`/workflow/${id || 'new'}`)}
                   >
                     打开工作流编辑器
                   </Button>

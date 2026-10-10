@@ -60,14 +60,10 @@ export default function Router() {
         <Route path="/settings" element={<ProtectedDashboard><SettingsPage /></ProtectedDashboard>} />
         <Route path="/help" element={<ProtectedDashboard><HelpPage /></ProtectedDashboard>} />
 
-        {/* Skill Chat - Full Screen */}
-        <Route path="/skills/:id" element={<ProtectedRoute><SkillChatPage /></ProtectedRoute>} />
-
-        {/* Chat Page - Full Screen */}
-        <Route path="/agents/:id/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-
-        {/* Workflow Editor Page - Full Screen */}
-        <Route path="/workflow/:id" element={<ProtectedRoute><WorkflowPage /></ProtectedRoute>} />
+        {/* 详情类页面：都嵌在侧边栏右侧的内容区里，不再整页接管 */}
+        <Route path="/skills/:id" element={<ProtectedDashboard><SkillChatPage /></ProtectedDashboard>} />
+        <Route path="/agents/:id/chat" element={<ProtectedDashboard><ChatPage /></ProtectedDashboard>} />
+        <Route path="/workflow/:id" element={<ProtectedDashboard><WorkflowPage /></ProtectedDashboard>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
