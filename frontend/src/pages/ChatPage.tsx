@@ -275,12 +275,12 @@ export default function ChatPage() {
           if (event.session_id) setPiSessionId(event.session_id)
           break
         case 'error':
-          throw new Error(event.content || 'PiAgent 执行失败')
+          throw new Error(event.content || 'AI Agent 执行失败')
       }
     }
 
     return {
-      content: text || '（PiAgent 未返回内容）',
+      content: text || '（AI Agent 未返回内容）',
       files,
       toolCalls,
       thinking,
@@ -368,7 +368,7 @@ export default function ChatPage() {
                   {agent?.name || 'AI Assistant'}
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {engine === 'pi' ? 'PiAgent 引擎' : agent?.model || 'gpt-4o-mini'}
+                  {engine === 'pi' ? 'AI Agent 引擎' : agent?.model || 'gpt-4o-mini'}
                 </p>
               </div>
             </div>
@@ -391,8 +391,8 @@ export default function ChatPage() {
                 disabled={!piReady}
                 title={
                   piReady
-                    ? 'PiAgent 引擎（外部 agent CLI）'
-                    : 'PiAgent 未就绪：后端需设置 PIAGENT_ENABLED=true 并安装 pi CLI'
+                    ? 'AI Agent 引擎：可读写工作区文件、调用技能'
+                    : 'AI Agent 引擎未启用（配置方式见 README）'
                 }
                 className={`px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors ${
                   engine === 'pi'
@@ -400,7 +400,7 @@ export default function ChatPage() {
                     : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                 } ${piReady ? '' : 'opacity-40 cursor-not-allowed'}`}
               >
-                PiAgent
+                AI Agent
                 {piReady && piStatus?.skills?.length ? ` · ${piStatus.skills.length} 技能` : ''}
               </button>
             </div>
@@ -757,7 +757,7 @@ export default function ChatPage() {
                     ) : (
                       <div className="flex items-center gap-2 text-slate-500">
                         <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>{piLive.logs[piLive.logs.length - 1] || 'PiAgent 启动中...'}</span>
+                        <span>{piLive.logs[piLive.logs.length - 1] || 'AI Agent 启动中...'}</span>
                       </div>
                     )}
                   </div>
@@ -799,7 +799,7 @@ export default function ChatPage() {
             </button>
           </div>
           <p className="text-xs text-slate-400 mt-2 text-center">
-            {engine === 'pi' ? 'PiAgent 引擎会实际读写工作区文件。' : ''}
+            {engine === 'pi' ? 'AI Agent 引擎会实际读写工作区文件。' : ''}
             {agent?.name} 可能会产生不准确的信息，请斟酌参考。
           </p>
         </div>

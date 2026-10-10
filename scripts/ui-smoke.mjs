@@ -200,8 +200,13 @@ for (let i = 0; i < 40; i++) {
 await sleep(800)
 await screenshot('04-chat-final.png')
 
-const finalText = await evaluate(`document.querySelector('main')?.innerText || ''`)
+const finalText = await evaluate(`document.body.innerText || ''`)
 console.log('[结果] 页面正文片段 =', JSON.stringify(finalText.slice(-400)))
+
+// 界面文案不得泄漏底层引擎/厂商名称，这里做固定检查
+const FORBIDDEN_IN_UI = ['PiAgent', 'piagent', 'PIAGENT', 'pi-coding-agent']
+const leaks = FORBIDDEN_IN_UI.filter((word) => finalText.includes(word))
+console.log('[文案检查] 界面泄漏引擎原名 =', leaks.length ? JSON.stringify(leaks) : '无泄漏')
 
 console.log('[控制台错误] =', consoleErrors.length ? JSON.stringify(consoleErrors) : '无')
 console.log('[页面异常] =', pageErrors.length ? JSON.stringify(pageErrors) : '无')
