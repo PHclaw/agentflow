@@ -247,6 +247,18 @@ export const agents = {
   },
 }
 
+/** 一段历史对话的摘要（列表里用，不含正文） */
+export interface ChatSessionItem {
+  id: string
+  agent_id: string
+  agent_name: string
+  /** 首条用户消息截断后的标题；空会话为空串 */
+  title: string
+  message_count: number
+  created_at: string | null
+  updated_at: string | null
+}
+
 export const chat = {
   send: (agentId: string, message: string, sessionId?: string, stream?: boolean) => {
     return api.post(`/chat/${agentId}`, { message, session_id: sessionId, stream })
@@ -257,6 +269,18 @@ export const chat = {
   },
   sessions: (agentId: string) => {
     return api.get(`/chat/${agentId}/sessions`)
+  },
+  /** 跨 Agent 的对话记录列表；不传 agentId 就是该用户的全部会话 */
+  allSessions: (params?: { agentId?: string; limit?: number; offset?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.agentId) q.set('agent_id', params.agentId)
+    if (params?.limit) q.set('limit', String(params.limit))
+    if (params?.offset) q.set('offset', String(params.offset))
+    const qs = q.toString()
+    return api.get(`/chat/sessions${qs ? `?${qs}` : ''}`) as Promise<{
+      sessions: ChatSessionItem[]
+      total: number
+    }>
   },
   feedback: (agentId: string, messageId: string, rating: string, comment?: string) => {
     return api.post(`/chat/${agentId}/feedback`, { message_id: messageId, rating, comment })

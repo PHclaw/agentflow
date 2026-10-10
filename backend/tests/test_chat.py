@@ -4,11 +4,13 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import uuid4
+from typing import List
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.models.agent import Agent
+from app.models.agent import Agent, ChatSession
 
 
 class TestChatAPI:
@@ -635,3 +637,118 @@ class TestPiChatPersistence:
         )
         assert len(new_hist.json()["messages"]) == 2
         assert len(old_hist.json()["messages"]) == 4
+
+
+class TestSessionList:
+    """对话记录列表：此前前端没有任何入口，历史对话完全看不到"""
+
+    @staticmethod
+    async def _seed(async_db: AsyncSession, user: User, agent_ids: List[str]) -> None:
+        for i, aid in enumerate(agent_ids):
+            agent = Agent(
+                id=aid,
+                user_id=user.external_id,
+                name=f"Agent{i}",
+                description="",
+                model_config={"model": "gpt-4o-mini"},
+            )
+            async_db.add(agent)
+            async_db.add(
+                ChatSession(
+                    id=f"sess-{i}",
+                    agent_id=aid,
+                    user_id=user.external_id,
+                    messages=[
+                        {"id": "m1", "role": "user", "content": f"第 {i} 段的第一个问题", "timestamp": "now"},
+                        {"id": "m2", "role": "assistant", "content": "回复", "timestamp": "now"},
+                    ],
+                )
+            )
+            async_db.add(
+                ChatSession(
+                    id=f"sess-{i}-empty",
+                    agent_id=aid,
+                    user_id=user.external_id,
+                    messages=[],
+                )
+            )
+        await async_db.commit()
+
+    @pytest.mark.asyncio
+    async def test_lists_sessions_across_agents(
+        self, async_client: AsyncClient, auth_headers: dict, async_db: AsyncSession, test_user: User
+    ):
+        await self._seed(async_db, test_user, [f"a-{uuid4().hex[:6]}", f"b-{uuid4().hex[:6]}"])
+        ids = [a.id for a in (await async_db.execute(select(Agent))).scalars().all()]
+        target = [i for i in ids if i.startswith(("a-", "b-"))][:2]
+
+        response = await async_client.get("/api/v1/chat/sessions", headers=auth_headers)
+
+        assert response.status_code == 200
+        body = response.json()
+        listed = [s for s in body["sessions"] if s["id"].startswith("sess-")]
+        # 每个 agent 播种 1 段有内容 + 1 段空，空的被滤掉 → 剩 2 段
+        assert len(listed) == 2
+        assert body["total"] == 2
+        # 标题取自第一条用户消息
+        titled = [s for s in listed if s["title"]]
+        assert titled and all("第一个问题" in s["title"] for s in titled)
+        assert all(s["message_count"] == 2 for s in listed)
+        # 跨 agent：每条都要带上自己的 agent 名字
+        assert {s["agent_name"] for s in listed} == {"Agent0", "Agent1"}
+        assert all(s["agent_id"] in target for s in listed)
+
+    @pytest.mark.asyncio
+    async def test_empty_sessions_are_excluded(
+        self, async_client: AsyncClient, auth_headers: dict, async_db: AsyncSession, test_user: User
+    ):
+        """空会话没有任何信息量，不应出现在「对话记录」里
+
+        否则每次点「新建对话」都会往列表里塞一条「（空对话）」，
+        把真正的对话挤下去。
+        """
+        await self._seed(async_db, test_user, [f"c-{uuid4().hex[:6]}"])
+
+        response = await async_client.get("/api/v1/chat/sessions", headers=auth_headers)
+
+        body = response.json()
+        listed = [s for s in body["sessions"] if s["id"].startswith("sess-")]
+        # 播种 1 段有内容 + 1 段空，空的被滤掉 → 剩 1 段
+        assert len(listed) == 1
+        assert all(s["message_count"] == 2 and s["title"] for s in listed)
+        assert body["total"] == len(body["sessions"])
+
+    @pytest.mark.asyncio
+    async def test_agent_filter_narrows_the_list(
+        self, async_client: AsyncClient, auth_headers: dict, async_db: AsyncSession, test_user: User
+    ):
+        await self._seed(async_db, test_user, [f"d-{uuid4().hex[:6]}", f"e-{uuid4().hex[:6]}"])
+        agents = (await async_db.execute(select(Agent))).scalars().all()
+        one = next(a for a in agents if a.id.startswith("d-"))
+
+        response = await async_client.get(
+            f"/api/v1/chat/sessions?agent_id={one.id}", headers=auth_headers
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        # 该agent 播种 2 段，其中 1 段为空被滤掉
+        assert body["total"] == 1
+        assert all(s["agent_id"] == one.id for s in body["sessions"])
+
+    @pytest.mark.asyncio
+    async def test_per_agent_sessions_also_carry_title(
+        self, async_client: AsyncClient, auth_headers: dict, async_db: AsyncSession, test_user: User
+    ):
+        await self._seed(async_db, test_user, [f"f-{uuid4().hex[:6]}"])
+        agent = next(
+            a for a in (await async_db.execute(select(Agent))).scalars().all() if a.id.startswith("f-")
+        )
+
+        response = await async_client.get(f"/api/v1/chat/{agent.id}/sessions", headers=auth_headers)
+
+        assert response.status_code == 200
+        sessions = response.json()["sessions"]
+        assert len(sessions) == 2
+        assert any(s["title"] for s in sessions)
+        assert all(s["agent_name"] == "Agent0" for s in sessions)

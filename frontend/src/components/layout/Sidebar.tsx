@@ -17,6 +17,7 @@ import {
   FileText,
   LayoutTemplate,
   LogOut,
+  History,
 } from 'lucide-react'
 import { Logo } from './Logo'
 import { Button } from '../ui/Button'
@@ -32,6 +33,8 @@ interface RecentAgent {
 const navItems = [
   { icon: LayoutDashboard, label: '控制台', href: '/dashboard' },
   { icon: MessageSquare, label: 'Agent', href: '/agents' },
+  // 历史对话原先没有任何入口，/conversations 只是重复渲染 Agent 列表
+  { icon: History, label: '对话记录', href: '/conversations' },
   { icon: Sparkles, label: 'Skill 广场', href: '/skills' },
   { icon: Workflow, label: '工作流', href: '/workflow/new' },
   // 模板市场原先只从落地页能进，登录后在应用里没有任何入口

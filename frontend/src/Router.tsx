@@ -17,6 +17,7 @@ import HelpPage from './pages/HelpPage'
 import KnowledgePage from './pages/KnowledgePage'
 import WorkflowPage from './pages/WorkflowPage'
 import TemplateMarket from './pages/TemplateMarket'
+import ConversationListPage from './pages/ConversationListPage'
 import SkillPlazaPage from './pages/SkillPlazaPage'
 import SkillChatPage from './pages/SkillChatPage'
 
@@ -73,7 +74,7 @@ export default function Router() {
         <Route path="/agents" element={<ProtectedDashboard><AgentListPage /></ProtectedDashboard>} />
         <Route path="/agents/new" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
         <Route path="/agents/:id/edit" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
-        <Route path="/conversations" element={<ProtectedDashboard><AgentListPage /></ProtectedDashboard>} />
+        <Route path="/conversations" element={<ProtectedDashboard><ConversationListPage /></ProtectedDashboard>} />
         <Route path="/knowledge" element={<ProtectedDashboard><KnowledgePage /></ProtectedDashboard>} />
         <Route path="/skills" element={<ProtectedDashboard><SkillPlazaPage /></ProtectedDashboard>} />
         <Route path="/settings" element={<ProtectedDashboard><SettingsPage /></ProtectedDashboard>} />

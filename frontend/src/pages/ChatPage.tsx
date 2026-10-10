@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowUp,
@@ -87,6 +87,9 @@ interface ChatSessionProps {
 
 export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const navigate = useNavigate()
+  // 从「对话记录」点进来时会带?session=xxx，据此加载指定的那一段
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sessionParam = searchParams.get('session')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -141,7 +144,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     loadAgent()
     loadHistory()
     loadPiStatus()
-  }, [id])
+    // sessionParam 也要进依赖：从「对话记录」切到另一段时要重新加载
+  }, [id, sessionParam])
 
   const loadPiStatus = async () => {
     try {
@@ -192,7 +196,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
 
   const loadHistory = async () => {
     try {
-      const data = await api.get(`/chat/${id}/history`)
+      // 带session 参数时加载指定的那一段，否则取最近一次
+      const data: any = await chatApi.history(id!, sessionParam || undefined)
       if (data?.messages) {
         setMessages(data.messages)
       }
@@ -285,6 +290,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     setMessages([])
     setConversationId(null)
     setStartNewSession(true)
+    // 同时清掉地址栏上的 ?session=，否则刷新又会跳回刚才看的那一段
+    if (sessionParam) setSearchParams({}, { replace: true })
     setStreamingContent('')
     setPiLive(EMPTY_PI_LIVE)
     setInputMessage('')

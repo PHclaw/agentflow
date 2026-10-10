@@ -55,6 +55,71 @@ class FeedbackRequest(BaseModel):
     comment: Optional[str] = None
 
 
+def _session_title(messages: Optional[list], limit: int = 40) -> str:
+    """取该会话的第一条用户消息作为标题。
+
+    列表里只有时间戳很难分辨是哪次对话；空会话（刚建还没说话）
+    返回空串，由前端显示「（空对话）」。
+    """
+    for msg in messages or []:
+        if msg.get("role") != "user":
+            continue
+        text = " ".join(str(msg.get("content") or "").split())
+        return text[:limit] + ("…" if len(text) > limit else "")
+    return ""
+
+
+# 注意：/sessions 与 /multi-agent 都必须放在 /{agent_id} 之前，否则会被匹配成 agent_id
+@router.get("/sessions")
+async def list_all_sessions(
+    limit: int = 50,
+    offset: int = 0,
+    agent_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
+    """该用户的全部对话记录（跨 Agent），按最近更新排序。
+
+    此前只有 /{agent_id}/sessions 这个按Agent 的接口，前端也没有任何入口，
+    于是历史对话完全看不到 —— 这里补上跨 Agent 的列表。
+    """
+    stmt = select(ChatSession).where(ChatSession.user_id == user_id)
+    if agent_id:
+        stmt = stmt.where(ChatSession.agent_id == agent_id)
+    stmt = stmt.order_by(ChatSession.updated_at.desc())
+
+    rows = (await db.execute(stmt)).scalars().all()
+
+    # 空会话（一条消息都没有）在「对话记录」里没有任何信息量，
+    # 只会随着每次「新建对话」不断堆积，把真正的对话挤下去，故不返回。
+    # 过滤放在分页之前，否则每页会少于 limit 条。
+    rows = [s for s in rows if s.messages]
+    total = len(rows)
+    page = rows[offset: offset + limit]
+
+    agent_ids = {s.agent_id for s in page}
+    names: dict = {}
+    if agent_ids:
+        name_rows = await db.execute(select(Agent.id, Agent.name).where(Agent.id.in_(agent_ids)))
+        names = {aid: name for aid, name in name_rows.all()}
+
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "agent_id": s.agent_id,
+                "agent_name": names.get(s.agent_id, "（已删除的 Agent）"),
+                "title": _session_title(s.messages),
+                "message_count": len(s.messages),
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+            }
+            for s in page
+        ],
+        "total": total,
+    }
+
+
 # 注意：/multi-agent 必须放在 /{agent_id} 之前，否则会被匹配为 agent_id
 @router.post("/multi-agent")
 async def multi_agent_chat(
@@ -419,6 +484,8 @@ async def list_sessions(
             {
                 "id": s.id,
                 "agent_id": s.agent_id,
+                "agent_name": agent.name,
+                "title": _session_title(s.messages),
                 "message_count": len(s.messages) if s.messages else 0,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "updated_at": s.updated_at.isoformat() if s.updated_at else None,
