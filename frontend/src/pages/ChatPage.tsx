@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { api } from '../services/api'
 import { chat as chatApi, pi, type PiArtifact, type PiStatus } from '../services/api'
+import { Markdown } from '../components/ui/Markdown'
 
 interface Message {
   id: string
@@ -802,9 +803,10 @@ export default function ChatPage() {
                         </p>
                       )}
 
-                      <div className="text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
-                        {message.content}
-                      </div>
+                      <Markdown
+                        content={message.content}
+                        className="text-[15px] text-slate-900 dark:text-white"
+                      />
 
                       {message.toolCalls?.length ? renderToolCalls(message.toolCalls) : null}
                       {message.files?.length ? renderArtifacts(message.files) : null}
@@ -820,9 +822,9 @@ export default function ChatPage() {
                 <div className="flex gap-3">
                   {assistantAvatar}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
-                      {streamingContent}
-                      <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
+                    <div className="text-[15px] text-slate-900 dark:text-white">
+                      <Markdown content={streamingContent} />
+                      <span className="inline-block w-1.5 h-3.5 bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
                     </div>
                   </div>
                 </div>

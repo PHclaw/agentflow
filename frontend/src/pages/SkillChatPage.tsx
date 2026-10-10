@@ -13,6 +13,7 @@ import {
 import { skills as skillsApi, type SkillCallResponse } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Markdown } from '../components/ui/Markdown'
 
 interface Message {
   id: string
@@ -25,27 +26,6 @@ interface SkillInfo {
   name: string
   description: string
   specialty?: string
-}
-
-function renderMarkdownLinks(text: string) {
-  const urlRe = /(https?:\/\/[^\s)]+|\/static\/[^\s)]+)/g
-  const parts = text.split(urlRe)
-  return parts.map((part, i) => {
-    if (urlRe.test(part) || part.startsWith('/static/')) {
-      return (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noreferrer"
-          className="text-indigo-600 underline break-all"
-        >
-          {part}
-        </a>
-      )
-    }
-    return <span key={i}>{part}</span>
-  })
 }
 
 export default function SkillChatPage() {
@@ -182,13 +162,13 @@ export default function SkillChatPage() {
               </div>
             )}
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm whitespace-pre-wrap ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
                 m.role === 'user'
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-indigo-600 text-white whitespace-pre-wrap'
                   : 'bg-white border border-slate-200 text-slate-800'
               }`}
             >
-              {m.role === 'assistant' ? renderMarkdownLinks(m.content) : m.content}
+              {m.role === 'assistant' ? <Markdown content={m.content} /> : m.content}
             </div>
             {m.role === 'user' && (
               <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">

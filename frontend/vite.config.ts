@@ -24,6 +24,15 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'ui-vendor': ['zustand', 'lucide-react'],
           'flow-vendor': ['reactflow'],
+          // Markdown 渲染链较大（约 330KB），单独分包：
+          // 既避免撑大入口 chunk，也让它能被长期缓存，改动业务代码时不必重下
+          'markdown-vendor': [
+            'react-markdown',
+            'remark-gfm',
+            'remark-breaks',
+            'rehype-raw',
+            'rehype-sanitize',
+          ],
         },
       },
     },
