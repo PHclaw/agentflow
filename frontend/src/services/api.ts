@@ -34,6 +34,26 @@ class ApiClient {
     }
   }
 
+  /**
+   * 拼接请求地址。
+   *
+   * 后端有时会回传完整路径（例如产物条目里的
+   * `url = /api/v1/pi/{agent}/files/xxx.md`），这类地址必须原样使用：
+   * 再拼一次 API_BASE 会得到 `/api/v1/api/v1/...`，直接 404。
+   *
+   * 只接受站内相对路径：站外地址一律拒绝，避免把 Authorization 头
+   * 带到外部域名。
+   */
+  private resolveUrl(endpoint: string): string {
+    if (endpoint === API_BASE || endpoint.startsWith(`${API_BASE}/`)) {
+      return endpoint
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(endpoint) || endpoint.startsWith('//')) {
+      throw new Error(`不允许请求站外地址：${endpoint}`)
+    }
+    return `${API_BASE}${endpoint}`
+  }
+
   private async request(
     endpoint: string,
     options: RequestInit = {}
@@ -48,7 +68,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(this.resolveUrl(endpoint), {
       ...options,
       headers,
     })
@@ -121,7 +141,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(this.resolveUrl(endpoint), {
       method: 'POST',
       headers,
       body: formData,
@@ -156,7 +176,7 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`
     }
 
-    const response = await fetch(`${API_BASE}${endpoint}`, { headers })
+    const response = await fetch(this.resolveUrl(endpoint), { headers })
 
     if (response.status === 401) {
       this.clearToken()
