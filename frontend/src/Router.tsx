@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toast } from './components/ui/Toast'
 import { AppLayout, AuthLayout } from './components/layout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { useAuthStore } from './stores'
 
 // Pages
 import HomePage from './pages/HomePage'
@@ -36,13 +37,31 @@ function ProtectedDashboard({ children }: { children: React.ReactNode }) {
   )
 }
 
+/**
+ * 模板市场对两种访客都要可用：
+ * - 未登录：从落地页链接进入，保持独立的整页展示
+ * - 已登录：从侧边栏进入，嵌进布局，否则一点进去侧边栏就消失了
+ */
+function TemplateMarketRoute() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+
+  if (isAuthenticated) {
+    return (
+      <DashboardLayout>
+        <TemplateMarket />
+      </DashboardLayout>
+    )
+  }
+  return <TemplateMarket />
+}
+
 export default function Router() {
   return (
     <BrowserRouter>
       <Routes>
         {/* Public Routes with Header/Footer */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/templates" element={<TemplateMarket />} />
+        <Route path="/templates" element={<TemplateMarketRoute />} />
         <Route path="/pricing" element={<LandingPage />} />
 
         {/* Auth Routes */}

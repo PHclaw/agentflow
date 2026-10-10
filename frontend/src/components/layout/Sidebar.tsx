@@ -15,6 +15,7 @@ import {
   HelpCircle,
   Sparkles,
   FileText,
+  LayoutTemplate,
   LogOut,
 } from 'lucide-react'
 import { Logo } from './Logo'
@@ -33,6 +34,8 @@ const navItems = [
   { icon: MessageSquare, label: 'Agent', href: '/agents' },
   { icon: Sparkles, label: 'Skill 广场', href: '/skills' },
   { icon: Workflow, label: '工作流', href: '/workflow/new' },
+  // 模板市场原先只从落地页能进，登录后在应用里没有任何入口
+  { icon: LayoutTemplate, label: '模板市场', href: '/templates' },
   { icon: FileText, label: '知识库', href: '/knowledge' },
 ]
 
