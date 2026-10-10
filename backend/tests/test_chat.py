@@ -483,3 +483,155 @@ class TestWorkflowBackedChat:
 
         assert response.status_code == 200
         assert "没有产生回复内容" in response.json()["response"]
+
+
+class TestPiChatPersistence:
+    """pi 链路的对话记录必须落库，且能按会话继续
+
+    此前 pi 链路完全不持久化：刷新页面就没了，也无法接着上次聊；
+    而且前端从不传session_id，pi 每轮都新建会话，等于没有跨轮记忆。
+    """
+
+    @staticmethod
+    def _make_plain_agent(async_db: AsyncSession, test_user: User) -> Agent:
+        agent = Agent(
+            id=f"pi-agent-{uuid4().hex[:8]}",
+            user_id=test_user.external_id,
+            name="pi 对话 Agent",
+            description="",
+            model_config={"model": "gpt-4o-mini", "temperature": 0.7},
+        )
+        async_db.add(agent)
+        return agent
+
+    @pytest.mark.asyncio
+    async def test_turn_is_persisted_and_session_continues(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+        monkeypatch,
+    ):
+        monkeypatch.setattr("app.core.config.settings.PIAGENT_ENABLED", True, raising=False)
+
+        seen_session_ids: list = []
+
+        async def fake_stream(**kwargs):
+            seen_session_ids.append(kwargs.get("session_id"))
+            yield {"type": "text", "content": "好的，已收到"}
+            yield {
+                "type": "done",
+                "content": "好的，已收到",
+                "files": [
+                    {"name": "纪要.md", "path": "纪要.md", "size": 12, "url": "/api/v1/pi/x/files/纪要.md"}
+                ],
+                "session_id": kwargs.get("session_id"),
+            }
+
+        monkeypatch.setattr("app.services.pi_agent.pi_agent_runner.stream", fake_stream)
+
+        agent = self._make_plain_agent(async_db, test_user)
+        await async_db.commit()
+
+        # 第一轮：不带 session_id
+        first = await async_client.post(
+            f"/api/v1/pi/{agent.id}/stream",
+            headers=auth_headers,
+            json={"message": "帮我整理一份会议纪要"},
+        )
+        assert first.status_code == 200
+        assert "纪要.md" in first.text
+
+        # 第二轮：仍不带 session_id，应落到同一个会话（而不是另起一段）
+        second = await async_client.post(
+            f"/api/v1/pi/{agent.id}/stream",
+            headers=auth_headers,
+            json={"message": "再补一段"},
+        )
+        assert second.status_code == 200
+
+        # pi 两次拿到的是同一个会话键 → 它才有跨轮记忆
+        assert len(seen_session_ids) == 2
+        assert seen_session_ids[0] is not None
+        assert seen_session_ids[0] == seen_session_ids[1]
+
+        # 历史里应有 4 条（两轮问答），且产物被记下来了
+        history = await async_client.get(
+            f"/api/v1/chat/{agent.id}/history", headers=auth_headers
+        )
+        body = history.json()
+        assert len(body["messages"]) == 4
+        assert [m["role"] for m in body["messages"]] == ["user", "assistant", "user", "assistant"]
+        assert body["messages"][0]["content"] == "帮我整理一份会议纪要"
+        assert body["messages"][1]["content"] == "好的，已收到"
+        assert body["messages"][1]["files"][0]["name"] == "纪要.md"
+        # 会话 id 要回传给前端，否则刷新后接不上
+        assert body["session_id"] == seen_session_ids[0]
+
+    @pytest.mark.asyncio
+    async def test_new_session_flag_starts_a_fresh_session(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+        monkeypatch,
+    ):
+        """「新建对话」要真的另起一段：会话 id 变化，且不复用旧记录
+
+        只清界面是不够的：默认行为是复用最近一次会话，
+        消息会被追加回旧记录，刷新后又冒出来，模型还带着上一段上下文。
+        """
+        monkeypatch.setattr("app.core.config.settings.PIAGENT_ENABLED", True, raising=False)
+
+        async def fake_stream(**kwargs):
+            yield {"type": "done", "content": "回复", "files": [], "session_id": kwargs.get("session_id")}
+
+        monkeypatch.setattr("app.services.pi_agent.pi_agent_runner.stream", fake_stream)
+
+        agent = self._make_plain_agent(async_db, test_user)
+        await async_db.commit()
+
+        import json as _json
+
+        def done_session(resp) -> str:
+            for line in resp.text.splitlines():
+                if line.startswith("data:"):
+                    evt = _json.loads(line[5:].strip())
+                    if evt.get("type") == "done":
+                        return evt.get("session_id")
+            return ""
+
+        first = await async_client.post(
+            f"/api/v1/pi/{agent.id}/stream",
+            headers=auth_headers,
+            json={"message": "第一段"},
+        )
+        first_session = done_session(first)
+        assert first_session
+
+        # 不带 new_session：接着上一段聊（默认行为）
+        cont = await async_client.post(
+            f"/api/v1/pi/{agent.id}/stream",
+            headers=auth_headers,
+            json={"message": "接着说"},
+        )
+        assert done_session(cont) == first_session
+
+        # 带 new_session：另起一段
+        fresh = await async_client.post(
+            f"/api/v1/pi/{agent.id}/stream",
+            headers=auth_headers,
+            json={"message": "全新一段", "new_session": True},
+        )
+        fresh_session = done_session(fresh)
+        assert fresh_session and fresh_session != first_session
+
+        # 新会话只有自己这一轮；旧会话仍是两轮
+        new_hist = await async_client.get(f"/api/v1/chat/{agent.id}/history", headers=auth_headers)
+        old_hist = await async_client.get(
+            f"/api/v1/chat/{agent.id}/history?session_id={first_session}", headers=auth_headers
+        )
+        assert len(new_hist.json()["messages"]) == 2
+        assert len(old_hist.json()["messages"]) == 4

@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.paths import pi_agent_workspace, pi_skills_root, pi_workspace_root
 from app.models.agent import Agent
+from app.services.agent_turn import append_turn, load_or_create_session
 from app.services.pi_agent import AgentContext, build_agent_context, pi_agent_runner
 
 router = APIRouter(
@@ -37,7 +38,11 @@ router = APIRouter(
 
 class PiChatRequest(BaseModel):
     message: str
+    #: 会话 id（chat_sessions.id），与 /chat/{agent_id} 同一语义。
+    #: 不传则复用该 Agent 最近一次会话 —— 刷新页面后接着上次继续聊。
     session_id: Optional[str] = None
+    #: 「新建对话」：强制另起一段会话（不复用最近一次），pi 的上下文也随之重置
+    new_session: bool = False
     skills: Optional[list[str]] = None
     timeout: Optional[int] = None
 
@@ -57,6 +62,23 @@ async def _load_agent_context(db: AsyncSession, agent_id: str, user_id: str) -> 
 
     # 构造逻辑已下沉到 services/pi_agent.py，工作流的智能体节点共用
     return build_agent_context(agent)
+
+
+async def _persist_turn(
+    db: AsyncSession,
+    session: Any,
+    user_message: str,
+    assistant_message: str,
+    files: Optional[list[dict[str, Any]]] = None,
+) -> None:
+    """把这一轮对话写进会话历史。
+
+    pi 链路此前完全不落库，刷新页面就没了，也没法回来接着聊。
+    消息结构与 /chat/{agent_id}/history 返回给前端的格式保持一致，
+    对话页回填时不需要额外适配。
+    """
+    append_turn(session, user_message, assistant_message, files)
+    await db.commit()
 
 
 def _list_available_skills() -> list[str]:
@@ -97,11 +119,16 @@ async def pi_run(
     _ensure_enabled()
     ctx = await _load_agent_context(db, agent_id, user_id)
 
+    # 会话：指定则校验归属后复用，不传则取最近一次，都没有就新建。
+    # pi 的会话键直接用会话 id —— 它稳定存在库里，页面刷新后仍能续上下文
+    # （此前前端从不传 session_id，pi 每轮都新建会话，等于没有跨轮记忆）。
+    session = await load_or_create_session(db, ctx.id, user_id, data.session_id, data.new_session)
+
     result = await pi_agent_runner.run(
         message=data.message,
         agent_id=ctx.id,
         agent=ctx,
-        session_id=data.session_id,
+        session_id=session.id,
         skills=data.skills,
         timeout=data.timeout,
     )
@@ -109,11 +136,14 @@ async def pi_run(
     if not result["success"]:
         return {"success": False, "error": result["error"], "content": "", "files": []}
 
+    await _persist_turn(db, session, data.message, result["content"], result["files"])
+
     return {
         "success": True,
         "error": None,
         "content": result["content"],
         "files": result["files"],
+        "session_id": session.id,
     }
 
 
@@ -132,17 +162,32 @@ async def pi_stream(
     _ensure_enabled()
     ctx = await _load_agent_context(db, agent_id, user_id)
 
+    # 与非流式一致：会话 id 既是历史主键，也是 pi 的会话键
+    session = await load_or_create_session(db, ctx.id, user_id, data.session_id, data.new_session)
+    await db.commit()
+
     async def event_generator():
+        # 流式过程中无法边跑边落库（回复还没成型），因此在收到 done 后一次性写入
+        final_text = ""
+        final_files: list[dict[str, Any]] = []
         try:
             async for event in pi_agent_runner.stream(
                 message=data.message,
                 agent_id=ctx.id,
                 agent=ctx,
-                session_id=data.session_id,
+                session_id=session.id,
                 skills=data.skills,
                 timeout=data.timeout,
             ):
+                if event.get("type") == "done":
+                    final_text = event.get("content") or ""
+                    final_files = event.get("files") or []
+                    # 让前端知道该用哪个会话继续（也用于刷新后恢复）
+                    event = {**event, "session_id": session.id}
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+            if final_text:
+                await _persist_turn(db, session, data.message, final_text, final_files)
         except Exception as exc:  # noqa: BLE001 - 保证流以 error 事件收尾
             payload = {"type": "error", "content": f"执行失败：{exc}"}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"

@@ -267,7 +267,13 @@ export const chat = {
   /** 内置链路的流式对话（SSE：session / chunk / done / error）
    *  done 事件可能带 files：工作流里的智能体节点生成了工作区产物
    */
-  stream: (agentId: string, message: string, sessionId?: string | null, signal?: AbortSignal) =>
+  stream: (
+    agentId: string,
+    message: string,
+    sessionId?: string | null,
+    signal?: AbortSignal,
+    newSession?: boolean
+  ) =>
     streamSse<{
       type: string
       content?: string
@@ -276,7 +282,7 @@ export const chat = {
       files?: PiArtifact[]
     }>(
       `/api/v1/chat/${agentId}`,
-      { message, session_id: sessionId, stream: true },
+      { message, session_id: sessionId, stream: true, new_session: newSession || false },
       signal
     ),
 }
@@ -559,6 +565,8 @@ export interface PiStreamEvent {
 export interface PiChatBody {
   message: string
   session_id?: string | null
+  /** 「新建对话」：强制另起一段会话，不再复用最近一次 */
+  new_session?: boolean
   skills?: string[]
   timeout?: number
 }

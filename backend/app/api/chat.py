@@ -31,6 +31,8 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     stream: bool = False
+    #: 「新建对话」：强制另起一段会话，不再复用最近一次
+    new_session: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -105,7 +107,7 @@ async def _run_workflow_chat(
     if data.stream:
         async def generate_sse():
             try:
-                session = await load_or_create_session(db, agent.id, user_id, data.session_id)
+                session = await load_or_create_session(db, agent.id, user_id, data.session_id, data.new_session)
                 yield f"data: {json.dumps({'type': 'session', 'session_id': session.id})}\n\n"
 
                 turn = await run_workflow_turn(agent, data.message, db)
@@ -134,7 +136,7 @@ async def _run_workflow_chat(
         )
 
     try:
-        session = await load_or_create_session(db, agent.id, user_id, data.session_id)
+        session = await load_or_create_session(db, agent.id, user_id, data.session_id, data.new_session)
         turn = await run_workflow_turn(agent, data.message, db)
 
         append_turn(session, data.message, turn.content, turn.files)

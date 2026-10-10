@@ -98,6 +98,12 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const [showSettings, setShowSettings] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  /**
+   * 「新建对话」后置位：下一条消息要强制另起一段会话。
+   * 只清界面不够 —— 后端默认会复用最近一次会话，消息会被追加回旧记录，
+   * 模型侧也仍带着上一段的上下文。
+   */
+  const [startNewSession, setStartNewSession] = useState(false)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState({
     model: 'gpt-4o-mini',
@@ -110,7 +116,6 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const [piStatus, setPiStatus] = useState<PiStatus | null>(null)
   const [piLive, setPiLive] = useState<PiLiveState>(EMPTY_PI_LIVE)
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
-  const [piSessionId, setPiSessionId] = useState<string | null>(null)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   /** 该 Agent 是否配置了工作流（配了则由工作流编排执行） */
   const [hasWorkflow, setHasWorkflow] = useState(false)
@@ -190,6 +195,11 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       const data = await api.get(`/chat/${id}/history`)
       if (data?.messages) {
         setMessages(data.messages)
+      }
+      // 必须把会话 id 一起恢复：它既是历史主键也是 pi 的会话键，
+      // 只回填消息而丢掉它，刷新后下一轮会另起一段对话、pi 也接不上上下文
+      if (data?.session_id) {
+        setConversationId(data.session_id)
       }
     } catch (error) {
       // 尚无历史会话，不算错误
@@ -274,7 +284,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const handleNewChat = () => {
     setMessages([])
     setConversationId(null)
-    setPiSessionId(null)
+    setStartNewSession(true)
     setStreamingContent('')
     setPiLive(EMPTY_PI_LIVE)
     setInputMessage('')
@@ -286,12 +296,13 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
    */
   const sendWithBuiltin = async (
     message: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    newSession = false
   ): Promise<{ content: string; files: PiArtifact[] }> => {
     let fullContent = ''
     let files: PiArtifact[] = []
 
-    for await (const event of chatApi.stream(id!, message, conversationId, signal)) {
+    for await (const event of chatApi.stream(id!, message, conversationId, signal, newSession)) {
       if (event.type === 'session' && event.session_id) {
         setConversationId(event.session_id)
       } else if (event.type === 'chunk' && event.content) {
@@ -314,7 +325,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   }
 
   /** PiAgent 链路：外部 agent CLI，带思考/工具调用/产物 */
-  const sendWithPi = async (message: string, signal: AbortSignal) => {
+  const sendWithPi = async (message: string, signal: AbortSignal, newSession = false) => {
     let text = ''
     let thinking = ''
     const logs: string[] = []
@@ -326,7 +337,10 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       id!,
       {
         message,
-        session_id: piSessionId,
+        // 会话 id 同时是 pi 的会话键（后端用 chat_sessions.id），
+        // 所以刷新后接着上次聊，pi 侧的上下文也在
+        session_id: conversationId,
+        new_session: newSession,
         skills: selectedSkills.length ? selectedSkills : undefined,
       },
       signal
@@ -355,7 +369,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         case 'done':
           if (event.content) text = event.content
           files = event.files || []
-          if (event.session_id) setPiSessionId(event.session_id)
+          if (event.session_id) setConversationId(event.session_id)
           break
         case 'error':
           throw new Error(event.content || 'AI Agent 执行失败')
@@ -397,13 +411,17 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         timestamp: new Date().toISOString(),
       }
 
+      // 「新建对话」只对紧接着的这一条生效，标记用掉即清
+      const newSession = startNewSession
+      if (startNewSession) setStartNewSession(false)
+
       if (effectiveEngine === 'pi') {
-        const result = await sendWithPi(currentInput, controller.signal)
+        const result = await sendWithPi(currentInput, controller.signal, newSession)
         assistantMessage.content = result.content
         assistantMessage.files = result.files
         assistantMessage.thinking = result.thinking
       } else {
-        const result = await sendWithBuiltin(currentInput, controller.signal)
+        const result = await sendWithBuiltin(currentInput, controller.signal, newSession)
         assistantMessage.content = result.content
         if (result.files.length) assistantMessage.files = result.files
       }

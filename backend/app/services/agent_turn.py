@@ -155,22 +155,29 @@ async def load_or_create_session(
     agent_id: str,
     user_id: str,
     session_id: Optional[str] = None,
+    force_new: bool = False,
 ) -> ChatSession:
-    """取指定会话；没有则复用该 Agent 最近一个会话；再没有就新建。"""
-    if session_id:
+    """取指定会话；没有则复用该 Agent 最近一个会话；再没有就新建。
+
+    force_new 用于「新建对话」：此时必须真的另起一段，
+    否则前端清空了界面，后端却把消息追加回旧会话，
+    刷新后又全都冒出来，且模型侧仍带着上一段的上下文。
+    """
+    if session_id and not force_new:
         session = await db.get(ChatSession, session_id)
         if session and session.agent_id == agent_id and session.user_id == user_id:
             return session
 
-    stmt = (
-        select(ChatSession)
-        .where(ChatSession.agent_id == agent_id, ChatSession.user_id == user_id)
-        .order_by(ChatSession.updated_at.desc())
-        .limit(1)
-    )
-    session = (await db.execute(stmt)).scalar_one_or_none()
-    if session:
-        return session
+    if not force_new:
+        stmt = (
+            select(ChatSession)
+            .where(ChatSession.agent_id == agent_id, ChatSession.user_id == user_id)
+            .order_by(ChatSession.updated_at.desc())
+            .limit(1)
+        )
+        session = (await db.execute(stmt)).scalar_one_or_none()
+        if session:
+            return session
 
     session = ChatSession(
         id=str(uuid.uuid4()),
