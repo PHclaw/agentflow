@@ -93,7 +93,14 @@ async def get_db():
 
 
 async def init_db():
-    """初始化数据库"""
+    """初始化数据库。
+
+    说明：这里用 ``Base.metadata.create_all`` 直接建表，适用于本地开发与测试
+    （测试用内存 SQLite，每次都要重建）。**已存在的库做结构变更请走 Alembic 迁移**
+    （``backend/migrations/``），不要依赖 create_all —— 它只会新建缺失的表，
+    不会修改已有表的列/约束。新库用 ``alembic upgrade head`` 建，旧库用
+    ``alembic stamp head`` 标记基线。
+    """
     global USE_MEMORY_MODE
     
     engine = get_engine()

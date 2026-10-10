@@ -42,8 +42,7 @@ openai
 anthropic
 httpx
 
-# LLM Orchestration（workflow engine / 知识库链路使用）
-langgraph
+# LLM Orchestration（知识库 RAG 链路使用；工作流已改自研实现，不再需要 langgraph）
 langchain-core
 langchain-openai
 langchain-text-splitters

@@ -35,8 +35,7 @@ langchain-chroma==0.1.0
 langchain-pg==0.0.1
 faiss-cpu==1.7.4
 
-# Workflow - LangGraph
-langgraph==0.0.20
+# 工作流编排：使用 app/services/workflow_runtime.py 的自研实现，不再依赖 LangGraph
 
 # Task Queue
 celery==5.3.6

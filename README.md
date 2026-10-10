@@ -337,7 +337,8 @@ docker compose up -d --build
 | FastAPI | 异步 Web 框架 |
 | SQLAlchemy 2.0 | 异步 ORM |
 | pgvector | 向量相似度搜索 |
-| LangGraph | Agent 工作流编排 |
+| 自研工作流引擎 | 节点编排与执行（`app/services/workflow_runtime.py`）|
+| Alembic | 数据库迁移 |
 | Celery + Redis | 异步任务队列 |
 | Stripe | 订阅支付 |
 
@@ -402,9 +403,9 @@ agentflow/
 │   │   ├── api/               # REST API 路由
 │   │   ├── core/              # 配置 / 数据库 / 缓存
 │   │   ├── models/            # SQLAlchemy ORM 模型
-│   │   ├── services/          # 业务逻辑 (LLM / Knowledge / Browser)
-│   │   ├── integrations/      # agent-* 库集成层
-│   │   └── workflows/         # LangGraph 工作流引擎
+│   │   ├── services/          # 业务逻辑 (LLM / Knowledge / Browser / 工作流运行时)
+│   │   └── integrations/      # agent-* 库集成层
+│   ├── migrations/            # Alembic 迁移
 │   └── tests/
 │
 ├── frontend/                   # React 前端
@@ -486,16 +487,22 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ## 🔧 开发命令速查
 
 ```bash
-# 后端测试
-cd backend && pytest tests/ -v
+# 后端测试 + 覆盖率
+cd backend && pytest tests/ -v --cov=app
 
-# 前端检查
-cd frontend && npm run lint && npm run format
+# 前端类型检查
+cd frontend && npm run typecheck
 
-# 数据库迁移
-cd backend && alembic revision --autogenerate -m "desc"
-cd backend && alembic upgrade head
+# 数据库迁移（backend 目录下执行，连接串取自 .env）
+alembic upgrade head                     # 新库建表
+alembic revision --autogenerate -m "desc"  # 改完模型后生成迁移
+alembic stamp head                       # 已有库标记为基线
+alembic current                          # 查看当前版本
 ```
+
+> **迁移与 `create_all` 的关系**：应用启动时仍会用 `create_all` 建缺失的表，
+> 这只适合本地开发和测试。**对已存在的库做结构变更必须走 Alembic 迁移**，
+> 因为 `create_all` 不会修改已有表的列或约束。
 
 ---
 
