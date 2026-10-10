@@ -87,7 +87,12 @@ async def run_workflow_turn(agent: Agent, message: str, db: AsyncSession) -> Wor
 
     state = await workflow_runtime.execute_workflow(
         workflow_def=definition,
-        input_data={"user_message": message},
+        input_data={
+            "user_message": message,
+            # 技能节点需要调用者身份来鉴权
+            "caller_id": agent.user_id,
+            "agent_id": agent.id,
+        },
         db_session=db,
     )
 

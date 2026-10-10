@@ -207,6 +207,19 @@ class BaseNode:
                 if value not in (None, ""):
                     return value
         return ""
+
+    def _resolve_variable(self, value: Any, state: WorkflowState) -> Any:
+        """解析变量引用：$user_message 或 $node_id.key
+
+        放在基类上，工具节点与技能节点共用。
+        """
+        if isinstance(value, str) and value.startswith("$"):
+            var_path = value[1:]
+            if "." in var_path:
+                parts = var_path.split(".")
+                return state.node_outputs.get(parts[0], {}).get(parts[1], value)
+            return state.context.get(var_path, value)
+        return value
     
     def set_output(self, state: WorkflowState, key: str, value: Any, metadata: Dict = None):
         """设置输出到状态"""
@@ -508,16 +521,6 @@ class ToolNode(BaseNode):
         
         return result
     
-    def _resolve_variable(self, value: Any, state: WorkflowState) -> Any:
-        """解析变量引用"""
-        if isinstance(value, str) and value.startswith("$"):
-            var_path = value[1:]
-            if "." in var_path:
-                parts = var_path.split(".")
-                return state.node_outputs.get(parts[0], {}).get(parts[1], value)
-            return state.context.get(var_path, value)
-        return value
-    
     async def _call_tool(
         self, tool_name: str, params: Dict, input_data: Any, state: WorkflowState
     ) -> Any:
@@ -647,6 +650,96 @@ class ResponseNode(BaseNode):
         return re.sub(r'\{\{([^}]+)\}\}', replace_var, template)
 
 
+class SkillNode(BaseNode):
+    """技能节点 - 调用技能广场里的技能
+
+    在此之前技能只能由 AI Agent 引擎在对话时旁路调用，无法参与编排；
+    有了这个节点，技能可以像 LLM / 知识库节点一样被串进工作流。
+    """
+
+    async def execute(self, state: WorkflowState) -> NodeResult:
+        result = NodeResult(node_id=self.node_id, status=NodeStatus.RUNNING, start_time=datetime.now())
+
+        try:
+            skill_id = str(
+                self.config.get("skill")
+                or self.config.get("skill_id")
+                or self.config.get("tool_name")
+                or ""
+            ).strip()
+            if not skill_id:
+                result.status = NodeStatus.FAILED
+                result.error = "未配置技能"
+                return result
+
+            db = state.context.get("db_session")
+            if not db:
+                result.status = NodeStatus.FAILED
+                result.error = "数据库会话不可用"
+                return result
+
+            # 输入优先级：节点配置的 input > 上游节点输出 > 本轮用户消息
+            raw_input = (
+                self.config.get("input")
+                or self.get_upstream_output(state)
+                or state.context.get("user_message", "")
+            )
+            variables = {"input": str(raw_input)}
+
+            # 允许节点自定义变量，值支持 $user_message / $node_id.key 引用
+            extra_vars = self.config.get("variables")
+            if isinstance(extra_vars, dict):
+                for key, value in extra_vars.items():
+                    variables[str(key)] = str(self._resolve_variable(value, state))
+
+            # 延迟导入：技能运行时依赖较多，避免拖慢工作流模块加载
+            from app.services import skill_service
+            from app.services.skill.store import get_skill
+
+            skill = get_skill(skill_id)
+            if not skill:
+                result.status = NodeStatus.FAILED
+                result.error = f"技能不存在：{skill_id}"
+                return result
+
+            response = await skill_service.call_agent(
+                db,
+                skill,
+                state.context.get("caller_id"),
+                variables,
+                conversation_id=state.context.get("skill_conversation_id"),
+            )
+
+            output = response.output or ""
+            self.set_output(state, "result", output)
+            self.set_output(state, "output", output)
+            self.set_output(state, "skill_id", skill_id)
+            self.set_output(state, "skill_name", getattr(skill, "name", skill_id))
+            self.set_output(state, "latency_ms", getattr(response, "latency_ms", 0))
+
+            # 技能产物（表格 / 图片等）的下载地址，供后续响应节点展示
+            trace = getattr(response, "tool_trace", None) or {}
+            urls: List[str] = []
+            if trace.get("downloadUrl"):
+                urls.append(trace["downloadUrl"])
+            urls.extend(trace.get("downloadUrls") or [])
+            if trace.get("imageUrl"):
+                urls.append(trace["imageUrl"])
+            if urls:
+                self.set_output(state, "download_urls", list(dict.fromkeys(urls)))
+
+            result.status = NodeStatus.SUCCESS
+
+        except Exception as e:
+            result.status = NodeStatus.FAILED
+            result.error = str(e)
+
+        finally:
+            result.end_time = datetime.now()
+
+        return result
+
+
 class WorkflowRuntime:
     """工作流运行时"""
     
@@ -657,6 +750,7 @@ class WorkflowRuntime:
             "knowledge": KnowledgeNode,
             "condition": ConditionNode,
             "tool": ToolNode,
+            "skill": SkillNode,
             "response": ResponseNode,
         }
     

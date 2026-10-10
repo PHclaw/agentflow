@@ -20,7 +20,7 @@ import 'reactflow/dist/style.css'
 import { Button } from '../components/ui/Button'
 import { Input, Select } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
-import { api, models } from '../services/api'
+import { api, models, skills as skillsApi } from '../services/api'
 import { useToastStore } from '../stores'
 import {
   ArrowLeft,
@@ -35,6 +35,7 @@ import {
   Cpu,
   Database,
   Wrench,
+  Sparkles,
   GitBranch,
   Send,
   Settings,
@@ -56,6 +57,7 @@ import { TriggerNode } from '../components/workflow/nodes/TriggerNode'
 import { LLMNode } from '../components/workflow/nodes/LLMNode'
 import { KnowledgeNode } from '../components/workflow/nodes/KnowledgeNode'
 import { ToolNode } from '../components/workflow/nodes/ToolNode'
+import { SkillNode } from '../components/workflow/nodes/SkillNode'
 import { ConditionNode } from '../components/workflow/nodes/ConditionNode'
 import { ResponseNode } from '../components/workflow/nodes/ResponseNode'
 
@@ -64,6 +66,7 @@ const nodeTypes = {
   llm: LLMNode,
   knowledge: KnowledgeNode,
   tool: ToolNode,
+  skill: SkillNode,
   condition: ConditionNode,
   response: ResponseNode,
 }
@@ -80,6 +83,7 @@ const nodeCategories = [
     nodes: [
       { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-purple-500 to-violet-500' },
       { type: 'knowledge', label: '知识库检索', icon: Database, color: 'from-emerald-500 to-green-500' },
+      { type: 'skill', label: '技能调用', icon: Sparkles, color: 'from-teal-500 to-cyan-500' },
     ],
   },
   {
@@ -170,6 +174,8 @@ export default function WorkflowPage() {
             top_k: node.data?.top_k || 5,
             tool_name: node.data?.tool_name || 'calculator',
             tool_params: node.data?.tool_params || {},
+            skill: node.data?.skill || '',
+            input: node.data?.input || '',
             condition_type: node.data?.condition_type || 'contains',
             condition_value: node.data?.condition_value || '',
             response_template: node.data?.response_template || '',
@@ -233,6 +239,8 @@ export default function WorkflowPage() {
         top_k: 5,
         tool_name: 'calculator',
         tool_params: {},
+        skill: '',
+        input: '',
         condition_type: 'contains',
         condition_value: '',
         response_template: '',
@@ -577,6 +585,7 @@ export default function WorkflowPage() {
                   case 'llm': return '#8b5cf6'
                   case 'knowledge': return '#10b981'
                   case 'tool': return '#ec4899'
+                  case 'skill': return '#14b8a6'
                   case 'condition': return '#f59e0b'
                   case 'response': return '#6366f1'
                   default: return '#64748b'
@@ -680,6 +689,27 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
     fetchModels()
   }, [])
 
+  // 技能下拉：只有打开技能节点时才去拉，避免每次进编辑器都请求
+  const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([])
+  const [skillsLoading, setSkillsLoading] = useState(false)
+  const [skillsError, setSkillsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (node.type !== 'skill') return
+    if (skillOptions.length > 0 || skillsLoading) return
+
+    setSkillsLoading(true)
+    setSkillsError(null)
+    skillsApi
+      .plaza()
+      .then((list: any) => {
+        const arr = Array.isArray(list) ? list : []
+        setSkillOptions(arr.map((s: any) => ({ value: s.id, label: s.name || s.id })))
+      })
+      .catch((e: any) => setSkillsError(e?.message || '技能列表加载失败'))
+      .finally(() => setSkillsLoading(false))
+  }, [node.type, skillOptions.length, skillsLoading])
+
   const renderConfig = () => {
     switch (node.type) {
       case 'trigger':
@@ -757,6 +787,33 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
           </>
         )
       
+      case 'skill':
+        return (
+          <>
+            <Input label="节点名称" value={node.data.label} onChange={(e) => onUpdate({ label: e.target.value })} />
+            <Select
+              label="技能"
+              value={node.data.skill || ''}
+              onChange={(e) => onUpdate({ skill: e.target.value })}
+              options={skillOptions}
+              disabled={skillsLoading}
+              placeholder="选择技能"
+            />
+            {skillsLoading && <p className="text-xs text-slate-400 mt-1">加载技能中...</p>}
+            {skillsError && <p className="text-xs text-red-500 mt-1">{skillsError}</p>}
+            <Input
+              label="输入内容"
+              value={node.data.input || ''}
+              onChange={(e) => onUpdate({ input: e.target.value })}
+              placeholder="留空则自动取上游节点的输出"
+            />
+            <p className="text-xs text-slate-400">
+              技能产出可在响应节点用{' '}
+              <code className="px-1 rounded bg-slate-100">{'{{节点ID.output}}'}</code> 引用
+            </p>
+          </>
+        )
+
       case 'tool':
         return (
           <>

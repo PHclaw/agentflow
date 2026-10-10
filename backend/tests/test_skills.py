@@ -66,3 +66,36 @@ class TestSkillsAPI:
         body = response.json()
         assert body.get("output")
         assert body.get("toolTrace", {}).get("intent") == "intro"
+
+
+class TestSkillModulesImport:
+    """技能相关模块必须能正常导入
+
+    doc_parser 曾在模块顶层使用未定义的 ROOT，导致 import 即抛 NameError，
+    凡是走文档解析的技能全部不可用，而且报错点离根因很远。
+    这里做一次导入冒烟，成本极低但能挡住同类问题。
+    """
+
+    @pytest.mark.parametrize(
+        "module_name",
+        [
+            "app.services.skill.doc_parser",
+            "app.services.skill.pdf_word",
+            "app.services.skill.ppt_html",
+            "app.services.skill.stat_pipeline",
+            "app.services.skill.capability",
+            "app.services.skill.store",
+            "app.services.skill_service",
+        ],
+    )
+    def test_module_imports(self, module_name):
+        import importlib
+
+        assert importlib.import_module(module_name) is not None
+
+    def test_repo_root_resolves(self):
+        from app.core.paths import repo_root
+        from app.services.skill import doc_parser
+
+        assert doc_parser.ROOT == repo_root()
+        assert doc_parser.ROOT.is_dir()
