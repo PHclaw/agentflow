@@ -17,7 +17,6 @@ import {
   Settings,
   Sparkles,
   Square,
-  Terminal,
   ThumbsDown,
   ThumbsUp,
   Wrench,
@@ -38,8 +37,6 @@ interface Message {
   thinking?: string
   /** PiAgent 引擎生成的可下载附件 */
   files?: PiArtifact[]
-  /** PiAgent 引擎执行过程中的工具调用记录 */
-  toolCalls?: string[]
 }
 
 interface AgentInfo {
@@ -54,7 +51,14 @@ type Engine = 'builtin' | 'pi'
 /** PiAgent 运行过程中的实时事件状态 */
 interface PiLiveState {
   logs: string[]
-  toolCalls: string[]
+  /**
+   * 当前正在执行的工具调用（只保留最近一条）。
+   *
+   * 此前是累积数组，30 多次工具调用会把整块屏幕铺满，
+   * 真正要看的正文被挤到很下面。现在只显示当前这一条，
+   * 新调用到来时替换掉旧的；回复生成完毕即不再显示。
+   */
+  currentTool: string
   thinking: string
   text: string
 }
@@ -70,7 +74,7 @@ interface PanelItem {
   onClick: () => void
 }
 
-const EMPTY_PI_LIVE: PiLiveState = { logs: [], toolCalls: [], thinking: '', text: '' }
+const EMPTY_PI_LIVE: PiLiveState = { logs: [], currentTool: '', thinking: '', text: '' }
 
 interface ChatSessionProps {
   /** Agent id */
@@ -313,7 +317,6 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const sendWithPi = async (message: string, signal: AbortSignal) => {
     let text = ''
     let thinking = ''
-    const toolCalls: string[] = []
     const logs: string[] = []
     let files: PiArtifact[] = []
 
@@ -340,9 +343,9 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
           setPiLive((prev) => ({ ...prev, thinking }))
           break
         case 'tool_call':
+          // 只保留最近一条：新调用直接顶掉旧的，避免堆成几十个标签
           if (event.content) {
-            toolCalls.push(event.content)
-            setPiLive((prev) => ({ ...prev, toolCalls: [...toolCalls] }))
+            setPiLive((prev) => ({ ...prev, currentTool: event.content! }))
           }
           break
         case 'text':
@@ -362,7 +365,6 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     return {
       content: text || '（AI Agent 未返回内容）',
       files,
-      toolCalls,
       thinking,
     }
   }
@@ -399,7 +401,6 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         const result = await sendWithPi(currentInput, controller.signal)
         assistantMessage.content = result.content
         assistantMessage.files = result.files
-        assistantMessage.toolCalls = result.toolCalls
         assistantMessage.thinking = result.thinking
       } else {
         const result = await sendWithBuiltin(currentInput, controller.signal)
@@ -630,17 +631,16 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     </div>
   )
 
-  const renderToolCalls = (toolCalls: string[]) => (
-    <div className="mt-3 flex flex-wrap gap-2">
-      {toolCalls.map((tool, i) => (
-        <span
-          key={i}
-          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300"
-        >
-          <Terminal className="w-3 h-3" />
-          {tool}
-        </span>
-      ))}
+  /**
+   * 当前工具调用指示：只显示一条，带转圈动画。
+   * 新调用到来时内容原地替换；回复生成完毕后整个不再显示。
+   */
+  const renderCurrentTool = (currentTool: string) => (
+    <div className="mt-3">
+      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 animate-fade-in">
+        <RefreshCw className="w-3 h-3 animate-spin" />
+        {currentTool}
+      </span>
     </div>
   )
 
@@ -908,7 +908,6 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
                         className="text-[15px] text-slate-900 dark:text-white"
                       />
 
-                      {message.toolCalls?.length ? renderToolCalls(message.toolCalls) : null}
                       {message.files?.length ? renderArtifacts(message.files) : null}
 
                       {renderActions(message)}
@@ -953,7 +952,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
                       </p>
                     )}
 
-                    {piLive.toolCalls.length > 0 && renderToolCalls(piLive.toolCalls)}
+                    {piLive.currentTool && renderCurrentTool(piLive.currentTool)}
 
                     <div className="mt-2 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
                       {piLive.text ? (
