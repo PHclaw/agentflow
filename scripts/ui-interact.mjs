@@ -184,10 +184,15 @@ const SIGNATURE = `(() => {
   const t = document.body.innerText
   let h = 0
   for (let i = 0; i < t.length; i++) { h = (h * 31 + t.charCodeAt(i)) | 0 }
+  // 表单值不在 innerText 里：只填输入框的按钮（如「点击填入提示语」）会被误判成无反应
+  const fields = [...document.querySelectorAll('input, textarea, select')]
+    .map(el => el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value)
+    .join('~')
   return [
     location.pathname + location.search,
     t.length,
     h,
+    fields,
     document.querySelectorAll('[role="dialog"], .fixed.inset-0').length,
   ].join('|')
 })()`

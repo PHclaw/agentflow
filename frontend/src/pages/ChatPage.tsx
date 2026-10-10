@@ -1,33 +1,31 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  Send,
+  ArrowUp,
   Bot,
-  User,
-  Settings,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
-  RefreshCw,
-  MoreVertical,
-  MessageSquare,
-  Sparkles,
   BookOpen,
-  Zap,
-  Check,
-  X,
-  Paperclip,
-  Download,
-  Terminal,
   Brain,
+  Check,
   ChevronDown,
+  Copy,
+  Download,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Settings,
+  Sparkles,
+  Square,
+  Terminal,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+  X,
+  Zap,
 } from 'lucide-react'
 import { api } from '../services/api'
 import { chat as chatApi, pi, type PiArtifact, type PiStatus } from '../services/api'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { Card } from '../components/ui/Card'
 
 interface Message {
   id: string
@@ -59,18 +57,32 @@ interface PiLiveState {
   text: string
 }
 
+/** 输入框上方附挂的功能项 */
+interface PanelItem {
+  key: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  hint?: string
+  active?: boolean
+  disabled?: boolean
+  onClick: () => void
+}
+
+const EMPTY_PI_LIVE: PiLiveState = { logs: [], toolCalls: [], thinking: '', text: '' }
+
 export default function ChatPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  
+
   const [agent, setAgent] = useState<AgentInfo | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState({
@@ -82,18 +94,14 @@ export default function ChatPage() {
   // PiAgent 引擎相关状态
   const [engine, setEngine] = useState<Engine>('builtin')
   const [piStatus, setPiStatus] = useState<PiStatus | null>(null)
-  const [piLive, setPiLive] = useState<PiLiveState>({
-    logs: [],
-    toolCalls: [],
-    thinking: '',
-    text: '',
-  })
-  const [showThinking, setShowThinking] = useState(false)
+  const [piLive, setPiLive] = useState<PiLiveState>(EMPTY_PI_LIVE)
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
   const [piSessionId, setPiSessionId] = useState<string | null>(null)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
 
   const piReady = Boolean(piStatus?.enabled && piStatus?.available)
+  const isEmptyState = messages.length === 0 && !isLoading && !streamingContent
 
   useEffect(() => {
     loadAgent()
@@ -116,6 +124,14 @@ export default function ChatPage() {
     scrollToBottom()
   }, [messages, streamingContent])
 
+  // 输入框随内容增高（上限 200px），与参考实现的告示输入区一致
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+  }, [inputMessage])
+
   const loadAgent = async () => {
     try {
       const data = await api.get(`/agents/${id}`)
@@ -137,7 +153,7 @@ export default function ChatPage() {
         setMessages(data.messages)
       }
     } catch (error) {
-      // No chat history yet
+      // 尚无历史会话，不算错误
     }
   }
 
@@ -161,6 +177,9 @@ export default function ChatPage() {
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / 1024 / 1024).toFixed(1)} MB`
   }
+
+  const toggleThinking = (key: string) =>
+    setExpandedThinking((prev) => ({ ...prev, [key]: !prev[key] }))
 
   /** 下载 PiAgent 工作区产物 */
   const handleDownloadArtifact = async (file: PiArtifact) => {
@@ -208,6 +227,16 @@ export default function ChatPage() {
     setIsLoading(false)
   }
 
+  const handleNewChat = () => {
+    setMessages([])
+    setConversationId(null)
+    setPiSessionId(null)
+    setStreamingContent('')
+    setPiLive(EMPTY_PI_LIVE)
+    setInputMessage('')
+    inputRef.current?.focus()
+  }
+
   /** 内置链路：直连大模型（SSE：session / chunk / done / error） */
   const sendWithBuiltin = async (message: string, signal: AbortSignal): Promise<string> => {
     let fullContent = ''
@@ -237,7 +266,7 @@ export default function ChatPage() {
     const logs: string[] = []
     let files: PiArtifact[] = []
 
-    setPiLive({ logs: [], toolCalls: [], thinking: '', text: '' })
+    setPiLive(EMPTY_PI_LIVE)
 
     for await (const event of pi.stream(
       id!,
@@ -302,6 +331,7 @@ export default function ChatPage() {
     setInputMessage('')
     setIsLoading(true)
     setStreamingContent('')
+    setShowPanel(false)
 
     const controller = new AbortController()
     abortRef.current = controller
@@ -342,468 +372,509 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false)
       setStreamingContent('')
-      setPiLive({ logs: [], toolCalls: [], thinking: '', text: '' })
+      setPiLive(EMPTY_PI_LIVE)
       abortRef.current = null
     }
   }
 
+  // ---------------------------------------------------------------- 输入区
+
+  /** 输入框上方附挂的功能项。全部对应真实可用的能力，不放占位按钮。 */
+  const panelItems: PanelItem[] = [
+    {
+      key: 'engine',
+      icon: Sparkles,
+      label: engine === 'pi' ? 'AI Agent 引擎' : '内置模型',
+      hint: piReady ? '点击切换引擎' : '仅内置模型可用',
+      active: true,
+      disabled: !piReady,
+      onClick: () => setEngine(engine === 'pi' ? 'builtin' : 'pi'),
+    },
+  ]
+
+  if (engine === 'pi' && piStatus?.skills?.length) {
+    const count = selectedSkills.length
+    panelItems.push({
+      key: 'skills',
+      icon: Wrench,
+      label: count ? `已选 ${count} 项技能` : '选择技能',
+      hint: '来自仓库 skills/ 目录',
+      active: count > 0,
+      onClick: () => {
+        setShowPanel(false)
+        setShowSettings(true)
+      },
+    })
+  }
+
+  const renderComposer = (variant: 'hero' | 'docked') => (
+    <div className={variant === 'hero' ? 'w-full max-w-2xl' : 'w-full max-w-2xl mx-auto'}>
+      {/* 附挂功能项 */}
+      {showPanel && panelItems.length > 0 && (
+        <div className="mb-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-sm">
+          {panelItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={item.onClick}
+              disabled={item.disabled}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm transition-colors ${
+                item.disabled
+                  ? 'opacity-40 cursor-not-allowed text-slate-400'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0 text-slate-400" />
+              <span className="font-medium">{item.label}</span>
+              {item.hint && (
+                <span className="text-xs font-normal text-slate-400">{item.hint}</span>
+              )}
+              {item.active && <Check className="w-4 h-4 ml-auto text-slate-900 dark:text-white" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 输入卡片 */}
+      <div className="rounded-[26px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_2px_20px_rgba(15,23,42,0.06)] dark:shadow-none focus-within:border-slate-300 dark:focus-within:border-slate-700 transition-colors">
+        <textarea
+          ref={inputRef}
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="尽管问，带图也行"
+          rows={1}
+          className="w-full bg-transparent px-5 pt-4 pb-1 text-[15px] text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none"
+          style={{ maxHeight: '200px' }}
+        />
+
+        <div className="flex items-center justify-between px-3.5 pb-3 pt-1">
+          {panelItems.length > 0 ? (
+            <button
+              onClick={() => setShowPanel((v) => !v)}
+              title="更多能力"
+              className={`p-2 rounded-full transition-colors ${
+                showPanel
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Plus
+                className={`w-4 h-4 transition-transform ${showPanel ? 'rotate-45' : ''}`}
+              />
+            </button>
+          ) : (
+            <span />
+          )}
+
+          <button
+            onClick={isLoading ? handleStop : handleSend}
+            disabled={!isLoading && !inputMessage.trim()}
+            title={isLoading ? '停止生成' : '发送'}
+            className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+              isLoading
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                : inputMessage.trim()
+                  ? 'bg-slate-900 text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900'
+                  : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            {isLoading ? <Square className="w-3.5 h-3.5 fill-current" /> : <ArrowUp className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // ---------------------------------------------------------------- 消息渲染
+
+  const renderThinking = (key: string, thinking: string, streaming = false) => {
+    const open = Boolean(expandedThinking[key])
+    return (
+      <button
+        onClick={() => toggleThinking(key)}
+        className="flex items-center gap-1.5 mb-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+      >
+        <Brain className={`w-4 h-4 ${streaming ? 'animate-pulse' : ''}`} />
+        <span>{streaming ? '思考中…' : '思考已完成'}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+    )
+  }
+
+  const assistantAvatar = (
+    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center">
+      <Sparkles className="w-3.5 h-3.5 text-white" />
+    </div>
+  )
+
+  const renderArtifacts = (files: PiArtifact[]) => (
+    <div className="mt-3 space-y-2">
+      {files.map((file) => (
+        <button
+          key={file.path}
+          onClick={() => handleDownloadArtifact(file)}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-sm text-left transition-colors"
+        >
+          <Paperclip className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          <span className="flex-1 truncate">{file.name}</span>
+          <span className="text-xs text-slate-400">{formatSize(file.size)}</span>
+          <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        </button>
+      ))}
+    </div>
+  )
+
+  const renderToolCalls = (toolCalls: string[]) => (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {toolCalls.map((tool, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300"
+        >
+          <Terminal className="w-3 h-3" />
+          {tool}
+        </span>
+      ))}
+    </div>
+  )
+
+  /** 助手消息下方的操作条；只放已实现的能力 */
+  const renderActions = (message: Message, extra?: React.ReactNode) => (
+    <div className="flex items-center gap-1 mt-2 -ml-1.5 text-slate-400">
+      <button
+        onClick={() => copyMessage(message.content)}
+        title="复制"
+        className="p-1.5 rounded-lg hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <Copy className="w-3.5 h-3.5" />
+      </button>
+      {extra}
+      {message.role === 'assistant' && (
+        <>
+          <button
+            onClick={handleRegenerate}
+            title="重新生成"
+            className="p-1.5 rounded-lg hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleFeedback(message.id, 'up')}
+            title="赞同"
+            className={`p-1.5 rounded-lg ${
+              feedbackGiven[message.id] === 'up'
+                ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ThumbsUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleFeedback(message.id, 'down')}
+            title="反对"
+            className={`p-1.5 rounded-lg ${
+              feedbackGiven[message.id] === 'down'
+                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                : 'hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ThumbsDown className="w-3.5 h-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  // ---------------------------------------------------------------- 页面
+
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center gap-4">
+    <div className="h-screen flex flex-col bg-white dark:bg-slate-950">
+      {/* 顶栏：保持极简，仅保留导航与必要控制 */}
+      <header className="flex-shrink-0 px-4 py-3">
+        <div className="flex items-center justify-between max-w-3xl mx-auto">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+              title="返回"
+              className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="font-semibold text-slate-900 dark:text-white">
-                  {agent?.name || 'AI Assistant'}
-                </h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {engine === 'pi' ? 'AI Agent 引擎' : agent?.model || 'gpt-4o-mini'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* 引擎切换 */}
-            <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-700 p-0.5">
-              <button
-                onClick={() => setEngine('builtin')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors ${
-                  engine === 'builtin'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                }`}
-              >
-                内置模型
-              </button>
-              <button
-                onClick={() => piReady && setEngine('pi')}
-                disabled={!piReady}
-                title={
-                  piReady
-                    ? 'AI Agent 引擎：可读写工作区文件、调用技能'
-                    : 'AI Agent 引擎未启用（配置方式见 README）'
-                }
-                className={`px-3 py-1.5 text-xs font-medium rounded-[10px] transition-colors ${
-                  engine === 'pi'
-                    ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                } ${piReady ? '' : 'opacity-40 cursor-not-allowed'}`}
-              >
-                AI Agent
-                {piReady && piStatus?.skills?.length ? ` · ${piStatus.skills.length} 技能` : ''}
-              </button>
-            </div>
             <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+              onClick={() => setShowSettings((v) => !v)}
+              title="对话设置"
+              className="flex items-center gap-1 min-w-0 px-1 text-[15px] font-medium text-slate-900 dark:text-white hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
-              <Settings className="w-5 h-5" />
+              <span className="truncate max-w-[40vw]">{agent?.name || '新对话'}</span>
+              <ChevronDown
+                className={`w-4 h-4 flex-shrink-0 transition-transform ${
+                  showSettings ? 'rotate-180' : ''
+                }`}
+              />
             </button>
-            <button className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
-              <MoreVertical className="w-5 h-5" />
+          </div>
+
+          <div className="flex items-center gap-1">
+            {!isEmptyState && (
+              <button
+                onClick={handleNewChat}
+                title="新对话"
+                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setShowSettings((v) => !v)}
+              title="对话设置"
+              className={`p-2 rounded-lg transition-colors ${
+                showSettings
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto">
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-900 dark:text-white">对话设置</h3>
-                <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-                  <X className="w-4 h-4 text-slate-500" />
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">模型</label>
-                  <select
-                    value={settings.model}
-                    onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
-                  >
-                    <option value="gpt-4o-mini">GPT-4o Mini</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                    <option value="deepseek-chat">DeepSeek V3</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">温度: {settings.temperature}</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={settings.temperature}
-                    onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">系统提示词</label>
-                  <input
-                    type="text"
-                    value={settings.systemPrompt}
-                    onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-                    placeholder="（Agent 侧配置优先）"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
-                  />
-                </div>
-              </div>
-
-              {engine === 'pi' && (
-                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    启用技能
-                    <span className="ml-2 text-xs font-normal text-slate-400">
-                      来自仓库 skills/ 目录，不选则不加载任何技能
-                    </span>
-                  </label>
-                  {piStatus?.skills?.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {piStatus.skills.map((name) => {
-                        const active = selectedSkills.includes(name)
-                        return (
-                          <button
-                            key={name}
-                            onClick={() =>
-                              setSelectedSkills((prev) =>
-                                prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
-                              )
-                            }
-                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                              active
-                                ? 'bg-indigo-500 border-indigo-500 text-white'
-                                : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-indigo-300'
-                            }`}
-                          >
-                            {active && <Check className="w-3 h-3" />}
-                            {name}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-400">未发现可用技能</p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {messages.length === 0 && !isLoading && (
-            <div className="text-center py-16">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-500/20">
-                <Sparkles className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-                开始与 {agent?.name || 'AI'} 对话
-              </h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8">
-                {agent?.description || '我是您的智能助手，可以回答问题、帮助完成任务。'}
-              </p>
-              
-              {/* Quick suggestions */}
-              <div className="flex flex-wrap justify-center gap-3">
-                {[
-                  { icon: BookOpen, text: '知识问答' },
-                  { icon: Zap, text: '快速生成' },
-                  { icon: MessageSquare, text: '对话咨询' },
-                ].map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInputMessage(suggestion.text)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                  >
-                    <suggestion.icon className="w-4 h-4" />
-                    {suggestion.text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Message list */}
-          <div className="space-y-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-4 ${
-                  message.role === 'user' ? 'flex-row-reverse' : ''
-                }`}
+      {/* 设置面板 */}
+      {showSettings && (
+        <div className="flex-shrink-0 border-b border-slate-100 dark:border-slate-800 px-6 py-4">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">对话设置</h3>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
               >
-                {/* Avatar */}
-                <div
-                  className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    message.role === 'user'
-                      ? 'bg-indigo-500'
-                      : 'bg-gradient-to-br from-emerald-500 to-green-600'
-                  }`}
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">模型</label>
+                <select
+                  value={settings.model}
+                  onChange={(e) => setSettings({ ...settings, model: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
                 >
-                  {message.role === 'user' ? (
-                    <User className="w-5 h-5 text-white" />
-                  ) : (
-                    <Bot className="w-5 h-5 text-white" />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div
-                  className={`flex-1 max-w-2xl ${
-                    message.role === 'user' ? 'text-right' : ''
-                  }`}
-                >
-                  <div
-                    className={`inline-block p-4 rounded-2xl text-left ${
-                      message.role === 'user'
-                        ? 'bg-indigo-500 text-white rounded-tr-md'
-                        : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-md shadow-sm'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-
-                    {/* 工具调用记录 */}
-                    {message.role === 'assistant' && message.toolCalls?.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {message.toolCalls.map((tool, i) => (
-                          <span
-                            key={i}
-                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300"
-                          >
-                            <Terminal className="w-3 h-3" />
-                            {tool}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {/* 生成的文件附件 */}
-                    {message.role === 'assistant' && message.files?.length ? (
-                      <div className="mt-3 space-y-2">
-                        {message.files.map((file) => (
-                          <button
-                            key={file.path}
-                            onClick={() => handleDownloadArtifact(file)}
-                            className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-indigo-300 dark:hover:border-indigo-500 text-sm text-left transition-colors"
-                          >
-                            <Paperclip className="w-4 h-4 text-indigo-500 flex-shrink-0" />
-                            <span className="flex-1 truncate">{file.name}</span>
-                            <span className="text-xs text-slate-400">{formatSize(file.size)}</span>
-                            <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {/* Actions */}
-                  <div
-                    className={`flex items-center gap-2 mt-2 ${
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    <button
-                      onClick={() => copyMessage(message.content)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="复制"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    {message.role === 'assistant' && (
-                      <>
-                        <button
-                          onClick={() => handleFeedback(message.id, 'up')}
-                          className={`p-1.5 rounded-lg ${
-                            feedbackGiven[message.id] === 'up'
-                              ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                              : 'text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                          title="赞同"
-                        >
-                          <ThumbsUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleFeedback(message.id, 'down')}
-                          className={`p-1.5 rounded-lg ${
-                            feedbackGiven[message.id] === 'down'
-                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                              : 'text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                          title="反对"
-                        >
-                          <ThumbsDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={handleRegenerate}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          title="重新生成"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    <span className="text-xs text-slate-400 ml-2">
-                      {new Date(message.timestamp).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                </div>
+                  <option value="gpt-4o-mini">GPT-4o Mini</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                  <option value="deepseek-chat">DeepSeek V3</option>
+                </select>
               </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  温度: {settings.temperature}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={settings.temperature}
+                  onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">系统提示词</label>
+                <input
+                  type="text"
+                  value={settings.systemPrompt}
+                  onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
+                  placeholder="（Agent 侧配置优先）"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                />
+              </div>
+            </div>
+
+            {engine === 'pi' && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <label className="block text-xs font-medium text-slate-500 mb-2">
+                  启用技能
+                  <span className="ml-2 font-normal text-slate-400">
+                    来自仓库 skills/ 目录，不选则不加载任何技能
+                  </span>
+                </label>
+                {piStatus?.skills?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {piStatus.skills.map((name) => {
+                      const active = selectedSkills.includes(name)
+                      return (
+                        <button
+                          key={name}
+                          onClick={() =>
+                            setSelectedSkills((prev) =>
+                              prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
+                            )
+                          }
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                            active
+                              ? 'bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 dark:border-white'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          {active && <Check className="w-3 h-3" />}
+                          {name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">未发现可用技能</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isEmptyState ? (
+        /* 空状态：大字标题 + 居中输入区 */
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16 overflow-y-auto">
+          <div className="w-full max-w-2xl text-center mb-8">
+            <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-4">
+              {agent?.name || 'AI Agent'}
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              {agent?.description || '我是您的智能助手，可以回答问题、帮助完成任务。'}
+            </p>
+          </div>
+
+          {renderComposer('hero')}
+
+          {/* 快捷入口 */}
+          <div className="flex flex-wrap justify-center gap-2 mt-6">
+            {[
+              { icon: BookOpen, text: '知识问答' },
+              { icon: Zap, text: '快速生成' },
+              { icon: MessageSquare, text: '对话咨询' },
+            ].map((suggestion, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setInputMessage(suggestion.text)
+                  inputRef.current?.focus()
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-600 transition-colors"
+              >
+                <suggestion.icon className="w-3.5 h-3.5" />
+                {suggestion.text}
+              </button>
             ))}
-
-            {/* 内置链路：流式正文 */}
-            {engine === 'builtin' && streamingContent && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 max-w-2xl">
-                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="whitespace-pre-wrap">{streamingContent}</span>
-                      <span className="w-2 h-5 bg-indigo-500 animate-pulse rounded" />
+          </div>
+        </main>
+      ) : (
+        <>
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-6 py-6 space-y-8">
+              {messages.map((message) =>
+                message.role === 'user' ? (
+                  <div key={message.id} className="flex justify-end">
+                    <div className="max-w-[80%]">
+                      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2.5 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap">
+                        {message.content}
+                      </div>
+                      {renderActions(message)}
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* 内置链路：等待中 */}
-            {engine === 'builtin' && isLoading && !streamingContent && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 max-w-2xl">
-                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>思考中...</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* PiAgent 引擎：实时过程（工具调用 / 思考 / 正文） */}
-            {engine === 'pi' && isLoading && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 max-w-2xl space-y-2">
-                  {piLive.toolCalls.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {piLive.toolCalls.map((tool, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-700 text-xs text-slate-600 dark:text-slate-300"
-                        >
-                          <Terminal className="w-3 h-3" />
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {piLive.thinking && (
-                    <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
-                      <button
-                        onClick={() => setShowThinking(!showThinking)}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-xs text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                      >
-                        <Brain className="w-3.5 h-3.5" />
-                        <span>思考过程</span>
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 ml-auto transition-transform ${
-                            showThinking ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                      {showThinking && (
-                        <p className="px-4 pb-3 text-xs text-slate-500 whitespace-pre-wrap max-h-48 overflow-y-auto">
-                          {piLive.thinking}
+                ) : (
+                  <div key={message.id} className="flex gap-3">
+                    {assistantAvatar}
+                    <div className="flex-1 min-w-0">
+                      {message.thinking
+                        ? renderThinking(message.id, message.thinking)
+                        : null}
+                      {message.thinking && expandedThinking[message.id] && (
+                        <p className="mb-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          {message.thinking}
                         </p>
                       )}
-                    </div>
-                  )}
 
-                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
-                    {piLive.text ? (
-                      <div className="flex items-center gap-2">
-                        <span className="whitespace-pre-wrap">{piLive.text}</span>
-                        <span className="w-2 h-5 bg-indigo-500 animate-pulse rounded" />
+                      <div className="text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
+                        {message.content}
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-slate-500">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>{piLive.logs[piLive.logs.length - 1] || 'AI Agent 启动中...'}</span>
-                      </div>
-                    )}
+
+                      {message.toolCalls?.length ? renderToolCalls(message.toolCalls) : null}
+                      {message.files?.length ? renderArtifacts(message.files) : null}
+
+                      {renderActions(message)}
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* 内置链路：流式正文 */}
+              {engine === 'builtin' && streamingContent && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
+                      {streamingContent}
+                      <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
+              {/* 内置链路：等待中 */}
+              {engine === 'builtin' && isLoading && !streamingContent && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>思考中…</span>
+                  </div>
+                </div>
+              )}
 
-      {/* Input */}
-      <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative">
-            <textarea
-              ref={inputRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-              rows={1}
-              className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              style={{
-                maxHeight: '120px',
-                minHeight: '48px',
-              }}
-            />
-            <button
-              onClick={isLoading ? handleStop : handleSend}
-              disabled={!isLoading && !inputMessage.trim()}
-              title={isLoading ? '停止生成' : '发送'}
-              className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                isLoading ? 'bg-slate-400 hover:bg-slate-500' : 'bg-indigo-500 hover:bg-indigo-600'
-              }`}
-            >
-              {isLoading ? <X className="w-5 h-5" /> : <Send className="w-5 h-5" />}
-            </button>
-          </div>
-          <p className="text-xs text-slate-400 mt-2 text-center">
-            {engine === 'pi' ? 'AI Agent 引擎会实际读写工作区文件。' : ''}
-            {agent?.name} 可能会产生不准确的信息，请斟酌参考。
-          </p>
-        </div>
-      </footer>
+              {/* PiAgent 引擎：实时过程 */}
+              {engine === 'pi' && isLoading && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex-1 min-w-0">
+                    {piLive.thinking ? renderThinking('live', piLive.thinking, true) : null}
+                    {piLive.thinking && expandedThinking['live'] && (
+                      <p className="mb-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        {piLive.thinking}
+                      </p>
+                    )}
+
+                    {piLive.toolCalls.length > 0 && renderToolCalls(piLive.toolCalls)}
+
+                    <div className="mt-2 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
+                      {piLive.text ? (
+                        <>
+                          {piLive.text}
+                          <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-2 text-sm text-slate-500">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          {piLive.logs[piLive.logs.length - 1] || 'AI Agent 启动中…'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+          </main>
+
+          <footer className="flex-shrink-0 px-6 pb-4 pt-2">
+            {renderComposer('docked')}
+            <p className="text-xs text-slate-400 mt-3 text-center">
+              内容由 AI 生成，请仔细甄别
+            </p>
+          </footer>
+        </>
+      )}
     </div>
   )
 }
