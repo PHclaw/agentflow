@@ -41,11 +41,14 @@ class SearchRequest(BaseModel):
     query: str
     kb_ids: Optional[List[str]] = None
     top_k: int = 5
-    #: 相关度下限。此前这个字段根本不存在，客户端传threshold 会被静默丢弃、
+    #: 相关度下限。此前这个字段根本不存在，客户端传 threshold 会被静默丢弃、
     #: 一律按默认阈值过滤，表现为「明明有文档却一条都搜不到」。
-    #: 默认 0.4：实测中文嵌入模型下相关片段约 0.6、不相关约 0.2，
-    #:原来的 0.7 会把绝大多数有效结果挡掉。
-    threshold: float = 0.4
+    #:
+    #: 默认值按实测标定：不同嵌入模型的相关度分布差异极大。例如
+    #: shaw/dmeta-embedding-zh 下相关问题只有 0.26~0.40、不相关约 0.25，
+    #: 分数被压缩在很窄的区间（原先默认 0.7，等于把结果几乎全挡掉）。
+    #: 想按业务调召回，把这个值显式传进来即可。
+    threshold: float = 0.25
 
 
 async def _load_owned_kb(db: AsyncSession, kb_id: str, user_id: str) -> KnowledgeBase:
