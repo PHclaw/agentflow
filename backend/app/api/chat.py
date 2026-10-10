@@ -37,6 +37,8 @@ class ChatResponse(BaseModel):
     response: str
     session_id: str
     stats: Optional[dict] = None
+    #: 工作区新生成的产物，供前端渲染成可下载附件
+    files: List[dict] = []
 
 
 class MultiAgentRequest(BaseModel):
@@ -108,7 +110,7 @@ async def _run_workflow_chat(
 
                 turn = await run_workflow_turn(agent, data.message, db)
 
-                append_turn(session, data.message, turn.content)
+                append_turn(session, data.message, turn.content, turn.files)
                 agent.message_count = (agent.message_count or 0) + 1
                 await db.commit()
 
@@ -118,7 +120,9 @@ async def _run_workflow_chat(
                     yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
                     await asyncio.sleep(0.01)
 
-                yield f"data: {json.dumps({'type': 'done', 'content': turn.content, 'session_id': session.id}, ensure_ascii=False)}\n\n"
+                # files 必须带上：智能体节点生成的工作区产物要能作为附件下载，
+                # 否则用户只会看到「已生成 xxx.md」却找不到文件
+                yield f"data: {json.dumps({'type': 'done', 'content': turn.content, 'session_id': session.id, 'files': turn.files}, ensure_ascii=False)}\n\n"
 
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'error': humanize_llm_error(e)}, ensure_ascii=False)}\n\n"
@@ -133,13 +137,14 @@ async def _run_workflow_chat(
         session = await load_or_create_session(db, agent.id, user_id, data.session_id)
         turn = await run_workflow_turn(agent, data.message, db)
 
-        append_turn(session, data.message, turn.content)
+        append_turn(session, data.message, turn.content, turn.files)
         agent.message_count = (agent.message_count or 0) + 1
         await db.commit()
 
         return ChatResponse(
             response=turn.content,
             session_id=session.id,
+            files=turn.files,
             stats={"engine": "workflow", "failed_nodes": turn.failed_nodes},
         )
     except LLMNotConfiguredError as e:

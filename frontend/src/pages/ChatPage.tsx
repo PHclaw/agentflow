@@ -219,7 +219,12 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   /** 下载 PiAgent 工作区产物 */
   const handleDownloadArtifact = async (file: PiArtifact) => {
     try {
-      const blob = await pi.downloadArtifact(id!, file.path)
+      // 优先用产物自带的 url：工作流里的智能体节点可能指向另一个 Agent，
+      // 它的 url 里带的是真正持有该工作区的 agent id，
+      // 若一律用当前 id 拼路径会 404
+      const blob = file.url
+        ? await api.getBlob(file.url)
+        : await pi.downloadArtifact(id!, file.path)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -272,9 +277,15 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     inputRef.current?.focus()
   }
 
-  /** 内置链路：直连大模型（SSE：session / chunk / done / error） */
-  const sendWithBuiltin = async (message: string, signal: AbortSignal): Promise<string> => {
+  /** 内置链路：直连大模型或按工作流编排执行
+   *  （SSE：session / chunk / done / error，done 可能带 files）
+   */
+  const sendWithBuiltin = async (
+    message: string,
+    signal: AbortSignal
+  ): Promise<{ content: string; files: PiArtifact[] }> => {
     let fullContent = ''
+    let files: PiArtifact[] = []
 
     for await (const event of chatApi.stream(id!, message, conversationId, signal)) {
       if (event.type === 'session' && event.session_id) {
@@ -285,12 +296,17 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       } else if (event.type === 'done') {
         if (event.content) fullContent = event.content
         if (event.session_id) setConversationId(event.session_id)
+        // 工作流里的智能体节点生成的产物要作为附件展示
+        if (event.files?.length) files = event.files
       } else if (event.type === 'error') {
         throw new Error(event.error || '对话失败')
       }
     }
 
-    return fullContent || '抱歉，我暂时无法回答这个问题。'
+    return {
+      content: fullContent || '抱歉，我暂时无法回答这个问题。',
+      files,
+    }
   }
 
   /** PiAgent 链路：外部 agent CLI，带思考/工具调用/产物 */
@@ -386,7 +402,9 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         assistantMessage.toolCalls = result.toolCalls
         assistantMessage.thinking = result.thinking
       } else {
-        assistantMessage.content = await sendWithBuiltin(currentInput, controller.signal)
+        const result = await sendWithBuiltin(currentInput, controller.signal)
+        assistantMessage.content = result.content
+        if (result.files.length) assistantMessage.files = result.files
       }
 
       setMessages((prev) => [...prev, assistantMessage])

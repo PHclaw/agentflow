@@ -379,6 +379,85 @@ class TestWorkflowBackedChat:
         assert "流式回复内容" in text
 
     @pytest.mark.asyncio
+    async def test_generated_files_are_returned_as_attachments(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+        monkeypatch,
+    ):
+        """智能体节点生成的产物必须作为附件返回
+
+        工作流的回复只取文本，产物曾被整段丢弃 —— 用户看到
+        「已生成会议纪要 xxx.md」却找不到文件可下载。
+        """
+        monkeypatch.setattr("app.core.config.settings.PIAGENT_ENABLED", True, raising=False)
+
+        artifact = {
+            "name": "会议纪要.md",
+            "path": "会议纪要.md",
+            "size": 2048,
+            "url": "/api/v1/pi/xxx/files/会议纪要.md",
+        }
+
+        async def fake_run(message, agent_id, agent, session_id=None, skills=None, timeout=None):
+            return {
+                "success": True,
+                "error": None,
+                "content": "已生成会议纪要：会议纪要.md",
+                "files": [artifact],
+            }
+
+        monkeypatch.setattr("app.services.pi_agent.pi_agent_runner.run", fake_run)
+
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [
+                    {"id": "t1", "type": "trigger", "data": {"trigger_type": "message"}},
+                    {"id": "a1", "type": "agent", "data": {"agent_id": "self"}},
+                    {"id": "r1", "type": "response", "data": {"template": "{{a1.output}}"}},
+                ],
+                "edges": [
+                    {"source": "t1", "target": "a1"},
+                    {"source": "a1", "target": "r1"},
+                ],
+            },
+        )
+        # 节点里的 agent_id 指向自己
+        agent.workflow_definition["nodes"][1]["data"]["agent_id"] = agent.id
+        await async_db.commit()
+
+        response = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "整理一份会议纪要"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["files"] == [artifact]
+
+        # 流式链路也要带上
+        stream = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "整理一份会议纪要", "stream": True},
+        )
+        assert stream.status_code == 200
+        assert '"files"' in stream.text
+        assert "会议纪要.md" in stream.text
+
+        # 历史里也要留下，否则刷新后附件就没了
+        history = await async_client.get(
+            f"/api/v1/chat/{agent.id}/history", headers=auth_headers
+        )
+        assistant_msgs = [m for m in history.json()["messages"] if m["role"] == "assistant"]
+        assert assistant_msgs[-1]["files"] == [artifact]
+
+    @pytest.mark.asyncio
     async def test_workflow_without_response_node_explains_itself(
         self,
         async_client: AsyncClient,

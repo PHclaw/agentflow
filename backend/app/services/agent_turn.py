@@ -37,6 +37,35 @@ class WorkflowTurn:
     session_id: Optional[str] = None
     state: Optional[WorkflowState] = None
     failed_nodes: List[str] = field(default_factory=list)
+    #: 工作区新生成的产物（智能体节点写入的文件），需透传给前端展示下载
+    files: List[dict] = field(default_factory=list)
+
+
+def collect_workflow_files(state: WorkflowState) -> List[dict]:
+    """汇总各节点产出的文件。
+
+    智能体节点会把 AI Agent 引擎生成的文件写进自己的节点输出，
+    但工作流的回复只取文本 —— 产物曾被整段丢弃，用户只能看到
+    「已生成 xxx.md」却找不到附件。按节点执行顺序收集并去重。
+    """
+    collected: List[dict] = []
+    seen: set = set()
+
+    for node_result in state.execution_history:
+        outputs = state.node_outputs.get(node_result.node_id, {}) or {}
+        files = outputs.get("files") or []
+        if not isinstance(files, list):
+            continue
+        for item in files:
+            if not isinstance(item, dict):
+                continue
+            key = item.get("path") or item.get("url") or item.get("name")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            collected.append(item)
+
+    return collected
 
 
 def agent_has_workflow(agent: Agent) -> bool:
@@ -112,6 +141,7 @@ async def run_workflow_turn(agent: Agent, message: str, db: AsyncSession) -> Wor
         content=content,
         state=state,
         failed_nodes=[r.node_id for r in failed],
+        files=collect_workflow_files(state),
     )
 
 
@@ -154,11 +184,19 @@ async def load_or_create_session(
     return session
 
 
-def append_turn(session: ChatSession, user_message: str, assistant_message: str) -> None:
+def append_turn(
+    session: ChatSession,
+    user_message: str,
+    assistant_message: str,
+    files: Optional[List[dict]] = None,
+) -> None:
     """把一轮对话写入历史。
 
     消息结构与 /chat/{agent_id}/history 返回给前端的格式保持一致，
     这样工作流对话的记录能被对话页正常回填。
+
+    files 也要存：产物是生成后就存在的文件路径，只存正文的话
+    刷新页面后附件就消失了。
     """
     now = datetime.now(timezone.utc).isoformat()
     messages = list(session.messages or [])
@@ -170,14 +208,15 @@ def append_turn(session: ChatSession, user_message: str, assistant_message: str)
             "timestamp": now,
         }
     )
-    messages.append(
-        {
-            "id": str(uuid.uuid4()),
-            "role": "assistant",
-            "content": assistant_message,
-            "timestamp": now,
-        }
-    )
+    assistant_entry: Dict[str, Any] = {
+        "id": str(uuid.uuid4()),
+        "role": "assistant",
+        "content": assistant_message,
+        "timestamp": now,
+    }
+    if files:
+        assistant_entry["files"] = files
+    messages.append(assistant_entry)
     # JSON 列需要整体重新赋值，SQLAlchemy 才能检测到变化
     session.messages = messages
     session.updated_at = datetime.now(timezone.utc)

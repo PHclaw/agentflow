@@ -244,9 +244,17 @@ export const chat = {
   withTools: (agentId: string, message: string, sessionId?: string) => {
     return api.post(`/chat/${agentId}/with-tools`, { message, session_id: sessionId })
   },
-  /** 内置链路的流式对话（SSE：session / chunk / done / error） */
+  /** 内置链路的流式对话（SSE：session / chunk / done / error）
+   *  done 事件可能带 files：工作流里的智能体节点生成了工作区产物
+   */
   stream: (agentId: string, message: string, sessionId?: string | null, signal?: AbortSignal) =>
-    streamSse<{ type: string; content?: string; session_id?: string; error?: string }>(
+    streamSse<{
+      type: string
+      content?: string
+      session_id?: string
+      error?: string
+      files?: PiArtifact[]
+    }>(
       `/api/v1/chat/${agentId}`,
       { message, session_id: sessionId, stream: true },
       signal
