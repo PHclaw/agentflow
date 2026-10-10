@@ -2,12 +2,12 @@ import React from 'react'
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-brand-100">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-brand-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-xl">A</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">AgentFlow</h1>
@@ -28,7 +28,7 @@ export default function App() {
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-5xl font-bold text-gray-900 mb-6">
             让每个企业都能拥有<br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-brand-600">
               专属 AI Agent
             </span>
           </h2>
@@ -113,7 +113,7 @@ export default function App() {
               icon="👥"
               name="HR 助手"
               desc="假期政策、薪资咨询"
-              color="bg-purple-50"
+              color="bg-brand-50"
             />
             <TemplateCard
               icon="📊"
@@ -163,7 +163,7 @@ export default function App() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg"></div>
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-brand-600 rounded-lg"></div>
                 <span className="font-bold text-xl">AgentFlow</span>
               </div>
               <p className="text-gray-400 text-sm">
@@ -240,7 +240,7 @@ function PricingCard({
   return (
     <div className={`p-8 rounded-2xl ${
       highlighted 
-        ? 'bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xl' 
+        ? 'bg-gradient-to-br from-blue-600 to-brand-600 text-white shadow-xl' 
         : 'bg-white border border-gray-200'
     }`}>
       <h4 className="text-lg font-semibold mb-2">{name}</h4>

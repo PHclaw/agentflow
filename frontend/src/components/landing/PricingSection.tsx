@@ -31,7 +31,7 @@ const plans = [
     description: '适合中小企业团队',
     price: { monthly: 99, yearly: 79 },
     icon: Zap,
-    gradient: 'from-indigo-500 to-purple-500',
+    gradient: 'from-brand-500 to-brand-500',
     features: [
       '无限 AI Agent',
       '100,000 次对话/月',
@@ -75,7 +75,7 @@ export function PricingSection() {
     <section id="pricing" className="py-24 lg:py-32 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-white via-slate-50 to-white" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-indigo-100/50 to-transparent rounded-full blur-3xl" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-b from-brand-100/50 to-transparent rounded-full blur-3xl" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
@@ -129,7 +129,7 @@ export function PricingSection() {
               {/* Popular badge */}
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
-                  <div className="px-4 py-1 bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-sm font-medium rounded-full shadow-lg shadow-indigo-500/30">
+                  <div className="px-4 py-1 bg-gradient-to-r from-brand-500 to-brand-500 text-white text-sm font-medium rounded-full shadow-lg shadow-brand-500/30">
                     最受欢迎
                   </div>
                 </div>
@@ -207,7 +207,7 @@ export function PricingSection() {
                     variant={plan.popular ? 'primary' : 'outline'}
                     className={`w-full ${
                       plan.popular
-                        ? 'bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 shadow-lg shadow-indigo-500/30'
+                        ? 'bg-gradient-to-r from-brand-500 to-brand-500 hover:from-brand-600 hover:to-brand-600 shadow-lg shadow-brand-500/30'
                         : ''
                     }`}
                   >

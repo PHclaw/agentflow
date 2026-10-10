@@ -706,7 +706,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         )}
 
         {dragOver && (
-          <p className="px-5 pt-3 text-xs text-indigo-500">松开即可上传到工作目录</p>
+          <p className="px-5 pt-3 text-xs text-brand-500">松开即可上传到工作目录</p>
         )}
 
         {/* 真实的文件选择控件：面板里的「添加文件」点它 */}
@@ -734,7 +734,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
           rows={1}
           /*
            * 这里要显式清掉焦点环：
-           * index.css 有一条全局 *:focus-visible { ring-2 ring-indigo-500 }，
+           * index.css 有一条全局 *:focus-visible { ring-2 ring-brand-500 }，
            * ring 是 box-shadow 而非 outline，所以只写 focus:outline-none 挡不住它，
            * 会在输入框四周描出一圈紫色方框（且不跟随卡片圆角）。
            * 聚焦反馈由外层卡片的 focus-within:border-* 承担。
@@ -1080,7 +1080,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
                               key={file.name}
                               onClick={() => handleDownloadUploaded(file)}
                               title={`下载 ${file.name}`}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
                             >
                               <Paperclip className="w-3 h-3 flex-shrink-0" />
                               <span className="max-w-[180px] truncate">{file.name}</span>

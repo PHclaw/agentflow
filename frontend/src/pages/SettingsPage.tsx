@@ -124,7 +124,7 @@ export default function SettingsPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400'
+                    ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400'
                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
@@ -144,7 +144,7 @@ export default function SettingsPage() {
               </h2>
               <div className="space-y-6">
                 <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center text-white text-2xl font-bold">
                     A
                   </div>
                   <div>
@@ -254,7 +254,7 @@ export default function SettingsPage() {
                     onClick={() => setTheme('light')}
                     className={`p-4 rounded-xl border-2 transition-colors ${
                       theme === 'light' || (theme === 'system' && resolvedTheme === 'light')
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30'
                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
                     }`}
                   >
@@ -265,18 +265,18 @@ export default function SettingsPage() {
                     onClick={() => setTheme('dark')}
                     className={`p-4 rounded-xl border-2 transition-colors ${
                       theme === 'dark' || (theme === 'system' && resolvedTheme === 'dark')
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30'
                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
                     }`}
                   >
-                    <Moon className="w-8 h-8 mx-auto mb-2 text-indigo-500" />
+                    <Moon className="w-8 h-8 mx-auto mb-2 text-brand-500" />
                     <p className="text-sm font-medium text-slate-900 dark:text-white">深色</p>
                   </button>
                   <button
                     onClick={() => setTheme('system')}
                     className={`p-4 rounded-xl border-2 transition-colors ${
                       theme === 'system'
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30'
                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'
                     }`}
                   >
@@ -316,7 +316,7 @@ export default function SettingsPage() {
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" defaultChecked={item.defaultChecked} className="sr-only peer" />
-                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand-300 dark:peer-focus:ring-brand-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-brand-600"></div>
                     </label>
                   </div>
                 ))}
@@ -340,12 +340,12 @@ export default function SettingsPage() {
                     key={i}
                     className={`p-6 rounded-2xl border-2 ${
                       plan.current
-                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                        ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30'
                         : 'border-slate-200 dark:border-slate-700'
                     }`}
                   >
                     {plan.current && (
-                      <span className="inline-block px-3 py-1 rounded-full bg-indigo-500 text-white text-xs font-medium mb-4">
+                      <span className="inline-block px-3 py-1 rounded-full bg-brand-500 text-white text-xs font-medium mb-4">
                         当前计划
                       </span>
                     )}

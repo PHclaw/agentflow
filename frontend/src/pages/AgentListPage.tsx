@@ -131,14 +131,14 @@ export default function AgentListPage() {
             placeholder="搜索 Agent..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
         <div className="flex gap-2">
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as any)}
-            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="all">全部状态</option>
             <option value="active">活跃</option>
@@ -150,7 +150,7 @@ export default function AgentListPage() {
               onClick={() => setViewMode('grid')}
               className={`p-2.5 ${
                 viewMode === 'grid'
-                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'
+                  ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600'
                   : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -160,7 +160,7 @@ export default function AgentListPage() {
               onClick={() => setViewMode('list')}
               className={`p-2.5 ${
                 viewMode === 'list'
-                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600'
+                  ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600'
                   : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-slate-600'
               }`}
             >
@@ -204,11 +204,11 @@ export default function AgentListPage() {
             <Card key={agent.id} className="p-6 hover:shadow-lg transition-shadow group">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 shadow-lg">
                     <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">
+                    <h3 className="font-semibold text-slate-900 dark:text-white group-hover:text-brand-600 transition-colors">
                       {agent.name}
                     </h3>
                     <span
@@ -291,7 +291,7 @@ export default function AgentListPage() {
                 <tr key={agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+                      <div className="p-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600">
                         <Bot className="w-5 h-5 text-white" />
                       </div>
                       <div>

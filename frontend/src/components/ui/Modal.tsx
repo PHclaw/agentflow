@@ -147,7 +147,7 @@ export function ConfirmModal({
   const variantStyles = {
     danger: 'bg-red-500 hover:bg-red-600 focus:ring-red-500',
     warning: 'bg-amber-500 hover:bg-amber-600 focus:ring-amber-500',
-    info: 'bg-indigo-500 hover:bg-indigo-600 focus:ring-indigo-500',
+    info: 'bg-brand-500 hover:bg-brand-600 focus:ring-brand-500',
   }
 
   return (
@@ -158,7 +158,7 @@ export function ConfirmModal({
             'mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4',
             variant === 'danger' && 'bg-red-100 dark:bg-red-900/30',
             variant === 'warning' && 'bg-amber-100 dark:bg-amber-900/30',
-            variant === 'info' && 'bg-indigo-100 dark:bg-indigo-900/30'
+            variant === 'info' && 'bg-brand-100 dark:bg-brand-900/30'
           )}
         >
           {variant === 'danger' && (
@@ -172,7 +172,7 @@ export function ConfirmModal({
             </svg>
           )}
           {variant === 'info' && (
-            <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-6 h-6 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           )}

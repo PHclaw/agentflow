@@ -398,7 +398,7 @@ export default function AgentCreatePage() {
                           }}
                           className={`w-full p-3 rounded-xl text-left transition-colors ${
                             formData.knowledgeBaseId === kb.id
-                              ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200'
+                              ? 'bg-brand-50 dark:bg-brand-900/30 border border-brand-200'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
                           }`}
                         >
@@ -408,7 +408,7 @@ export default function AgentCreatePage() {
                               <p className="font-medium text-slate-900 dark:text-white">{kb.name}</p>
                               <p className="text-xs text-slate-500">{kb.document_count} 个文档</p>
                             </div>
-                            {formData.knowledgeBaseId === kb.id && <Check className="w-5 h-5 text-indigo-500" />}
+                            {formData.knowledgeBaseId === kb.id && <Check className="w-5 h-5 text-brand-500" />}
                           </div>
                         </button>
                       ))
@@ -429,7 +429,7 @@ export default function AgentCreatePage() {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
                     <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -479,7 +479,7 @@ export default function AgentCreatePage() {
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
               <Bot className="w-6 h-6 text-white" />
             </div>
             <div>

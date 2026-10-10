@@ -26,7 +26,7 @@ const features = [
     icon: Package,
     title: '预置行业模板',
     description: '客服、销售、HR、财务等开箱即用的行业模板，快速上线',
-    gradient: 'from-violet-500 to-purple-500',
+    gradient: 'from-brand-500 to-brand-500',
   },
   {
     icon: Link2,
@@ -62,7 +62,7 @@ const features = [
     icon: Users,
     title: '团队协作',
     description: '支持多人协作，版本控制，权限管理',
-    gradient: 'from-indigo-500 to-violet-500',
+    gradient: 'from-brand-500 to-brand-500',
   },
 ]
 
@@ -73,12 +73,12 @@ export function FeaturesSection() {
     <section id="features" ref={sectionRef} className="py-24 lg:py-32 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-indigo-100/50 to-transparent rounded-full blur-3xl" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-brand-100/50 to-transparent rounded-full blur-3xl" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-600 text-sm font-medium mb-6">
             <Code2 className="w-4 h-4" />
             核心功能
           </div>
@@ -108,7 +108,7 @@ export function FeaturesSection() {
                 </div>
 
                 {/* Content */}
-                <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">
+                <h3 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-brand-600 transition-colors">
                   {feature.title}
                 </h3>
                 <p className="text-sm text-slate-600 leading-relaxed">
@@ -124,11 +124,11 @@ export function FeaturesSection() {
 
         {/* Highlight feature */}
         <div className="mt-16">
-          <Card className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 border-0">
+          <Card className="relative overflow-hidden bg-gradient-to-r from-brand-600 via-brand-600 to-brand-600 border-0">
             {/* Animated background */}
             <div className="absolute inset-0 opacity-20">
               <div className="absolute top-0 left-1/4 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
-              <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-purple-300 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+              <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-brand-300 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
             </div>
 
             <div className="relative flex flex-col lg:flex-row items-center justify-between gap-8 p-8 lg:p-12">
@@ -141,7 +141,7 @@ export function FeaturesSection() {
                 <h3 className="text-2xl lg:text-3xl font-bold text-white mb-3">
                   多 Agent 协作模式
                 </h3>
-                <p className="text-indigo-100 max-w-lg">
+                <p className="text-brand-100 max-w-lg">
                   支持多个 AI Agent 协同工作，通过 GitBranch 节点实现复杂业务流程，
                   处理企业级复杂场景游刃有余。
                 </p>
@@ -161,7 +161,7 @@ export function FeaturesSection() {
                 </div>
                 <div className="text-white">
                   <div className="text-2xl font-bold">+10</div>
-                  <div className="text-sm text-indigo-200">协作 Agent</div>
+                  <div className="text-sm text-brand-200">协作 Agent</div>
                 </div>
               </div>
             </div>

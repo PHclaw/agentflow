@@ -14,12 +14,12 @@ export function Header() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
             <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity" />
-              <div className="relative bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl">
+              <div className="absolute -inset-1 bg-gradient-to-r from-brand-500 to-brand-500 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity" />
+              <div className="relative bg-gradient-to-br from-brand-500 to-brand-600 p-2 rounded-xl">
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 group-hover:from-indigo-600 group-hover:to-purple-600 transition-all">
+            <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 group-hover:from-brand-600 group-hover:to-brand-600 transition-all">
               AgentFlow
             </span>
           </Link>
@@ -65,7 +65,7 @@ export function Header() {
 
             {/* Register */}
             <Link to="/register">
-              <Button size="sm" className="shadow-lg shadow-indigo-500/25">
+              <Button size="sm" className="shadow-lg shadow-brand-500/25">
                 免费开始
               </Button>
             </Link>

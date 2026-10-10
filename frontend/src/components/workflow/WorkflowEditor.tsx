@@ -87,7 +87,7 @@ const nodeCategories = [
   {
     name: 'AI 能力',
     nodes: [
-      { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-purple-500 to-violet-500' },
+      { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-brand-500 to-brand-500' },
       { type: 'knowledge', label: '知识库', icon: Database, color: 'from-emerald-500 to-green-500' },
     ],
   },
@@ -101,7 +101,7 @@ const nodeCategories = [
   {
     name: '输出',
     nodes: [
-      { type: 'response', label: '回复用户', icon: Send, color: 'from-indigo-500 to-purple-500' },
+      { type: 'response', label: '回复用户', icon: Send, color: 'from-brand-500 to-brand-500' },
     ],
   },
 ]
@@ -207,7 +207,7 @@ export function WorkflowEditor({
           <Button variant="outline" size="sm" leftIcon={<Play className="w-4 h-4" />}>
             测试
           </Button>
-          <Button size="sm" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} className="shadow-lg shadow-indigo-500/20">
+          <Button size="sm" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} className="shadow-lg shadow-brand-500/20">
             保存
           </Button>
         </div>
@@ -292,7 +292,7 @@ export function WorkflowEditor({
             {nodes.length === 0 && (
               <Panel position="top-center" className="mt-20">
                 <Card className="p-8 text-center shadow-xl">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/30">
                     <Plus className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">
@@ -321,8 +321,8 @@ export function WorkflowEditor({
           
           {selectedNode ? (
             <div className="p-4 space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-brand-50 to-brand-50">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600">
                   <Settings className="w-4 h-4 text-white" />
                 </div>
                 <div>

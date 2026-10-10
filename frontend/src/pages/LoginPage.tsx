@@ -82,11 +82,11 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="w-4 h-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-500"
+                  className="w-4 h-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
                 />
                 <span className="text-slate-600">记住我</span>
               </label>
-              <a href="#" className="text-indigo-600 hover:underline">
+              <a href="#" className="text-brand-600 hover:underline">
                 忘记密码？
               </a>
             </div>
@@ -141,7 +141,7 @@ export default function LoginPage() {
           {/* Footer */}
           <p className="mt-8 text-center text-slate-500 text-sm">
             还没有账号？{' '}
-            <Link to="/register" className="text-indigo-600 hover:underline font-medium">
+            <Link to="/register" className="text-brand-600 hover:underline font-medium">
               立即注册
             </Link>
           </p>

@@ -8,12 +8,12 @@ export const AgentNode = memo(({ data, selected }: NodeProps) => {
   return (
     <div className={`relative group ${selected ? 'scale-105' : ''} transition-transform`}>
       {/* Glow effect */}
-      <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-indigo-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity" />
+      <div className="absolute -inset-1 bg-gradient-to-r from-sky-500 to-brand-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity" />
 
       {/* Main card */}
       <div className="relative bg-white rounded-2xl border-2 border-sky-200 shadow-lg overflow-hidden min-w-[200px]">
         {/* Gradient header */}
-        <div className="bg-gradient-to-r from-sky-500 to-indigo-500 px-4 py-3">
+        <div className="bg-gradient-to-r from-sky-500 to-brand-500 px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-white/20">
               <Bot className="w-4 h-4 text-white" />

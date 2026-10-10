@@ -38,13 +38,13 @@ export function TemplatesSection() {
     <section id="templates" className="py-24 lg:py-32 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white" />
-      <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-purple-100/30 rounded-full blur-3xl -translate-y-1/2" />
-      <div className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-indigo-100/30 rounded-full blur-3xl -translate-y-1/2" />
+      <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2" />
+      <div className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="text-center max-w-2xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-purple-50 border border-purple-100 text-purple-600 text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-600 text-sm font-medium mb-6">
             <MessageSquare className="w-4 h-4" />
             行业模板
           </div>
@@ -77,7 +77,7 @@ export function TemplatesSection() {
                 </div>
 
                 {/* Content */}
-                <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">
+                <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-brand-600 transition-colors">
                   {t.name}
                 </h3>
                 <p className="text-slate-600 text-sm leading-relaxed mb-4">
@@ -111,7 +111,7 @@ export function TemplatesSection() {
 
               {/* Arrow indicator */}
               <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="p-2 rounded-full bg-indigo-50 text-indigo-600">
+                <div className="p-2 rounded-full bg-brand-50 text-brand-600">
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </div>

@@ -52,7 +52,7 @@ export function Footer() {
   return (
     <footer className="relative bg-slate-900 text-slate-300">
       {/* Gradient top border */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-500 to-transparent" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main footer */}
@@ -61,7 +61,7 @@ export function Footer() {
             {/* Brand column */}
             <div className="col-span-2">
               <Link to="/" className="inline-flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl">
+                <div className="bg-gradient-to-br from-brand-500 to-brand-600 p-2 rounded-xl">
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>

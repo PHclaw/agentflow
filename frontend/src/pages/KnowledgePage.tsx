@@ -315,14 +315,14 @@ export default function KnowledgePage() {
                     onClick={() => handleSelectKB(kb)}
                     className={`w-full p-3 rounded-xl text-left transition-colors ${
                       selectedKB?.id === kb.id
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800'
+                        ? 'bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-800'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
                         selectedKB?.id === kb.id
-                          ? 'bg-indigo-500'
+                          ? 'bg-brand-500'
                           : 'bg-slate-100 dark:bg-slate-700'
                       }`}>
                         <BookOpen className={`w-4 h-4 ${
@@ -412,7 +412,7 @@ export default function KnowledgePage() {
                       if (e.key === 'Enter') handleSemanticSearch()
                     }}
                     placeholder={`在「${selectedKB.name}」里检索内容…`}
-                    className="flex-1 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400 transition-colors"
+                    className="flex-1 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-400 transition-colors"
                   />
                   <Button
                     size="sm"
@@ -666,7 +666,7 @@ export default function KnowledgePage() {
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
               uploading
                 ? 'border-slate-300 bg-slate-50'
-                : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-600'
+                : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 dark:hover:border-brand-600'
             }`}
           >
             <input
@@ -681,13 +681,13 @@ export default function KnowledgePage() {
             <label htmlFor="file-upload" className="cursor-pointer">
               {uploading ? (
                 <>
-                  <Loader2 className="w-12 h-12 text-indigo-500 mx-auto mb-4 animate-spin" />
+                  <Loader2 className="w-12 h-12 text-brand-500 mx-auto mb-4 animate-spin" />
                   <p className="text-slate-600 dark:text-slate-400">
                     上传中... {uploadProgress}%
                   </p>
                   <div className="w-full bg-slate-200 rounded-full h-2 mt-4 max-w-xs mx-auto">
                     <div
-                      className="bg-indigo-500 h-2 rounded-full transition-all"
+                      className="bg-brand-500 h-2 rounded-full transition-all"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -696,7 +696,7 @@ export default function KnowledgePage() {
                 <>
                   <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600 dark:text-slate-400 mb-2">
-                    拖拽文件到此处，或<span className="text-indigo-600">点击上传</span>
+                    拖拽文件到此处，或<span className="text-brand-600">点击上传</span>
                   </p>
                   <p className="text-sm text-slate-400">
                     支持 PDF, DOC, DOCX, TXT, MD, CSV（最大 50MB）

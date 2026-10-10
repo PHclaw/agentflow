@@ -105,11 +105,11 @@ export default function RegisterPage() {
           {/* Terms */}
           <p className="mt-6 text-center text-xs text-slate-500">
             注册即表示你同意我们的{' '}
-            <a href="#" className="text-indigo-600 hover:underline">
+            <a href="#" className="text-brand-600 hover:underline">
               服务条款
             </a>{' '}
             和{' '}
-            <a href="#" className="text-indigo-600 hover:underline">
+            <a href="#" className="text-brand-600 hover:underline">
               隐私政策
             </a>
           </p>
@@ -117,7 +117,7 @@ export default function RegisterPage() {
           {/* Footer */}
           <p className="mt-6 text-center text-slate-500 text-sm">
             已有账号？{' '}
-            <Link to="/login" className="text-indigo-600 hover:underline font-medium">
+            <Link to="/login" className="text-brand-600 hover:underline font-medium">
               立即登录
             </Link>
           </p>

@@ -70,7 +70,7 @@ export default function TemplateMarket() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-16">
+      <div className="bg-gradient-to-r from-blue-600 to-brand-600 text-white py-16">
         <div className="max-w-6xl mx-auto px-4 text-center">
           <h1 className="text-4xl font-bold mb-4">模板市场</h1>
           <p className="text-xl text-blue-100">
@@ -107,7 +107,7 @@ export default function TemplateMarket() {
               className="bg-white rounded-xl shadow-sm border hover:shadow-lg transition overflow-hidden"
             >
               {/* Header */}
-              <div className={`bg-gradient-to-r ${template.color || 'from-blue-500 to-indigo-600'} p-6 text-white`}>
+              <div className={`bg-gradient-to-r ${template.color || 'from-blue-500 to-brand-600'} p-6 text-white`}>
                 <div className="text-4xl mb-2">{template.icon || '🤖'}</div>
                 <h3 className="text-xl font-semibold">{template.name}</h3>
                 <span className="text-sm opacity-80">{categoryLabel(template.category)}</span>

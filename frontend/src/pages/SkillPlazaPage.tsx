@@ -53,7 +53,7 @@ export default function SkillPlazaPage() {
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-indigo-600 mb-2">
+          <div className="flex items-center gap-2 text-brand-600 mb-2">
             <Sparkles className="w-5 h-5" />
             <span className="text-sm font-semibold">Skill 广场</span>
           </div>
@@ -101,7 +101,7 @@ export default function SkillPlazaPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">{skill.name}</h3>
-                  <p className="text-sm text-indigo-600 mt-1">{skill.specialty}</p>
+                  <p className="text-sm text-brand-600 mt-1">{skill.specialty}</p>
                 </div>
                 <span className="text-xs text-slate-400">{skill.version}</span>
               </div>

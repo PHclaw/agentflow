@@ -79,7 +79,7 @@ export default function ConversationListPage() {
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
         placeholder="搜索对话内容或 Agent 名称"
-        className="w-full max-w-md px-3.5 py-2 mb-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-indigo-400 dark:focus:border-indigo-500 transition-colors"
+        className="w-full max-w-md px-3.5 py-2 mb-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-400 dark:focus:border-brand-500 transition-colors"
       />
 
       {error && (
@@ -104,9 +104,9 @@ export default function ConversationListPage() {
           <button
             key={s.id}
             onClick={() => open(s)}
-            className="w-full flex items-start gap-3 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:shadow-sm transition-all text-left"
+            className="w-full flex items-start gap-3 px-4 py-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-sm transition-all text-left"
           >
-            <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs font-medium flex items-center justify-center mt-0.5">
+            <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 text-white text-xs font-medium flex items-center justify-center mt-0.5">
               {s.agent_name.slice(0, 1)}
             </div>
             <div className="flex-1 min-w-0">

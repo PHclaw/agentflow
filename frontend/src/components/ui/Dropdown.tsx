@@ -122,7 +122,7 @@ export function SelectDropdown({
           'bg-white border border-slate-200 rounded-lg',
           'text-left text-sm',
           'transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500'
+          'focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500'
         )}
       >
         <span className={selectedOption ? 'text-slate-900' : 'text-slate-400'}>
@@ -146,7 +146,7 @@ export function SelectDropdown({
                 'w-full flex items-center gap-3 px-4 py-2.5 text-sm text-left',
                 'transition-colors',
                 option.value === value
-                  ? 'bg-indigo-50 text-indigo-600'
+                  ? 'bg-brand-50 text-brand-600'
                   : 'text-slate-700 hover:bg-slate-50'
               )}
             >

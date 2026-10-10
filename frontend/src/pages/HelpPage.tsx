@@ -48,7 +48,7 @@ const guides = [
     icon: Sparkles,
     title: '快速入门',
     description: '5分钟创建你的第一个 Agent',
-    gradient: 'from-indigo-500 to-purple-500',
+    gradient: 'from-brand-500 to-brand-500',
   },
   {
     icon: Book,
@@ -107,7 +107,7 @@ export default function HelpPage() {
           placeholder="搜索问题..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-lg"
+          className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all text-lg"
         />
       </div>
 
@@ -120,7 +120,7 @@ export default function HelpPage() {
                 <guide.icon className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                <h3 className="font-semibold text-slate-900 group-hover:text-brand-600 transition-colors">
                   {guide.title}
                 </h3>
                 <p className="text-sm text-slate-500">{guide.description}</p>
@@ -133,7 +133,7 @@ export default function HelpPage() {
       {/* FAQ */}
       <Card padding="lg" className="mb-8">
         <div className="flex items-center gap-3 mb-6">
-          <HelpCircle className="w-6 h-6 text-indigo-500" />
+          <HelpCircle className="w-6 h-6 text-brand-500" />
           <h2 className="text-lg font-semibold text-slate-900">常见问题</h2>
         </div>
 
@@ -170,7 +170,7 @@ export default function HelpPage() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer">
             <div className="p-3 bg-white rounded-xl shadow-sm">
-              <FileText className="w-6 h-6 text-indigo-500" />
+              <FileText className="w-6 h-6 text-brand-500" />
             </div>
             <div className="flex-1">
               <h3 className="font-medium text-slate-900">文档中心</h3>
@@ -181,7 +181,7 @@ export default function HelpPage() {
 
           <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer">
             <div className="p-3 bg-white rounded-xl shadow-sm">
-              <Video className="w-6 h-6 text-indigo-500" />
+              <Video className="w-6 h-6 text-brand-500" />
             </div>
             <div className="flex-1">
               <h3 className="font-medium text-slate-900">视频教程</h3>
@@ -193,7 +193,7 @@ export default function HelpPage() {
       </Card>
 
       {/* Contact */}
-      <Card padding="lg" className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+      <Card padding="lg" className="bg-gradient-to-br from-brand-500 to-brand-600 text-white">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="p-4 bg-white/20 rounded-2xl">
@@ -201,7 +201,7 @@ export default function HelpPage() {
             </div>
             <div>
               <h3 className="text-xl font-semibold">需要更多帮助？</h3>
-              <p className="text-indigo-100">我们的支持团队随时为你解答</p>
+              <p className="text-brand-100">我们的支持团队随时为你解答</p>
             </div>
           </div>
           <div className="flex gap-3">
@@ -209,7 +209,7 @@ export default function HelpPage() {
               <Mail className="w-4 h-4 mr-2" />
               发送邮件
             </Button>
-            <Button className="bg-white text-indigo-600 hover:bg-indigo-50">
+            <Button className="bg-white text-brand-600 hover:bg-brand-50">
               <MessageCircle className="w-4 h-4 mr-2" />
               在线客服
             </Button>

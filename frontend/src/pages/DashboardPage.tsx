@@ -78,7 +78,7 @@ export default function DashboardPage() {
       icon: Bot,
       trend: '+3',
       trendUp: true,
-      color: 'from-indigo-500 to-purple-600',
+      color: 'from-brand-500 to-brand-600',
     },
     {
       title: '活跃对话',
@@ -169,10 +169,10 @@ export default function DashboardPage() {
           <Card className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <Activity className="w-5 h-5 text-indigo-500" />
+                <Activity className="w-5 h-5 text-brand-500" />
                 最近活动
               </h2>
-              <button className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700">
+              <button className="text-sm text-brand-600 dark:text-brand-400 hover:text-brand-700">
                 查看全部
               </button>
             </div>
@@ -186,7 +186,7 @@ export default function DashboardPage() {
                   <div
                     className={`p-2 rounded-lg ${
                       activity.type === 'agent_created'
-                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600'
+                        ? 'bg-brand-100 dark:bg-brand-900/30 text-brand-600'
                         : activity.type === 'conversation'
                         ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600'
                         : activity.type === 'knowledge_added'
@@ -246,7 +246,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"
+                    className="h-full bg-gradient-to-r from-brand-500 to-brand-500 rounded-full"
                     style={{ width: '92%' }}
                   />
                 </div>
@@ -277,8 +277,8 @@ export default function DashboardPage() {
                 className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                    <Zap className="w-4 h-4 text-purple-600" />
+                  <div className="p-2 rounded-lg bg-brand-100 dark:bg-brand-900/30">
+                    <Zap className="w-4 h-4 text-brand-600" />
                   </div>
                   <span className="text-slate-700 dark:text-slate-300">创建工作流</span>
                 </div>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Usage This Month */}
-          <Card className="p-6 bg-gradient-to-br from-indigo-500 to-purple-600 border-0">
+          <Card className="p-6 bg-gradient-to-br from-brand-500 to-brand-600 border-0">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold">本月使用</h2>
               <TrendingUp className="w-5 h-5 text-white/70" />
@@ -320,8 +320,8 @@ export default function DashboardPage() {
             <p className="text-4xl font-bold text-white">
               {stats.apiCallsThisMonth.toLocaleString()}
             </p>
-            <p className="text-indigo-100 mt-1">API 调用次数</p>
-            <div className="mt-4 flex items-center gap-2 text-sm text-indigo-100">
+            <p className="text-brand-100 mt-1">API 调用次数</p>
+            <div className="mt-4 flex items-center gap-2 text-sm text-brand-100">
               <ArrowUpRight className="w-4 h-4" />
               相比上月增长 {stats.growthRate}%
             </div>

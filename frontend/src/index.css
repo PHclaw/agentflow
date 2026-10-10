@@ -20,7 +20,7 @@
 
   /* Focus ring */
   *:focus-visible {
-    @apply outline-none ring-2 ring-indigo-500 ring-offset-2;
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2;
   }
 }
 
@@ -50,7 +50,7 @@
 
   /* Gradient text */
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-indigo-600;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-500 to-brand-600;
   }
 
   /* Scrollbar */
@@ -109,7 +109,7 @@
 }
 
 .react-flow__node.selected {
-  @apply ring-2 ring-indigo-500;
+  @apply ring-2 ring-brand-500;
 }
 
 .react-flow__edge-path {

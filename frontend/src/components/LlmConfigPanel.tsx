@@ -333,7 +333,7 @@ export default function LlmConfigPanel() {
               key={config.id}
               className={`rounded-xl border p-4 transition-colors ${
                 config.is_effective
-                  ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50/40 dark:bg-indigo-900/10'
+                  ? 'border-brand-300 dark:border-brand-600 bg-brand-50/40 dark:bg-brand-900/10'
                   : 'border-slate-200 dark:border-slate-700'
               }`}
             >
@@ -341,7 +341,7 @@ export default function LlmConfigPanel() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1.5">
                     <span className="font-medium text-slate-900 dark:text-white">{config.alias}</span>
-                    {config.is_effective && <Badge tone="indigo">当前生效</Badge>}
+                    {config.is_effective && <Badge tone="brand">当前生效</Badge>}
                     {config.is_default && <Badge tone="amber">默认</Badge>}
                     {!config.is_active && <Badge tone="slate">已停用</Badge>}
                   </div>
@@ -537,7 +537,7 @@ export default function LlmConfigPanel() {
                 type="checkbox"
                 checked={form.is_default}
                 onChange={(e) => setForm({ ...form, is_default: e.target.checked })}
-                className="w-4 h-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-500"
+                className="w-4 h-4 rounded border-slate-300 text-brand-500 focus:ring-brand-500"
               />
               设为默认配置（保存后立即生效）
             </label>
@@ -596,9 +596,9 @@ export default function LlmConfigPanel() {
 
 // ---------------------------------------------------------------- 小组件
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'indigo' | 'amber' | 'slate' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'brand' | 'amber' | 'slate' }) {
   const tones = {
-    indigo: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+    brand: 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300',
     amber: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
     slate: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
   }

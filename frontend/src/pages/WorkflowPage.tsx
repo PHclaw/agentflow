@@ -82,9 +82,9 @@ const nodeCategories = [
   {
     name: 'AI 能力',
     nodes: [
-      { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-purple-500 to-violet-500' },
+      { type: 'llm', label: 'LLM 对话', icon: Cpu, color: 'from-brand-500 to-brand-500' },
       { type: 'knowledge', label: '知识库检索', icon: Database, color: 'from-emerald-500 to-green-500' },
-      { type: 'agent', label: '智能体调用', icon: Bot, color: 'from-sky-500 to-indigo-500' },
+      { type: 'agent', label: '智能体调用', icon: Bot, color: 'from-sky-500 to-brand-500' },
     ],
   },
   {
@@ -97,7 +97,7 @@ const nodeCategories = [
   {
     name: '输出',
     nodes: [
-      { type: 'response', label: '回复用户', icon: Send, color: 'from-indigo-500 to-purple-500' },
+      { type: 'response', label: '回复用户', icon: Send, color: 'from-brand-500 to-brand-500' },
     ],
   },
 ]
@@ -468,7 +468,7 @@ export default function WorkflowPage() {
               <Button variant="outline" size="sm" leftIcon={<Upload className="w-4 h-4" />}>导入</Button>
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
-            <Button size="sm" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} loading={loading} className="shadow-lg shadow-indigo-500/20">
+            <Button size="sm" leftIcon={<Save className="w-4 h-4" />} onClick={handleSave} loading={loading} className="shadow-lg shadow-brand-500/20">
               保存
             </Button>
           </div>
@@ -602,7 +602,7 @@ export default function WorkflowPage() {
             {nodes.length === 0 && (
               <Panel position="top-center" className="mt-20">
                 <Card className="p-8 text-center shadow-xl">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/30">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/30">
                     <Plus className="w-8 h-8 text-white" />
                   </div>
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">从这里开始构建你的工作流</h3>
@@ -765,7 +765,7 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
                 onChange={(e) => onUpdate({ prompt: e.target.value })}
                 placeholder="使用 {{变量名}} 引用上下文..."
                 rows={4}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
               <p className="text-xs text-slate-400">支持: {'{{user_message}}'}, {'{{knowledge.context}}'}, {'{{tool.result}}'}</p>
             </div>
@@ -924,7 +924,7 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
                 onChange={(e) => onUpdate({ response_template: e.target.value })}
                 placeholder="使用 {{变量}} 引用上下文..."
                 rows={4}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
             <div className="text-xs text-slate-400">可用: {'{{llm.response}}'}, {'{{knowledge.context}}'}, {'{{tool.result}}'}</div>
@@ -938,8 +938,8 @@ function NodeConfigPanel({ node, onUpdate, executionState }: NodeConfigPanelProp
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50">
-        <div className="p-2 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600">
+      <div className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-brand-50 to-brand-50">
+        <div className="p-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600">
           <Settings className="w-4 h-4 text-white" />
         </div>
         <div>
