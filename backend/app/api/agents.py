@@ -68,6 +68,9 @@ class AgentCreate(BaseModel):
     description: Optional[str] = None
     workflow_definition: Optional[WorkflowDefinition] = None
     llm_config: Optional[ModelConfig] = None
+    # 前端 Agent 表单会带上它；此前模型里没声明，pydantic 直接丢弃，
+    # 于是选了知识库也存不下来，工作流的知识节点拿不到 kb_id
+    knowledge_base_id: Optional[str] = None
 
 
 class AgentUpdate(BaseModel):
@@ -76,6 +79,7 @@ class AgentUpdate(BaseModel):
     description: Optional[str] = None
     workflow_definition: Optional[WorkflowDefinition] = None
     llm_config: Optional[ModelConfig] = None
+    knowledge_base_id: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -123,6 +127,7 @@ async def create_agent(
             if data.llm_config
             else {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7}
         ),
+        knowledge_base_id=data.knowledge_base_id,
         settings={},
         is_active=True,
     )

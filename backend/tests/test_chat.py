@@ -3,6 +3,7 @@
 """
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
+from uuid import uuid4
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -207,3 +208,199 @@ class TestChatAPI:
             json={"message": "Hello"},
         )
         assert response.status_code == 404
+
+
+class TestWorkflowBackedChat:
+    """配置了工作流的 Agent：对话应按画布编排执行
+
+    这里统一用 trigger -> response 这种不含 LLM 的编排，
+    让整条链路可以脱离模型密钥被完整验证。
+    """
+
+    async def _make_agent(
+        self,
+        async_db: AsyncSession,
+        test_user: User,
+        definition: dict,
+    ) -> Agent:
+        agent = Agent(
+            id=f"wf-agent-{uuid4().hex[:8]}",
+            user_id=test_user.external_id,
+            name="工作流 Agent",
+            description="",
+            model_config={"model": "gpt-4o-mini", "temperature": 0.7},
+            workflow_definition=definition,
+        )
+        async_db.add(agent)
+        await async_db.commit()
+        await async_db.refresh(agent)
+        return agent
+
+    @pytest.mark.asyncio
+    async def test_response_node_output_becomes_reply(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+    ):
+        """回复取自 response 节点，且不再走 IntegratedAgentRuntime"""
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [
+                    {"id": "t1", "type": "trigger", "data": {"trigger_type": "message"}},
+                    {"id": "r1", "type": "response", "data": {"response": "来自工作流的回复"}},
+                ],
+                "edges": [{"source": "t1", "target": "r1"}],
+            },
+        )
+
+        response = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "你好"},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["response"] == "来自工作流的回复"
+        assert body["stats"]["engine"] == "workflow"
+
+    @pytest.mark.asyncio
+    async def test_template_style_definition_is_normalized(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+    ):
+        """预置模板的写法（start/output + config + from/to）也要能跑
+
+        项目里的模板用的正是这套写法，不归一化的话节点类型未知、
+        配置为空、边上没有 source/target。
+        """
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [
+                    {"id": "start", "type": "start", "label": "用户输入"},
+                    {
+                        "id": "end",
+                        "type": "output",
+                        "label": "回复用户",
+                        "config": {"response": "模板写法的回复"},
+                    },
+                ],
+                "edges": [{"from": "start", "to": "end"}],
+            },
+        )
+
+        response = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "你好"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["response"] == "模板写法的回复"
+
+    @pytest.mark.asyncio
+    async def test_turn_is_recorded_in_history(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+    ):
+        """工作流对话也要写进会话历史，否则对话页刷新后就空了"""
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [
+                    {"id": "t1", "type": "trigger", "data": {"trigger_type": "message"}},
+                    {"id": "r1", "type": "response", "data": {"response": "记住了"}},
+                ],
+                "edges": [{"source": "t1", "target": "r1"}],
+            },
+        )
+
+        await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "你好"},
+        )
+
+        history = await async_client.get(
+            f"/api/v1/chat/{agent.id}/history",
+            headers=auth_headers,
+        )
+        assert history.status_code == 200
+        messages = history.json()["messages"]
+        assert [m["role"] for m in messages] == ["user", "assistant"]
+        assert messages[0]["content"] == "你好"
+        assert messages[1]["content"] == "记住了"
+
+    @pytest.mark.asyncio
+    async def test_streaming_emits_session_chunks_and_done(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+    ):
+        """流式对话要发 session / chunk / done 三类事件"""
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [
+                    {"id": "t1", "type": "trigger", "data": {"trigger_type": "message"}},
+                    {"id": "r1", "type": "response", "data": {"response": "流式回复内容"}},
+                ],
+                "edges": [{"source": "t1", "target": "r1"}],
+            },
+        )
+
+        response = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "你好", "stream": True},
+        )
+
+        assert response.status_code == 200
+        text = response.text
+        assert '"type": "session"' in text
+        assert '"type": "chunk"' in text
+        assert '"type": "done"' in text
+        assert "流式回复内容" in text
+
+    @pytest.mark.asyncio
+    async def test_workflow_without_response_node_explains_itself(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        async_db: AsyncSession,
+        test_user: User,
+    ):
+        """工作流没产生内容时要给出原因，而不是空白回复"""
+        agent = await self._make_agent(
+            async_db,
+            test_user,
+            {
+                "nodes": [{"id": "t1", "type": "trigger", "data": {"trigger_type": "message"}}],
+                "edges": [],
+            },
+        )
+
+        response = await async_client.post(
+            f"/api/v1/chat/{agent.id}",
+            headers=auth_headers,
+            json={"message": "你好"},
+        )
+
+        assert response.status_code == 200
+        assert "没有产生回复内容" in response.json()["response"]

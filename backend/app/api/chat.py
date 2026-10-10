@@ -9,12 +9,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
 from typing import Optional, List
+import asyncio
 import json
 
 from ..core.database import get_db
 from ..models.agent import Agent, ChatSession
 from ..services.integrated_runtime import IntegratedAgentRuntime
 from ..services.llm import LLMNotConfiguredError, humanize_llm_error
+from ..services.agent_turn import (
+    agent_has_workflow,
+    append_turn,
+    load_or_create_session,
+    run_workflow_turn,
+)
 from .auth import get_current_user_id
 
 router = APIRouter()
@@ -86,6 +93,61 @@ async def multi_agent_chat(
         raise HTTPException(status_code=500, detail=f"Multi-agent error: {str(e)}")
 
 
+async def _run_workflow_chat(
+    agent: Agent,
+    data: ChatRequest,
+    db: AsyncSession,
+    user_id: str,
+):
+    """工作流模式的对话：执行画布上的编排，把结果作为回复返回。"""
+    if data.stream:
+        async def generate_sse():
+            try:
+                session = await load_or_create_session(db, agent.id, user_id, data.session_id)
+                yield f"data: {json.dumps({'type': 'session', 'session_id': session.id})}\n\n"
+
+                turn = await run_workflow_turn(agent, data.message, db)
+
+                append_turn(session, data.message, turn.content)
+                agent.message_count = (agent.message_count or 0) + 1
+                await db.commit()
+
+                # 工作流是一口气执行完的，这里分片下发以保留流式观感
+                for i in range(0, len(turn.content), 24):
+                    chunk = turn.content[i:i + 24]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                yield f"data: {json.dumps({'type': 'done', 'content': turn.content, 'session_id': session.id}, ensure_ascii=False)}\n\n"
+
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'error': humanize_llm_error(e)}, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(
+            generate_sse(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    try:
+        session = await load_or_create_session(db, agent.id, user_id, data.session_id)
+        turn = await run_workflow_turn(agent, data.message, db)
+
+        append_turn(session, data.message, turn.content)
+        agent.message_count = (agent.message_count or 0) + 1
+        await db.commit()
+
+        return ChatResponse(
+            response=turn.content,
+            session_id=session.id,
+            stats={"engine": "workflow", "failed_nodes": turn.failed_nodes},
+        )
+    except LLMNotConfiguredError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
+
+
 @router.post("/{agent_id}", response_model=ChatResponse)
 async def chat(
     agent_id: str,
@@ -94,14 +156,21 @@ async def chat(
     user_id: str = Depends(get_current_user_id)
 ):
     """
-    与 Agent 对话（整合版）
+    与 Agent 对话
 
-    使用 IntegratedAgentRuntime，自动：
-    - 追踪对话
-    - 使用提示词模板
-    - 解析输出
-    - 管理记忆
+    执行体按「该 Agent 是否配置了工作流」分流：
+    - 配置了工作流 -> 按画布编排执行（见 services/agent_turn）
+    - 未配置       -> 维持原有 IntegratedAgentRuntime 链路
+
+    未配置工作流的 Agent 行为完全不变。
     """
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    if agent_has_workflow(agent):
+        return await _run_workflow_chat(agent, data, db, user_id)
+
     # 流式对话
     if data.stream:
         async def generate_sse():

@@ -1,6 +1,7 @@
 """
 工作流运行时 - 节点数据传递与执行
-基于 LangGraph 实现工作流节点的数据流动
+
+注意：实现已不依赖 LangGraph，为自研执行器（拓扑排序 + 分支选择）。
 """
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -12,6 +13,102 @@ from datetime import datetime
 from .llm import LLMService
 from .knowledge import KnowledgeService
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+# --------------------------------------------------------------------------
+# 工作流定义归一化
+#
+# 项目里同时存在三套工作流写法，字段名互不相同：
+#
+#   1. 运行时（本文件）：type=trigger/llm/...，节点配置在 data，边用 source/target
+#   2. 前端编辑器：同上，但响应节点写 response_template、工具节点写 tool_params
+#   3. 预置模板（core/seed.py）：type=start/output，配置在 config，边用 from/to
+#
+# 不归一化就执行的话，模板开出来的工作流会：节点类型未知（退化成 BaseNode 直接
+# NotImplementedError）、配置全空、边上没有 source/target 导致拓扑排序认为没有依赖。
+# 这里统一成第 1 种形状，三种来源都能跑。
+# --------------------------------------------------------------------------
+
+_NODE_TYPE_ALIASES = {
+    "start": "trigger",
+    "end": "response",
+    "output": "response",
+}
+
+# 前端字段名 -> 运行时字段名
+_DATA_KEY_ALIASES = {
+    "response_template": "template",
+    "tool_params": "params",
+    "tool": "tool_name",
+}
+
+
+def normalize_workflow_definition(raw: Optional[Dict]) -> Dict:
+    """把任意一种历史写法归一成运行时可直接执行的形状。"""
+    raw = raw or {}
+
+    nodes: List[Dict[str, Any]] = []
+    for node in raw.get("nodes") or []:
+        item = dict(node)
+        node_type = str(item.get("type") or "")
+        item["type"] = _NODE_TYPE_ALIASES.get(node_type, node_type)
+
+        # 顶层 config 与 data 合并，data 优先（编辑器用 data，模板用 config）
+        merged: Dict[str, Any] = dict(item.get("config") or {})
+        merged.update(item.get("data") or {})
+
+        # 模板把展示名放在节点顶层
+        if item.get("label") and "label" not in merged:
+            merged["label"] = item["label"]
+
+        for old_key, new_key in _DATA_KEY_ALIASES.items():
+            if old_key in merged and new_key not in merged:
+                merged[new_key] = merged[old_key]
+
+        item["data"] = merged
+        nodes.append(item)
+
+    edges: List[Dict[str, Any]] = []
+    for edge in raw.get("edges") or []:
+        item = dict(edge)
+        if "source" not in item and "from" in item:
+            item["source"] = item["from"]
+        if "target" not in item and "to" in item:
+            item["target"] = item["to"]
+        edges.append(item)
+
+    normalized: Dict[str, Any] = {"nodes": nodes, "edges": edges}
+    if raw.get("entry"):
+        normalized["entry"] = raw["entry"]
+    return normalized
+
+
+def has_workflow(workflow_definition: Optional[Dict]) -> bool:
+    """是否配置了可执行的工作流（至少要有一个节点）"""
+    return bool((workflow_definition or {}).get("nodes"))
+
+
+def extract_final_response(state) -> Optional[str]:
+    """从执行结果里取最终回复。
+
+    倒序扫描执行历史，优先取 response 节点的 final_response，
+    其次取任意节点的 response 输出。
+
+    注意 status 是 NodeStatus 枚举，必须用 .value 比较 ——
+    原先调用方写的是 `status == NodeStatus.SUCCESS.value`（枚举 vs 字符串），
+    恒为假，导致 final_output 永远是 null。
+    """
+    success = NodeStatus.SUCCESS.value
+    for node_result in reversed(state.execution_history):
+        status = getattr(node_result.status, "value", node_result.status)
+        if status != success:
+            continue
+        outputs = state.node_outputs.get(node_result.node_id, {})
+        for key in ("final_response", "response_content", "response", "result"):
+            value = outputs.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return None
 
 
 class NodeStatus(Enum):
@@ -82,6 +179,22 @@ class BaseNode:
             return state.context[input_key]
         
         return None
+
+    def get_upstream_output(self, state: WorkflowState) -> Any:
+        """取上游节点的主要输出。
+
+        条件节点通常只要「上一个节点的结果」，配置里往往不写变量名；
+        此前它只能取到空串，导致条件恒为同一分支。
+        """
+        for edge in state.edges:
+            if edge.get("target") != self.node_id:
+                continue
+            upstream = state.node_outputs.get(edge.get("source"), {})
+            for key in ("response", "final_response", "response_content", "result", "context", "message"):
+                value = upstream.get(key)
+                if value not in (None, ""):
+                    return value
+        return ""
     
     def set_output(self, state: WorkflowState, key: str, value: Any, metadata: Dict = None):
         """设置输出到状态"""
@@ -271,8 +384,13 @@ class ConditionNode(BaseNode):
         result = NodeResult(node_id=self.node_id, status=NodeStatus.RUNNING, start_time=datetime.now())
         
         try:
-            # 获取输入
-            input_value = self.get_input(state, "value") or self.config.get("value", "")
+            # 获取输入：显式变量 > 配置值 > 上游节点输出
+            input_value = self.get_input(state, "value")
+            if input_value in (None, ""):
+                input_value = self.config.get("value", "")
+            if input_value in (None, ""):
+                input_value = self.get_upstream_output(state)
+
             condition_type = self.config.get("condition_type", "equals")
             condition_value = self.config.get("condition_value", "")
             
@@ -590,6 +708,9 @@ class WorkflowRuntime:
         db_session: AsyncSession,
     ) -> WorkflowState:
         """执行工作流"""
+        # 三种历史写法先归一，避免模板/旧数据一执行就全是未知节点
+        workflow_def = normalize_workflow_definition(workflow_def)
+
         workflow_id = str(uuid.uuid4())
         
         # 初始化状态
@@ -665,6 +786,8 @@ class WorkflowRuntime:
         db_session: AsyncSession,
     ) -> NodeResult:
         """单独执行某个节点"""
+        workflow_def = normalize_workflow_definition(workflow_def)
+
         state = WorkflowState(
             workflow_id="single",
             nodes={n["id"]: n for n in workflow_def.get("nodes", [])},

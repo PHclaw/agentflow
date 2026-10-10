@@ -97,8 +97,11 @@ async def test_agent(async_db: AsyncSession, test_user: User) -> Agent:
             "provider": "openai",
             "model": "gpt-4o-mini",
         },
+        # 空工作流：默认的 Agent 就是这种状态，/chat 会走 IntegratedAgentRuntime。
+        # 配了工作流的 Agent 会改走 workflow_runtime，那条分支在 test_chat.py 里
+        # 用专门的 Agent 覆盖，避免这里影响其他依赖 test_agent 的用例。
         workflow_definition={
-            "nodes": [{"id": "start", "type": "start"}],
+            "nodes": [],
             "edges": [],
         },
     )

@@ -10,7 +10,12 @@ import json
 import asyncio
 
 from ..core.database import get_db
-from ..services.workflow_runtime import workflow_runtime, NodeStatus
+from ..services.workflow_runtime import (
+    workflow_runtime,
+    NodeStatus,
+    extract_final_response,
+    normalize_workflow_definition,
+)
 from app.api.auth import get_current_user_id
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
@@ -46,17 +51,8 @@ async def execute_workflow(
             db_session=db,
         )
         
-        # 获取最终结果
-        final_output = None
-        for node_result in reversed(state.execution_history):
-            if node_result.status == NodeStatus.SUCCESS.value:
-                outputs = state.node_outputs.get(node_result.node_id, {})
-                if "final_response" in outputs:
-                    final_output = outputs["final_response"]
-                    break
-                elif "response" in outputs:
-                    final_output = outputs["response"]
-                    break
+        # 取最终结果（原实现用枚举与字符串比较，恒为假，final_output 一直是 null）
+        final_output = extract_final_response(state)
         
         return {
             "success": True,
@@ -148,16 +144,7 @@ async def execute_workflow_stream(
                         await asyncio.sleep(0.01)
             
             # 最终结果
-            final_output = None
-            for node_result in reversed(state.execution_history):
-                if node_result.status == NodeStatus.SUCCESS.value:
-                    outputs = state.node_outputs.get(node_result.node_id, {})
-                    if "final_response" in outputs:
-                        final_output = outputs["final_response"]
-                        break
-                    elif "response" in outputs:
-                        final_output = outputs["response"]
-                        break
+            final_output = extract_final_response(state)
             
             yield f"data: {json.dumps({
                 'type': 'complete',
@@ -185,10 +172,9 @@ async def test_workflow(
     db: AsyncSession = Depends(get_db)
 ):
     """测试工作流配置"""
-    workflow_def = {
-        "nodes": request.nodes,
-        "edges": request.edges,
-    }
+    workflow_def = normalize_workflow_definition(
+        {"nodes": request.nodes, "edges": request.edges}
+    )
     
     try:
         state = await workflow_runtime.execute_workflow(

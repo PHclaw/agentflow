@@ -108,9 +108,24 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
   const [piSessionId, setPiSessionId] = useState<string | null>(null)
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  /** 该 Agent 是否配置了工作流（配了则由工作流编排执行） */
+  const [hasWorkflow, setHasWorkflow] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const piReady = Boolean(piStatus?.enabled && piStatus?.available)
+
+  /**
+   * 实际生效的引擎。
+   *
+   * 配了工作流的 Agent 只能走内置链路（后端只在 /chat 上按编排执行，
+   * AI Agent 引擎不读工作流）。
+   *
+   * 这里用派生值而不是用 effect 去改 engine：loadPiStatus 会在拿到状态后
+   * 无条件 setEngine('pi')，而 React 严格模式下 effect 会执行两次，第二个
+   * 请求返回时 piReady 值没变、依赖不触发，兜底的 effect 不会重跑，
+   * 引擎就会停在 pi。派生值不受这个竞态影响。
+   */
+  const effectiveEngine: Engine = hasWorkflow ? 'builtin' : engine
   const isEmptyState = messages.length === 0 && !isLoading && !streamingContent
 
   useEffect(() => {
@@ -139,8 +154,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   useEffect(() => {
     if (!skillId) return
     setSelectedSkills((prev) => (prev.includes(skillId) ? prev : [...prev, skillId]))
-    if (piReady) setEngine('pi')
-  }, [skillId, piReady])
+    if (piReady && !hasWorkflow) setEngine('pi')
+  }, [skillId, piReady, hasWorkflow])
 
   // 输入框随内容增高（上限 200px），与参考实现的告示输入区一致
   useEffect(() => {
@@ -159,6 +174,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         description: data.description || '',
         model: data.model || 'gpt-4o-mini',
       })
+      const nodes = data.workflow_definition?.nodes ?? []
+      setHasWorkflow(nodes.length > 0)
     } catch (error) {
       console.error('Failed to load agent:', error)
     }
@@ -362,7 +379,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         timestamp: new Date().toISOString(),
       }
 
-      if (engine === 'pi') {
+      if (effectiveEngine === 'pi') {
         const result = await sendWithPi(currentInput, controller.signal)
         assistantMessage.content = result.content
         assistantMessage.files = result.files
@@ -402,15 +419,20 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     {
       key: 'engine',
       icon: Sparkles,
-      label: engine === 'pi' ? 'AI Agent 引擎' : '内置模型',
-      hint: piReady ? '点击切换引擎' : '仅内置模型可用',
+      label: hasWorkflow ? '工作流编排' : engine === 'pi' ? 'AI Agent 引擎' : '内置模型',
+      hint: hasWorkflow
+        ? '该 Agent 已配置工作流，按画布编排执行'
+        : piReady
+          ? '点击切换引擎'
+          : '仅内置模型可用',
       active: true,
-      disabled: !piReady,
-      onClick: () => setEngine(engine === 'pi' ? 'builtin' : 'pi'),
+      // 配了工作流就不能切换引擎：工作流只在编排链路上生效
+      disabled: !piReady || hasWorkflow,
+      onClick: () => setEngine((prev) => (prev === 'pi' ? 'builtin' : 'pi')),
     },
   ]
 
-  if (engine === 'pi' && piStatus?.skills?.length) {
+  if (effectiveEngine === 'pi' && piStatus?.skills?.length) {
     const count = selectedSkills.length
     panelItems.push({
       key: 'skills',
@@ -450,7 +472,19 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         </div>
       )}
 
-      {skillId && !piReady && (
+      {hasWorkflow && (
+        <p className="mb-2 text-xs text-slate-400">
+          该 Agent 已配置工作流，对话按工作流编排执行。
+        </p>
+      )}
+
+      {hasWorkflow && selectedSkills.length > 0 && (
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
+          工作流编排优先，已选技能不会随本次对话执行；清空工作流后技能才生效。
+        </p>
+      )}
+
+      {skillId && !piReady && !hasWorkflow && (
         <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
           该技能依赖 AI Agent 引擎，当前未启用；对话仍可继续，但技能不会被执行。
         </p>
@@ -750,7 +784,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
               </div>
             </div>
 
-            {engine === 'pi' && (
+            {effectiveEngine === 'pi' && (
               <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <label className="block text-xs font-medium text-slate-500 mb-2">
                   启用技能
@@ -866,7 +900,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
               )}
 
               {/* 内置链路：流式正文 */}
-              {engine === 'builtin' && streamingContent && (
+              {effectiveEngine === 'builtin' && streamingContent && (
                 <div className="flex gap-3">
                   {assistantAvatar}
                   <div className="flex-1 min-w-0">
@@ -879,7 +913,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
               )}
 
               {/* 内置链路：等待中 */}
-              {engine === 'builtin' && isLoading && !streamingContent && (
+              {effectiveEngine === 'builtin' && isLoading && !streamingContent && (
                 <div className="flex gap-3">
                   {assistantAvatar}
                   <div className="flex items-center gap-2 text-sm text-slate-500">
@@ -890,7 +924,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
               )}
 
               {/* PiAgent 引擎：实时过程 */}
-              {engine === 'pi' && isLoading && (
+              {effectiveEngine === 'pi' && isLoading && (
                 <div className="flex gap-3">
                   {assistantAvatar}
                   <div className="flex-1 min-w-0">
