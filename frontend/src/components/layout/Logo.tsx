@@ -5,6 +5,13 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg'
   showText?: boolean
   className?: string
+  /**
+   * 字标渐变跟随哪个主题：
+   * - auto：跟随根元素的 dark 类（应用内使用，侧边栏/登录页等有完整深色主题）
+   * - light：固定用深色文字渐变（落地页顶栏永远是浅色底，
+   *   即使根元素被切到 dark 也不能用浅色渐变，否则浅字压浅底看不见）
+   */
+  tone?: 'auto' | 'light'
 }
 
 const sizes = {
@@ -67,7 +74,12 @@ function FlowMark({ px }: { px: number }) {
   )
 }
 
-export function Logo({ size = 'md', showText = true, className }: LogoProps) {
+export function Logo({
+  size = 'md',
+  showText = true,
+  className,
+  tone = 'auto',
+}: LogoProps) {
   const sizeConfig = sizes[size]
 
   return (
@@ -83,7 +95,24 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
       </div>
 
       {showText && (
-        <span className={cn('font-bold text-slate-900 dark:text-white', sizeConfig.text)}>
+        /*
+         * 渐变文字必须三件套齐全：bg-gradient-to-r + bg-clip-text + text-transparent。
+         * 少任何一个都不会出渐变 —— 之前只写了渐变背景、漏了后两件，
+         * 结果深色渐变糊在字后面而文字继承深色前景，成了「黑字黑底」。
+         * 侧边栏和落地页顶栏各犯过一次，现已统一走这个组件。
+         *
+         * 渐变刻意与图标同色系（主色深一档 → 主色），
+         * 深浅色各自反向：浅色下字更实，深色下提亮保证可读。
+         */
+        <span
+          className={cn(
+            'font-bold bg-clip-text text-transparent bg-gradient-to-r',
+            tone === 'light'
+              ? 'from-brand-800 to-brand-500'
+              : 'from-brand-800 to-brand-500 dark:from-brand-300 dark:to-accent-300',
+            sizeConfig.text
+          )}
+        >
           AgentFlow
         </span>
       )}

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>配色对比预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f6f7f8; color: #1e293b; padding: 32px;
+  }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .lead { font-size: 13px; color: #64748b; margin-bottom: 28px; }
+  .row { display: flex; gap: 24px; flex-wrap: wrap; }
+
+  .palette { background: #fff; border-radius: 14px; padding: 18px; width: 340px;
+             box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .palette h2 { font-size: 15px; margin-bottom: 2px; }
+  .palette .desc { font-size: 12px; color: #64748b; margin-bottom: 14px; }
+  .hex { font-family: ui-monospace, monospace; font-size: 11px; color: #94a3b8; margin-bottom: 14px; }
+
+  /* 迷你侧边栏 */
+  .side { width: 132px; border-radius: 10px; padding: 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .side .logo { font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .side .mark { width: 16px; height: 16px; border-radius: 5px; display: inline-block; }
+  .side .cta { border-radius: 7px; font-size: 11px; padding: 6px; text-align: center; font-weight: 600; margin-bottom: 6px; }
+  .side .item { font-size: 11px; padding: 5px 7px; border-radius: 6px; opacity: .75; }
+  .side .item.on { font-weight: 600; opacity: 1; }
+  .side .item:hover { background: rgba(0,0,0,.04); }
+
+  /* 右侧内容 */
+  .body { flex: 1; display: flex; flex-direction: column; gap: 10px; min-width: 150px; }
+  .search { border-radius: 7px; padding: 6px 9px; font-size: 11px; color: #94a3b8; }
+  .card { border-radius: 9px; padding: 10px; display: flex; gap: 8px; align-items: flex-start; }
+  .card .ic { width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0; }
+  .card .t { font-size: 11.5px; font-weight: 600; }
+  .card .s { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+  .card .badge { font-size: 9px; padding: 1px 6px; border-radius: 20px; margin-left: auto; flex-shrink: 0; }
+  .btns { display: flex; gap: 6px; align-items: center; }
+  .btn { border-radius: 7px; padding: 6px 12px; font-size: 11px; font-weight: 600; border: none; }
+  .btn2 { border-radius: 7px; padding: 6px 10px; font-size: 11px; background: #fff; }
+  .link { font-size: 11px; text-decoration: underline; }
+  .sw { display: flex; gap: 5px; margin-top: 14px; }
+  .sw i { width: 26px; height: 14px; border-radius: 4px; display: block; }
+
+  .dark { background: #0f172a; }
+  .dark .body { color: #e2e8f0; }
+  .dark .palette { background: #1e293b; }
+  .dark .desc { color: #94a3b8; }
+</style>
+</head>
+<body>
+<h1>配色对比预览</h1>
+<p class="lead">当前是 A。每套都用同一组界面元素渲染：侧边栏 / 搜索框 / Agent 卡片 / 按钮 / 链接。</p>
+<div class="row" id="row"></div>
+
+<script>
+const P = [
+  {
+    name: "A · 石墨墨绿 + 琥珀（当前）", desc: "冷静、工具感，像 Linear / Notion",
+    main: "#2C675E", main2: "#3C8177", light: "#E0EDEA", text: "#24534C", accent: "#DE8C4A",
+    sideBg: "#ffffff", sideText: "#1e293b", dark: false,
+    hex: "brand #2C675E · accent #DE8C4A"
+  },
+  {
+    name: "B · 藏青 + 珊瑚橙", desc: "沉稳但有温度，经典 SaaS 气质",
+    main: "#1E3A5F", main2: "#2E5580", light: "#E3EBF4", text: "#1E3A5F", accent: "#E2603F",
+    sideBg: "#ffffff", sideText: "#1e293b", dark: false,
+    hex: "brand #1E3A5F · accent #E2603F"
+  },
+  {
+    name: "C · 暖砂 + 砖红", desc: "纸质感、偏人文，适合文档/内容类产品",
+    main: "#8A5A44", main2: "#A4714F", light: "#F2E8E0", text: "#6F4634", accent: "#C0563C",
+    sideBg: "#FDFBF7", sideText: "#3f3530", dark: false,
+    hex: "brand #8A5A44 · accent #C0563C"
+  },
+  {
+    name: "D · 苔绿 + 赭石", desc: "自然沉稳，比 A 更暗更「有机」",
+    main: "#3D5A45", main2: "#4F6E57", light: "#E4EBE2", text: "#324A39", accent: "#C08A3E",
+    sideBg: "#FBFCFA", sideText: "#1e293b", dark: false,
+    hex: "brand #3D5A45 · accent #C08A3E"
+  },
+  {
+    name: "E · 墨黑 + 电光青", desc: "极客/终端感，对比最强、最克制",
+    main: "#334155", main2: "#475569", light: "#E7EBF0", text: "#334155", accent: "#0D9488",
+    sideBg: "#ffffff", sideText: "#1e293b", dark: false,
+    hex: "brand #334155 · accent #0D9488"
+  }
+];
+
+const row = document.getElementById("row");
+P.forEach(p => {
+  const el = document.createElement("div");
+  el.className = "palette";
+  el.innerHTML = `
+    <h2>${p.name}</h2>
+    <div class="desc">${p.desc}</div>
+    <div class="hex">${p.hex}</div>
+    <div style="display:flex;gap:12px">
+      <div class="side" style="background:${p.sideBg};color:${p.sideText};border:1px solid rgba(0,0,0,.06)">
+        <div class="logo">
+          <span class="mark" style="background:${p.main}"></span>
+          <span style="background:linear-gradient(90deg,${p.main},${p.accent});-webkit-background-clip:text;background-clip:text;color:transparent">AgentFlow</span>
+        </div>
+        <div class="cta" style="background:${p.main};color:#fff">+ 创建 Agent</div>
+        <div class="item">控制台</div>
+        <div class="item on" style="background:${p.light};color:${p.text}">Agent</div>
+        <div class="item">对话记录</div>
+        <div class="item">Skill 广场</div>
+        <div class="item">工作流</div>
+        <div class="item">知识库</div>
+      </div>
+      <div class="body">
+        <div class="search" style="background:#fff;border:1px solid rgba(0,0,0,.08)">搜索 Agent...</div>
+        <div class="card" style="background:#fff;border:1px solid rgba(0,0,0,.06)">
+          <span class="ic" style="background:${p.main}"></span>
+          <div style="flex:1;min-width:0">
+            <div class="t">附件验证 Agent</div>
+            <div class="s">验证工作流产物能否作为附件展示</div>
+          </div>
+          <span class="badge" style="background:${p.light};color:${p.text}">活跃</span>
+        </div>
+        <div class="btns">
+          <button class="btn" style="background:${p.main};color:#fff">对话</button>
+          <button class="btn2" style="border:1px solid rgba(0,0,0,.1);color:#475569">编辑</button>
+          <a class="link" style="color:${p.main2}">查看详情</a>
+        </div>
+        <div class="btns" style="margin-top:2px">
+          <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${p.accent};color:#fff">琥珀点缀</span>
+          <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${p.light};color:${p.text}">徽章</span>
+        </div>
+      </div>
+    </div>
+    <div class="sw">
+      <i style="background:${p.main}"></i><i style="background:${p.main2}"></i>
+      <i style="background:${p.light}"></i><i style="background:${p.accent}"></i>
+      <i style="background:${p.text}"></i>
+    </div>
+  `;
+  row.appendChild(el);
+});
+</script>
+</body>
+</html>

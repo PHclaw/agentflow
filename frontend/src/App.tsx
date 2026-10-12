@@ -164,7 +164,9 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-brand-600 rounded-lg"></div>
-                <span className="font-bold text-xl">AgentFlow</span>
+                <span className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">
+                  AgentFlow
+                </span>
               </div>
               <p className="text-gray-400 text-sm">
                 让每个企业都能轻松拥有专属 AI Agent

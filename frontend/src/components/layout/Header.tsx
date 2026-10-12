@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '../ui/Button'
-import { ArrowRight, Play, Sparkles, Shield, Zap, Users } from 'lucide-react'
+import { ArrowRight, Play, Shield, Zap, Users } from 'lucide-react'
 import { Logo } from '../layout/Logo'
 
 export function Header() {
@@ -11,17 +11,12 @@ export function Header() {
       
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-18">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-brand-500 to-brand-500 rounded-xl blur opacity-30 group-hover:opacity-50 transition-opacity" />
-              <div className="relative bg-gradient-to-br from-brand-500 to-brand-600 p-2 rounded-xl">
-                <Sparkles className="w-5 h-5 text-white" />
-              </div>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 group-hover:from-brand-600 group-hover:to-brand-600 transition-all">
-              AgentFlow
-            </span>
+          {/* Logo：复用 Logo 组件。
+              这里以前内联了一份，漏写 bg-clip-text/text-transparent 导致黑字黑底。
+              tone="light"：本页顶栏永远是浅色底，即使根元素被切到 dark
+              也要用深色字标，否则浅字压浅底看不见。 */}
+          <Link to="/" className="group">
+            <Logo size="sm" tone="light" />
           </Link>
 
           {/* Navigation - Desktop */}
