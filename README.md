@@ -1,24 +1,103 @@
-# 🚀 AgentFlow — 零代码搭建 AI Agent 的开源平台
-
 <div align="center">
 
-![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.0.2-6366F1?style=for-the-badge&logo=robot&logoColor=white)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat-square&logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![License](https://img.shields.io/badge/License-MIT-FF6B6B.svg?style=flat-square)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/PHclaw/agentflow?style=flat-square)](https://github.com/PHclaw/agentflow/stargazers)
+<img src="assets/banner.svg" alt="AgentFlow — 拖拽式构建 AI Agent 工作流" width="100%">
+
+<br>
+
+[![Stars](https://img.shields.io/github/stars/PHclaw/agentflow?style=flat-square&logo=github&label=Stars&color=6366F1)](https://github.com/PHclaw/agentflow/stargazers)
+[![Forks](https://img.shields.io/github/forks/PHclaw/agentflow?style=flat-square&label=Forks&color=00D9C0)](https://github.com/PHclaw/agentflow/forks)
+[![Issues](https://img.shields.io/github/issues/PHclaw/agentflow?style=flat-square&label=Issues&color=F59E0B)](https://github.com/PHclaw/agentflow/issues)
+[![License](https://img.shields.io/badge/License-MIT-FF6B6B?style=flat-square)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/PHclaw/agentflow/pulls)
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 
 **拖拽式构建 AI Agent 工作流 · 无需一行代码 · 5 分钟上线**
 
-[快速开始](#-5-分钟快速开始) · [和同类工具有什么区别？](#-agentflow-和-difycoze-有什么区别) · [架构设计](#-技术架构长什么样) · [API 文档](#-api-文档) · [常见问题](#-常见问题)
+[功能演示](#-功能演示) · [界面一览](#-界面一览) · [快速开始](#-5-分钟快速开始) · [对比 Dify/Coze](#-agentflow-和-difycoze-有什么区别) · [架构设计](#-技术架构长什么样) · [API 文档](#-api-文档) · [常见问题](#-常见问题)
 
 </div>
 
 ---
 
-## AgentFlow 是什么？谁能用？
+## 📽️ 功能演示
+
+> 以下全部是真实录屏（headless 浏览器自动采集，未做剪辑），完整视频在 `assets/videos/`。
+
+<h3 align="center">① 一句话生成 PPT —— 端到端交付</h3>
+
+在对话框里描述需求，Agent 自己读工作区、写代码、跑脚本，最后把文件作为**可下载附件**交回来。
+
+<img src="assets/gifs/demo-ppt-generation.gif" alt="对话生成 PPT 全流程" width="900">
+
+<p align="center">
+  <a href="assets/videos/demo-ppt-generation.mp4">▶ 完整对话过程（51s）</a> &nbsp;·&nbsp;
+  <a href="assets/videos/demo-ppt-result-preview.mp4">▶ 生成结果逐页预览（20s）</a>
+</p>
+
+<h3 align="center">② 拖拽搭建工作流</h3>
+
+左侧节点面板点选即入画布，右侧实时编辑参数，保存后立即生效——全程不写代码。
+
+<img src="assets/gifs/demo-workflow-build.gif" alt="拖拽搭建工作流" width="900">
+
+<p align="center"><a href="assets/videos/demo-workflow-build.mp4">▶ 完整录屏（12s）</a></p>
+
+<h3 align="center">③ 对话中的工具调用</h3>
+
+Agent 执行时实时显示「正在调用工具」，**同屏只保留当前这一条**，回复生成完毕自动隐藏。
+
+<img src="assets/gifs/demo-chat-tool-calls.gif" alt="对话中的工具调用" width="900">
+
+<p align="center"><a href="assets/videos/demo-chat-tool-calls.mp4">▶ 完整录屏（8s）</a></p>
+
+<h3 align="center">④ 知识库上传与语义检索</h3>
+
+上传文档 → 自动分块入库 → 提问时按相关度召回，命中片段在界面直接标出。
+
+<img src="assets/gifs/demo-knowledge-rag.gif" alt="知识库上传与检索" width="900">
+
+<p align="center"><a href="assets/videos/demo-knowledge-rag.mp4">▶ 完整录屏（26s）</a></p>
+
+---
+
+## 🖼️ 界面一览
+
+<img src="assets/screens/05-workflow.png" alt="工作流编辑器">
+
+**工作流编辑器** — 三栏布局：节点面板 / 拖拽画布 / 节点配置。顶部显示节点与连接数，支持测试、撤销重做、导入导出。
+
+<table>
+<tr>
+<td width="50%"><img src="assets/screens/01-landing.png" alt="落地页"><br><sub><b>落地页</b> — 无代码搭建的价值主张</sub></td>
+<td width="50%"><img src="assets/screens/02-dashboard.png" alt="控制台"><br><sub><b>控制台</b> — Agent 与用量概览</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/03-agents.png" alt="Agent 管理"><br><sub><b>Agent 管理</b> — 创建、编辑、进入对话</sub></td>
+<td width="50%"><img src="assets/screens/04-agent-create.png" alt="Agent 配置"><br><sub><b>Agent 配置</b> — 模型、提示词、知识库、技能</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/06-chat.png" alt="对话页"><br><sub><b>对话页</b> — 流式回复 + 可下载产物附件</sub></td>
+<td width="50%"><img src="assets/screens/07-conversations.png" alt="对话记录"><br><sub><b>对话记录</b> — 随时回到历史会话继续聊</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/08-templates.png" alt="模板市场"><br><sub><b>模板市场</b> — 套用即得完整工作流</sub></td>
+<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — Excel / PDF / PPT 等预置技能</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/10-knowledge.png" alt="知识库"><br><sub><b>知识库</b> — 上传、分块、语义检索</sub></td>
+<td width="50%"><img src="assets/screens/11-settings.png" alt="设置"><br><sub><b>设置</b> — 模型密钥热切换、脱敏展示</sub></td>
+</tr>
+</table>
+
+---
+
+## 💡 AgentFlow 是什么？谁能用？
 
 AgentFlow 是一个**开源零代码 AI Agent 部署平台**。核心能力：拖拽式工作流编辑器 + 多模型支持 + 知识库 RAG + 一键部署。
 
@@ -35,15 +114,33 @@ AgentFlow 是一个**开源零代码 AI Agent 部署平台**。核心能力：�
 
 ## 📋 目录
 
-- [v2.0.1 更新](#-v201-更新)
+**先看效果**
+
+- [功能演示](#-功能演示) — 四段真实录屏，含一句话生成 PPT
+- [界面一览](#-界面一览) — 11 张界面截图
+
+**了解项目**
+
+- [AgentFlow 是什么？谁能用？](#-agentflow-是什么谁能用)
 - [AgentFlow 和 Dify/Coze 有什么区别？](#-agentflow-和-difycoze-有什么区别)
 - [核心功能一览](#-核心功能一览)
-- [5 分钟快速开始](#-5-分钟快速开始)
-- [技术架构长什么样？](#-技术架构长什么样)
-- [工作流节点类型](#-工作流节点有哪些类型)
+- [v2.0.1 更新](#-v201-更新)
 - [开箱即用的行业模板](#-开箱即用的行业模板)
+
+**上手使用**
+
+- [5 分钟快速开始](#-5-分钟快速开始)
+- [怎么配置环境变量？](#-怎么配置环境变量)
+- [大模型 API 配置（支持热切换）](#-大模型-api-配置支持热切换)
+- [生产环境部署](#-生产环境部署)
+- [开发命令速查](#-开发命令速查)
+
+**深入原理**
+
+- [技术架构长什么样？](#-技术架构长什么样)
+- [工作流节点有哪些类型？](#-工作流节点有哪些类型)
+- [PiAgent 引擎（可选）](#piagent-引擎可选)
 - [项目结构](#-项目结构)
-- [配置说明](#-怎么配置环境变量)
 - [API 文档](#-api-文档)
 - [版本路线图](#-版本路线图)
 - [常见问题](#-常见问题)
@@ -82,6 +179,8 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 
 ---
 
+## ⚖️ AgentFlow 和 Dify/Coze 有什么区别？
+
 | 对比维度 | AgentFlow | Dify | Coze |
 |:---------|:----------|:-----|:-----|
 | **开源** | ✅ 完全开源 MIT | ✅ 开源 | ❌ 闭源 |
@@ -113,6 +212,37 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 | 📊 **实时监控** | Agent 状态 / Token 用量 / 延迟追踪 | ✅ |
 | 🧩 **Skill 广场** | Excel / PDF / PPT / 会议纪要 / 统计分析等预置 Skill | ✅ v2.0.1 |
 | 📱 **多渠道接入** | 网站 Widget / 微信 / 钉钉 / API | 🚧 开发中 |
+
+### 四个核心模块长什么样
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/screens/05-workflow.png" alt="拖拽式工作流编辑器"><br>
+<b>🎨 拖拽式工作流编辑器</b><br>
+<sub>ReactFlow 画布，节点自由组合与连线，右侧实时改参数</sub>
+</td>
+<td width="50%">
+<img src="assets/screens/06-chat.png" alt="对话与产物交付"><br>
+<b>🤖 对话与产物交付</b><br>
+<sub>流式回复、工具调用可视化，生成的文件作为附件直接下载</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src="assets/ppt/slide-01.jpg" alt="自动生成的 PPT 封面"><br>
+<b>🧩 Skill 广场 · 文档生成</b><br>
+<sub>调用 Skill 产出的真实 PPT（16 页，深色封面 + 逐页视觉占位）</sub>
+</td>
+<td width="50%">
+<img src="assets/ppt/slide-10.jpg" alt="自动生成的 PPT 内容页"><br>
+<b>📊 内容页与图表占位</b><br>
+<sub>每页含标题、要点与标注清楚的配图占位，虚线框标出该放什么图</sub>
+</td>
+</tr>
+</table>
+
+> 上面两张 PPT 页面由 Agent 自动生成，示例代码见 [`examples/generate_ai_ppt.py`](examples/generate_ai_ppt.py)。
 
 ---
 
@@ -530,6 +660,14 @@ agentflow/
 │   ├── excel/
 │   ├── pdf/
 │   └── ...
+├── examples/                   # 独立示例（可脱离平台单独运行）
+│   └── generate_ai_ppt.py      # 用代码生成一份结构完整的 PPT
+├── assets/                     # README 配图与演示素材
+│   ├── banner.svg              # 顶部横幅
+│   ├── screens/                # 界面截图
+│   ├── gifs/                   # 功能演示动图
+│   ├── videos/                 # 完整演示录屏
+│   └── ppt/                    # 自动生成的 PPT 页面示例
 ├── config/
 │   └── models.json             # Skill 可用模型清单
 ├── static/generated/           # Skill 工具产出文件
@@ -598,6 +736,9 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ## 🔧 开发命令速查
 
 ```bash
+# 示例：用代码生成一份《人工智能介绍》PPT（依赖 python-pptx）
+python examples/generate_ai_ppt.py -o 人工智能介绍.pptx
+
 # 后端测试 + 覆盖率
 cd backend && pytest tests/ -v --cov=app
 
