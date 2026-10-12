@@ -9,10 +9,10 @@ const stats = [
 ]
 
 const features = [
-  { icon: Cpu, text: '拖拽式构建' },
+  { icon: Cpu, text: '拖拽搭建' },
   { icon: Globe, text: '多渠道接入' },
   { icon: Lock, text: '企业级安全' },
-  { icon: Zap, text: '5分钟上线' },
+  { icon: Zap, text: '内置行业模板' },
 ]
 
 export function HeroSection() {
@@ -43,7 +43,7 @@ export function HeroSection() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
               </span>
               <span className="text-sm font-medium bg-gradient-to-r from-brand-600 to-brand-600 bg-clip-text text-transparent">
-                v2.0 全新发布
+                v2.0 已发布
               </span>
             </div>
 
@@ -54,14 +54,14 @@ export function HeroSection() {
                 AI Agent
               </span>
               <span className="block text-3xl sm:text-4xl lg:text-5xl text-slate-500 font-bold mt-2">
-                无需一行代码
+                不需要写代码
               </span>
             </h1>
 
             {/* Subheading */}
             <p className="text-lg sm:text-xl text-slate-600 mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              拖拽式构建企业专属 AI 智能体。开箱即用的客服、销售、HR 等行业模板，
-              <span className="text-brand-600 font-semibold"> 5 分钟</span>快速上线。
+              拖拽节点即可搭建企业自己的 AI 助手。内置客服、销售、HR 等场景模板，
+              也可以从空白画布开始。
             </p>
 
             {/* CTA Buttons */}
@@ -75,7 +75,7 @@ export function HeroSection() {
               <Link to="/templates">
                 <Button variant="outline" size="lg" className="w-full sm:w-auto group">
                   <Play className="mr-2 w-5 h-5" />
-                  查看演示
+                  浏览模板
                 </Button>
               </Link>
             </div>

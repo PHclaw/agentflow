@@ -6,7 +6,7 @@ import { Check, Sparkles, Building2, Zap } from 'lucide-react'
 const plans = [
   {
     name: '免费版',
-    description: '适合个人开发者和爱好者',
+    description: '适合个人试用',
     price: { monthly: 0, yearly: 0 },
     icon: Sparkles,
     gradient: 'from-slate-500 to-slate-600',
@@ -28,7 +28,7 @@ const plans = [
   },
   {
     name: '专业版',
-    description: '适合中小企业团队',
+    description: '适合中小团队',
     price: { monthly: 99, yearly: 79 },
     icon: Zap,
     gradient: 'from-brand-500 to-brand-500',
@@ -47,7 +47,7 @@ const plans = [
   },
   {
     name: '企业版',
-    description: '适合大型企业',
+    description: '适合大型企业与私有化部署',
     price: { monthly: 399, yearly: 319 },
     icon: Building2,
     gradient: 'from-amber-500 to-orange-500',
@@ -85,10 +85,10 @@ export function PricingSection() {
             定价方案
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 mb-4">
-            简单透明，按需选择
+            按需选择方案
           </h2>
           <p className="text-lg text-slate-600">
-            无论你是个人开发者还是企业团队，都能找到适合的方案
+            从个人使用到团队部署，按实际用量选择
           </p>
 
           {/* Toggle */}
@@ -130,7 +130,7 @@ export function PricingSection() {
               {plan.popular && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-10">
                   <div className="px-4 py-1 bg-gradient-to-r from-brand-500 to-brand-500 text-white text-sm font-medium rounded-full shadow-lg shadow-brand-500/30">
-                    最受欢迎
+                    推荐
                   </div>
                 </div>
               )}
@@ -221,7 +221,7 @@ export function PricingSection() {
 
         {/* Footer note */}
         <p className="text-center text-sm text-slate-500 mt-12">
-          所有方案都包含 14 天免费试用，不满意全额退款
+          所有方案均提供 14 天试用，试用期内可全额退款
         </p>
       </div>
     </section>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Card } from '../ui/Card'
 import { Button } from '../ui/Button'
-import { ArrowRight, MessageSquare, Star, Users } from 'lucide-react'
+import { ArrowRight, Check, MessageSquare, Star, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { templates } from '../../services/api'
 
@@ -49,10 +49,10 @@ export function TemplatesSection() {
             行业模板
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 mb-4">
-            开箱即用
+            从模板开始
           </h2>
           <p className="text-lg text-slate-600">
-            精选行业最佳实践，快速启动你的 AI Agent
+            覆盖常见业务场景，可以在模板基础上调整
           </p>
         </div>
 
@@ -65,10 +65,14 @@ export function TemplatesSection() {
               className="group relative overflow-hidden cursor-pointer"
             >
               <div className="p-6">
-                {/* Header */}
+                {/* Header：模板图标用首字母标，不用表情符号 */}
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`inline-flex p-3 rounded-2xl bg-gray-50`}>
-                    <span className="text-2xl">{t.icon || '🤖'}</span>
+                  <div
+                    className={`inline-flex w-12 h-12 items-center justify-center rounded-2xl text-white text-lg font-semibold bg-gradient-to-br ${
+                      t.color || 'from-brand-600 to-brand-500'
+                    }`}
+                  >
+                    {(t.name || 'A').trim().charAt(0)}
                   </div>
                   <div className="flex items-center gap-1 text-amber-500">
                     <Star className="w-4 h-4 fill-current" />
@@ -89,7 +93,7 @@ export function TemplatesSection() {
                   <div className="mb-4 space-y-1">
                     {t.features.slice(0, 3).map((f: string, j: number) => (
                       <div key={j} className="flex items-center gap-2 text-xs text-slate-500">
-                        <span className="text-green-500">✓</span>
+                        <Check className="w-3.5 h-3.5 text-brand-500 flex-shrink-0" />
                         <span>{f}</span>
                       </div>
                     ))}

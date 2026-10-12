@@ -18,50 +18,50 @@ import {
 const features = [
   {
     icon: MousePointer2,
-    title: '拖拽式构建',
-    description: '可视化界面，拖拽节点即可构建复杂的工作流，无需编程经验',
+    title: '拖拽式搭建',
+    description: '在画布上拖拽节点编排流程，不需要编程经验',
     gradient: 'from-blue-500 to-cyan-500',
   },
   {
     icon: Package,
     title: '预置行业模板',
-    description: '客服、销售、HR、财务等开箱即用的行业模板，快速上线',
+    description: '客服、销售、HR、财务等场景模板，可在此基础上修改',
     gradient: 'from-brand-500 to-brand-500',
   },
   {
     icon: Link2,
-    title: '多渠道集成',
-    description: '一键接入微信、钉钉、企业微信、网站、API 等多渠道',
+    title: '多渠道接入',
+    description: '可接入微信、钉钉、企业微信、网站与 API',
     gradient: 'from-emerald-500 to-green-500',
   },
   {
     icon: Brain,
-    title: '知识库 RAG',
-    description: '上传文档，AI 自动学习企业知识，精准回答专业问题',
+    title: '知识库检索',
+    description: '上传文档后按内容检索，回答时引用相关片段',
     gradient: 'from-orange-500 to-amber-500',
   },
   {
     icon: Zap,
     title: '工具调用',
-    description: '支持搜索、计算、API 调用等工具，让 Agent 真正帮你做事',
+    description: '可调用搜索、计算与外部 API 完成具体任务',
     gradient: 'from-yellow-500 to-orange-500',
   },
   {
     icon: BarChart3,
     title: '数据分析',
-    description: '完整的数据面板，了解用户意图，优化 Agent 效果',
+    description: '提供对话量与意图分布，便于调整 Agent 配置',
     gradient: 'from-pink-500 to-rose-500',
   },
   {
     icon: Shield,
     title: '安全合规',
-    description: '企业级安全防护，数据加密传输，符合 GDPR 合规',
+    description: '传输加密，支持按成员划分权限',
     gradient: 'from-slate-600 to-slate-700',
   },
   {
     icon: Users,
     title: '团队协作',
-    description: '支持多人协作，版本控制，权限管理',
+    description: '多人共同编辑，流程变更可回溯',
     gradient: 'from-brand-500 to-brand-500',
   },
 ]
@@ -83,10 +83,10 @@ export function FeaturesSection() {
             核心功能
           </div>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 mb-4">
-            强大的功能集
+            功能一览
           </h2>
           <p className="text-lg text-slate-600">
-            助力企业快速构建和部署 AI Agent，覆盖全场景业务需求
+            覆盖搭建、接入、检索与运维的主要环节
           </p>
         </div>
 
@@ -142,20 +142,20 @@ export function FeaturesSection() {
                   多 Agent 协作模式
                 </h3>
                 <p className="text-brand-100 max-w-lg">
-                  支持多个 AI Agent 协同工作，通过 GitBranch 节点实现复杂业务流程，
-                  处理企业级复杂场景游刃有余。
+                  让多个 Agent 分别处理不同环节，再用条件节点串成完整流程，
+                  适合环节较多、需要分工的场景。
                 </p>
               </div>
 
-              {/* Right - Visual */}
+              {/* Right - Visual：用字母标代替表情，避免卡通感 */}
               <div className="flex items-center gap-4">
                 <div className="flex -space-x-3">
-                  {['🤖', '🤖', '🤖'].map((emoji, i) => (
+                  {['客', '售', '据'].map((label, i) => (
                     <div
                       key={i}
-                      className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl border-2 border-white/50"
+                      className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-base font-semibold text-white border-2 border-white/50"
                     >
-                      {emoji}
+                      {label}
                     </div>
                   ))}
                 </div>

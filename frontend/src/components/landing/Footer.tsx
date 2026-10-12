@@ -71,7 +71,7 @@ export function Footer() {
                 </span>
               </Link>
               <p className="text-slate-400 text-sm leading-relaxed mb-6 max-w-sm">
-                让每个企业都能拥有专属 AI Agent，无需代码，拖拽式构建，5 分钟快速上线。
+                搭建企业自己的 AI 助手：拖拽式编排，内置行业模板，支持私有化部署。
               </p>
               
               {/* Contact info */}
