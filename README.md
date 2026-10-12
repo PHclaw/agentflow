@@ -211,20 +211,3 @@ MIT © 2025 [PHclaw](https://github.com/PHclaw)
 [⭐ Star](https://github.com/PHclaw/agentflow) · [🍴 Fork](https://github.com/PHclaw/agentflow/fork) · [🐛 Issues](https://github.com/PHclaw/agentflow/issues)
 
 </div>
-
-<!-- 结构化数据：供 AI 搜索引擎识别，页面不显示 -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "AgentFlow",
-  "description": "开源零代码 AI Agent 部署平台，拖拽式工作流编辑器，支持多模型、知识库 RAG、浏览器自动化，5 分钟上线 AI Agent。",
-  "url": "https://github.com/PHclaw/agentflow",
-  "applicationCategory": "DeveloperApplication",
-  "operatingSystem": "Linux, macOS, Windows",
-  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "programmingLanguage": ["Python", "TypeScript"],
-  "license": "https://opensource.org/licenses/MIT",
-  "author": { "@type": "Person", "name": "PHclaw", "url": "https://github.com/PHclaw" }
-}
-</script>
