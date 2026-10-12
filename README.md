@@ -1,24 +1,103 @@
-# 🚀 AgentFlow — 零代码搭建 AI Agent 的开源平台
-
 <div align="center">
 
-![AgentFlow](https://img.shields.io/badge/AgentFlow-v2.0.2-6366F1?style=for-the-badge&logo=robot&logoColor=white)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB.svg?style=flat-square&logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688.svg?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
-[![React](https://img.shields.io/badge/React-18-61DAFB.svg?style=flat-square&logo=react&logoColor=white)](https://react.dev)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6.svg?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
-[![License](https://img.shields.io/badge/License-MIT-FF6B6B.svg?style=flat-square)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/PHclaw/agentflow?style=flat-square)](https://github.com/PHclaw/agentflow/stargazers)
+<img src="assets/banner.svg" alt="AgentFlow — 拖拽式构建 AI Agent 工作流" width="100%">
+
+<br>
+
+[![Stars](https://img.shields.io/github/stars/PHclaw/agentflow?style=flat-square&logo=github&label=Stars&color=6366F1)](https://github.com/PHclaw/agentflow/stargazers)
+[![Forks](https://img.shields.io/github/forks/PHclaw/agentflow?style=flat-square&label=Forks&color=00D9C0)](https://github.com/PHclaw/agentflow/forks)
+[![Issues](https://img.shields.io/github/issues/PHclaw/agentflow?style=flat-square&label=Issues&color=F59E0B)](https://github.com/PHclaw/agentflow/issues)
+[![License](https://img.shields.io/badge/License-MIT-FF6B6B?style=flat-square)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/PHclaw/agentflow/pulls)
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org)
+[![Docker](https://img.shields.io/badge/Docker-compose-2496ED?style=flat-square&logo=docker&logoColor=white)](docker-compose.yml)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://github.com/pgvector/pgvector)
 
 **拖拽式构建 AI Agent 工作流 · 无需一行代码 · 5 分钟上线**
 
-[快速开始](#-5-分钟快速开始) · [和同类工具有什么区别？](#-agentflow-和-difycoze-有什么区别) · [架构设计](#-技术架构长什么样) · [API 文档](#-api-文档) · [常见问题](#-常见问题)
+[功能演示](#-功能演示) · [界面一览](#-界面一览) · [快速开始](#-5-分钟快速开始) · [对比 Dify/Coze](#-agentflow-和-difycoze-有什么区别) · [架构设计](#-技术架构长什么样) · [API 文档](#-api-文档) · [常见问题](#-常见问题)
 
 </div>
 
 ---
 
-## AgentFlow 是什么？谁能用？
+## 📽️ 功能演示
+
+> 以下全部是真实录屏（headless 浏览器自动采集，未做剪辑），完整视频在 `assets/videos/`。
+
+<h3 align="center">① 一句话生成 PPT —— 端到端交付</h3>
+
+在对话框里描述需求，Agent 自己读工作区、写代码、跑脚本，最后把文件作为**可下载附件**交回来。
+
+<img src="assets/gifs/demo-ppt-generation.gif" alt="对话生成 PPT 全流程" width="900">
+
+<p align="center">
+  <a href="assets/videos/demo-ppt-generation.mp4">▶ 完整对话过程（51s）</a> &nbsp;·&nbsp;
+  <a href="assets/videos/demo-ppt-result-preview.mp4">▶ 生成结果逐页预览（20s）</a>
+</p>
+
+<h3 align="center">② 拖拽搭建工作流</h3>
+
+左侧节点面板点选即入画布，右侧实时编辑参数，保存后立即生效——全程不写代码。
+
+<img src="assets/gifs/demo-workflow-build.gif" alt="拖拽搭建工作流" width="900">
+
+<p align="center"><a href="assets/videos/demo-workflow-build.mp4">▶ 完整录屏（12s）</a></p>
+
+<h3 align="center">③ 对话中的工具调用</h3>
+
+Agent 执行时实时显示「正在调用工具」，**同屏只保留当前这一条**，回复生成完毕自动隐藏。
+
+<img src="assets/gifs/demo-chat-tool-calls.gif" alt="对话中的工具调用" width="900">
+
+<p align="center"><a href="assets/videos/demo-chat-tool-calls.mp4">▶ 完整录屏（8s）</a></p>
+
+<h3 align="center">④ 知识库上传与语义检索</h3>
+
+上传文档 → 自动分块入库 → 提问时按相关度召回，命中片段在界面直接标出。
+
+<img src="assets/gifs/demo-knowledge-rag.gif" alt="知识库上传与检索" width="900">
+
+<p align="center"><a href="assets/videos/demo-knowledge-rag.mp4">▶ 完整录屏（26s）</a></p>
+
+---
+
+## 🖼️ 界面一览
+
+<img src="assets/screens/05-workflow.png" alt="工作流编辑器">
+
+**工作流编辑器** — 三栏布局：节点面板 / 拖拽画布 / 节点配置。顶部显示节点与连接数，支持测试、撤销重做、导入导出。
+
+<table>
+<tr>
+<td width="50%"><img src="assets/screens/01-landing.png" alt="落地页"><br><sub><b>落地页</b> — 无代码搭建的价值主张</sub></td>
+<td width="50%"><img src="assets/screens/02-dashboard.png" alt="控制台"><br><sub><b>控制台</b> — Agent 与用量概览</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/03-agents.png" alt="Agent 管理"><br><sub><b>Agent 管理</b> — 创建、编辑、进入对话</sub></td>
+<td width="50%"><img src="assets/screens/04-agent-create.png" alt="Agent 配置"><br><sub><b>Agent 配置</b> — 模型、提示词、知识库、技能</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/06-chat.png" alt="对话页"><br><sub><b>对话页</b> — 流式回复 + 可下载产物附件</sub></td>
+<td width="50%"><img src="assets/screens/07-conversations.png" alt="对话记录"><br><sub><b>对话记录</b> — 随时回到历史会话继续聊</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/08-templates.png" alt="模板市场"><br><sub><b>模板市场</b> — 套用即得完整工作流</sub></td>
+<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — Excel / PDF / PPT 等预置技能</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="assets/screens/10-knowledge.png" alt="知识库"><br><sub><b>知识库</b> — 上传、分块、语义检索</sub></td>
+<td width="50%"><img src="assets/screens/11-settings.png" alt="设置"><br><sub><b>设置</b> — 模型密钥热切换、脱敏展示</sub></td>
+</tr>
+</table>
+
+---
+
+## 💡 AgentFlow 是什么？谁能用？
 
 AgentFlow 是一个**开源零代码 AI Agent 部署平台**。核心能力：拖拽式工作流编辑器 + 多模型支持 + 知识库 RAG + 一键部署。
 
@@ -35,15 +114,33 @@ AgentFlow 是一个**开源零代码 AI Agent 部署平台**。核心能力：�
 
 ## 📋 目录
 
-- [v2.0.1 更新](#-v201-更新)
+**先看效果**
+
+- [功能演示](#-功能演示) — 四段真实录屏，含一句话生成 PPT
+- [界面一览](#-界面一览) — 11 张界面截图
+
+**了解项目**
+
+- [AgentFlow 是什么？谁能用？](#-agentflow-是什么谁能用)
 - [AgentFlow 和 Dify/Coze 有什么区别？](#-agentflow-和-difycoze-有什么区别)
 - [核心功能一览](#-核心功能一览)
-- [5 分钟快速开始](#-5-分钟快速开始)
-- [技术架构长什么样？](#-技术架构长什么样)
-- [工作流节点类型](#-工作流节点有哪些类型)
+- [v2.0.1 更新](#-v201-更新)
 - [开箱即用的行业模板](#-开箱即用的行业模板)
+
+**上手使用**
+
+- [5 分钟快速开始](#-5-分钟快速开始)
+- [怎么配置环境变量？](#-怎么配置环境变量)
+- [大模型 API 配置（支持热切换）](#-大模型-api-配置支持热切换)
+- [生产环境部署](#-生产环境部署)
+- [开发命令速查](#-开发命令速查)
+
+**深入原理**
+
+- [技术架构长什么样？](#-技术架构长什么样)
+- [工作流节点有哪些类型？](#-工作流节点有哪些类型)
+- [PiAgent 引擎（可选）](#piagent-引擎可选)
 - [项目结构](#-项目结构)
-- [配置说明](#-怎么配置环境变量)
 - [API 文档](#-api-文档)
 - [版本路线图](#-版本路线图)
 - [常见问题](#-常见问题)
@@ -82,6 +179,8 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 
 ---
 
+## ⚖️ AgentFlow 和 Dify/Coze 有什么区别？
+
 | 对比维度 | AgentFlow | Dify | Coze |
 |:---------|:----------|:-----|:-----|
 | **开源** | ✅ 完全开源 MIT | ✅ 开源 | ❌ 闭源 |
@@ -104,6 +203,7 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 |:-----|:-----|:-----|
 | 🎨 **拖拽式工作流编辑器** | ReactFlow 画布，LLM / Condition / Tool / Knowledge 节点自由组合 | ✅ |
 | 🤖 **多模型支持** | GPT-4o / GPT-4.1 / o3 / Claude Sonnet 4 / DeepSeek R1 / Ollama 本地模型 | ✅ |
+| 🔑 **大模型 API 配置** | 自行填写密钥与端点，别名、默认项、连接测试、热切换 | ✅ |
 | 📚 **知识库 RAG** | 文档上传 → 自动分块 → 向量嵌入 → 检索增强生成 | ✅ |
 | 🔧 **工具调用系统** | 内置搜索 / 计算 + 自定义 API 扩展 | ✅ |
 | 🌐 **浏览器自动化** | 内置 Browser-Use 引擎，AI 控制浏览器执行任务 | ✅ |
@@ -112,6 +212,37 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 | 📊 **实时监控** | Agent 状态 / Token 用量 / 延迟追踪 | ✅ |
 | 🧩 **Skill 广场** | Excel / PDF / PPT / 会议纪要 / 统计分析等预置 Skill | ✅ v2.0.1 |
 | 📱 **多渠道接入** | 网站 Widget / 微信 / 钉钉 / API | 🚧 开发中 |
+
+### 四个核心模块长什么样
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/screens/05-workflow.png" alt="拖拽式工作流编辑器"><br>
+<b>🎨 拖拽式工作流编辑器</b><br>
+<sub>ReactFlow 画布，节点自由组合与连线，右侧实时改参数</sub>
+</td>
+<td width="50%">
+<img src="assets/screens/06-chat.png" alt="对话与产物交付"><br>
+<b>🤖 对话与产物交付</b><br>
+<sub>流式回复、工具调用可视化，生成的文件作为附件直接下载</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src="assets/ppt/slide-01.jpg" alt="自动生成的 PPT 封面"><br>
+<b>🧩 Skill 广场 · 文档生成</b><br>
+<sub>调用 Skill 产出的真实 PPT（16 页，深色封面 + 逐页视觉占位）</sub>
+</td>
+<td width="50%">
+<img src="assets/ppt/slide-10.jpg" alt="自动生成的 PPT 内容页"><br>
+<b>📊 内容页与图表占位</b><br>
+<sub>每页含标题、要点与标注清楚的配图占位，虚线框标出该放什么图</sub>
+</td>
+</tr>
+</table>
+
+> 上面两张 PPT 页面由 Agent 自动生成，示例代码见 [`examples/generate_ai_ppt.py`](examples/generate_ai_ppt.py)。
 
 ---
 
@@ -156,6 +287,142 @@ npm install
 npm run dev
 # 访问 http://localhost:5173
 ```
+
+### SQLite 轻量模式（无需 Docker / PostgreSQL / Redis）
+
+只想把后端跑起来、不想装数据库和一堆重型依赖时，用一键脚本：
+
+```powershell
+.\scripts\dev-backend.ps1                # 启动在 http://127.0.0.1:8001
+.\scripts\dev-backend.ps1 -Port 8002     # 指定端口
+.\scripts\dev-backend.ps1 -SkipServe     # 只准备环境，不启动服务
+.\scripts\dev-backend.ps1 -Reinstall     # 强制重装依赖
+```
+
+脚本会自动完成：探测 Python 3.11+ → 创建 `backend/.venv` → 安装 `backend/requirements-lite.txt` → 生成 `.env`（默认 `DATABASE_URL` 为 SQLite）→ 启动 uvicorn。
+
+**轻量依赖集 vs 完整依赖集**
+
+`requirements-lite.txt` 刻意排除了以下包，以缩短安装时间并避免版本冲突：
+
+| 排除的包 | 影响 |
+|:---------|:-----|
+| `sentence-transformers` | 会拖入 torch（约 2GB）。本地嵌入不可用，知识库改用 OpenAI embeddings 不受影响 |
+| `faiss-cpu` | Python 3.13 常无预编译 wheel。基于 faiss 的本地向量检索不可用 |
+| `playwright` / `browser-use` | 浏览器自动化节点不可用，需另行安装并下载浏览器内核 |
+| `asyncpg` / `pgvector` | 仅 PostgreSQL 需要，SQLite 模式用不到 |
+
+需要完整功能时，改用 `pip install -r requirements.txt`（注意 `langgraph==0.0.20` + `langchain==0.1.4` 的锁定组合较旧，Python 3.13 下可能需要放宽松版本）。
+
+### PiAgent 引擎（可选）
+
+除了内置的「直连大模型」链路，AgentFlow 还可以把外部 agent CLI（`pi`）作为
+Agent 的**可选推理引擎**。两条链路完全独立、互不影响，用环境变量切换。
+
+**1. 安装 CLI**
+
+```bash
+npm install -g @earendil-works/pi-coding-agent
+pi --version
+```
+
+**2. 启用（`backend/.env`）**
+
+```env
+PIAGENT_ENABLED=true
+PIAGENT_EXE=pi                 # 留空或 pi 即自动在 PATH 中查找
+PIAGENT_TIMEOUT=180
+# pi 默认 provider 是 google；如需与项目模型保持一致可显式指定
+# PIAGENT_PROVIDER=openai
+# PIAGENT_MODEL=gpt-4o-mini
+# PIAGENT_WORKSPACE_ROOT=      # 默认 uploads/pi_workspace/<agent_id>
+# PIAGENT_SKILLS_DIR=          # 默认仓库根的 skills/
+```
+
+**3. 配置 pi 的凭据**
+
+pi 自己管理凭据（`pi auth`），也可以直接给它设置 provider 环境变量。放在
+`backend/.env` 里的 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 等会被自动透传给
+pi 子进程，无需重复配置。
+
+**接口**
+
+| 方法 | 路径 | 说明 |
+|:-----|:-----|:-----|
+| GET | `/api/v1/pi/status` | 就绪状态、解析到的 exe、可用技能列表 |
+| POST | `/api/v1/pi/{agent_id}/stream` | 流式对话（SSE） |
+| POST | `/api/v1/pi/{agent_id}/run` | 非流式对话（脚本/调试用） |
+| GET | `/api/v1/pi/{agent_id}/workspace` | 列出该 Agent 工作区产物 |
+| GET | `/api/v1/pi/{agent_id}/files/{path}` | 下载产物（限制在工作区内） |
+
+**SSE 事件协议**
+
+```json
+{"type": "log",       "content": "AI 正在思考…"}
+{"type": "thinking",  "content": "…"}
+{"type": "tool_call", "content": "正在调用工具：write_file"}
+{"type": "text",      "content": "增量正文"}
+{"type": "done",      "content": "最终答案", "files": [...], "session_id": null}
+{"type": "error",     "content": "错误说明"}
+```
+
+**设计要点**
+
+- 每个 Agent 一个独立工作区（`uploads/pi_workspace/<agent_id>`），互不干扰
+- 提示词经一次性临时文件传递，避免命令行长度限制与多行截断，用完即删
+- 系统提示词取自 Agent 配置（`model_config.system_prompt` / `settings.system_prompt`），
+  未配置时按 Agent 名称与描述自动生成
+- 技能通过 `--skill` 注入 AgentFlow 已有的 `skills/<slug>/SKILL.md`
+- 工作区新旧文件对比，新增文件自动作为可下载附件回传
+- 过滤「我将读取文件…」这类过程性叙述，避免向用户暴露内部机制
+- Windows 下自动改用 `node + cli.js` 绕过 `.cmd`，避免 subprocess 兼容问题
+
+---
+
+## 🔑 大模型 API 配置（支持热切换）
+
+在 **设置 → 模型配置** 里可以自行填写 API Key 与端点，**不用改 .env、也不用重启服务**。
+
+| 能力 | 说明 |
+|:-----|:-----|
+| 增删改查 | 别名、服务商、Base URL、模型、温度、最大 tokens、备注 |
+| 别名与默认项 | 别名唯一（重复会明确提示）；「设为默认」即刻生效 |
+| 启用/停用 | 可临时停用某套配置；默认项不允许停用，避免出现无可用配置 |
+| 连接测试 | 保存前可先测；先探测 `/models`（不消耗 token），不可用时退回一次最小对话请求 |
+| 错误提示 | 认证失败 / 域名解析失败 / 连接被拒绝 / 路径需要 `/v1` / 模型不存在 / 超时，分别给出可操作提示 |
+| 密钥安全 | Fernet 加密落库，接口只返回脱敏值（如 `sk-l******7890`），明文不出后端 |
+| 热切换 | 写操作立即让运行时快照失效，**下一条请求**就用新配置 |
+
+**热切换是怎么做到的**
+
+全项目的模型凭证只有一个出口：`app/services/model_runtime.py` 的 `resolve_credentials()`。
+它优先读内存中的「生效配置快照」，快照由 `app/services/llm_config.py` 维护：
+
+- 启动时预加载一次（`main.py` 的 lifespan）
+- 任何增删改都会 `invalidate()`，立刻刷新快照并清空底层 SDK 客户端缓存
+- 请求级中间件只在快照过期时查库，因此多 worker 部署下最迟
+  `LLM_CONFIG_CACHE_TTL_SECONDS`（默认 5 秒）对所有进程一致
+
+**回退行为**：一套配置都没有时，继续使用 `.env` 里的凭证，原有部署不受影响；
+界面会标注「当前来自 .env 回退」。
+
+**接口**
+
+| 方法 | 路径 | 说明 |
+|:-----|:-----|:-----|
+| GET | `/api/v1/llm-configs` | 列表（脱敏）+ 当前生效项 |
+| POST | `/api/v1/llm-configs` | 新增 |
+| PUT | `/api/v1/llm-configs/{id}` | 更新（不传 `api_key` 表示保留原密钥）|
+| DELETE | `/api/v1/llm-configs/{id}` | 删除（删掉默认项会自动补一个）|
+| POST | `/api/v1/llm-configs/{id}/default` | 设为默认并立即生效 |
+| POST | `/api/v1/llm-configs/{id}/active` | 启用 / 停用 |
+| POST | `/api/v1/llm-configs/{id}/test` | 测试已保存配置并记录结果 |
+| POST | `/api/v1/llm-configs/test` | 测试未保存的草稿 |
+| GET | `/api/v1/llm-configs/active` | 当前真正生效的配置 |
+| GET | `/api/v1/llm-configs/providers` | 可选服务商预设与建议模型 |
+
+> 仅支持 **OpenAI 兼容协议** 的端点（OpenAI / DeepSeek / Ollama / 百炼 / vLLM / OneAPI 等）。
+> 原生 Anthropic 协议需要额外的适配器，暂不在本系统范围内。
 
 ---
 
@@ -311,7 +578,8 @@ docker compose up -d --build
 | FastAPI | 异步 Web 框架 |
 | SQLAlchemy 2.0 | 异步 ORM |
 | pgvector | 向量相似度搜索 |
-| LangGraph | Agent 工作流编排 |
+| 自研工作流引擎 | 节点编排与执行（`app/services/workflow_runtime.py`）|
+| Alembic | 数据库迁移 |
 | Celery + Redis | 异步任务队列 |
 | Stripe | 订阅支付 |
 
@@ -376,9 +644,9 @@ agentflow/
 │   │   ├── api/               # REST API 路由
 │   │   ├── core/              # 配置 / 数据库 / 缓存
 │   │   ├── models/            # SQLAlchemy ORM 模型
-│   │   ├── services/          # 业务逻辑 (LLM / Knowledge / Browser)
-│   │   ├── integrations/      # agent-* 库集成层
-│   │   └── workflows/         # LangGraph 工作流引擎
+│   │   ├── services/          # 业务逻辑 (LLM / Knowledge / Browser / 工作流运行时)
+│   │   └── integrations/      # agent-* 库集成层
+│   ├── migrations/            # Alembic 迁移
 │   └── tests/
 │
 ├── frontend/                   # React 前端
@@ -392,6 +660,14 @@ agentflow/
 │   ├── excel/
 │   ├── pdf/
 │   └── ...
+├── examples/                   # 独立示例（可脱离平台单独运行）
+│   └── generate_ai_ppt.py      # 用代码生成一份结构完整的 PPT
+├── assets/                     # README 配图与演示素材
+│   ├── banner.svg              # 顶部横幅
+│   ├── screens/                # 界面截图
+│   ├── gifs/                   # 功能演示动图
+│   ├── videos/                 # 完整演示录屏
+│   └── ppt/                    # 自动生成的 PPT 页面示例
 ├── config/
 │   └── models.json             # Skill 可用模型清单
 ├── static/generated/           # Skill 工具产出文件
@@ -460,16 +736,40 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ## 🔧 开发命令速查
 
 ```bash
-# 后端测试
-cd backend && pytest tests/ -v
+# 示例：用代码生成一份《人工智能介绍》PPT（依赖 python-pptx）
+python examples/generate_ai_ppt.py -o 人工智能介绍.pptx
 
-# 前端检查
-cd frontend && npm run lint && npm run format
+# 后端测试 + 覆盖率
+cd backend && pytest tests/ -v --cov=app
 
-# 数据库迁移
-cd backend && alembic revision --autogenerate -m "desc"
-cd backend && alembic upgrade head
+# 前端类型检查
+cd frontend && npm run typecheck
+
+# 对话页 UI 冒烟测试（Edge headless，零依赖；需前后端已在运行）
+node scripts/ui-smoke.mjs <agent_id> ["可选的消息内容"]
+
+# 前端全路由诊断：逐页收集控制台错误 / 异常 / 失败请求 / 异常跳转，并截图
+node scripts/ui-diagnose.mjs
+node scripts/ui-diagnose.mjs --only=settings,knowledge   # 只看指定页面
+
+# 前端交互诊断：逐个点击按钮/标签，找出报错与「点了没反应」的无效按钮
+node scripts/ui-interact.mjs --only=settings --max=8
+
+# 数据库迁移（backend 目录下执行，连接串取自 .env）
+alembic upgrade head                     # 新库建表
+alembic revision --autogenerate -m "desc"  # 改完模型后生成迁移
+alembic stamp head                       # 已有库标记为基线
+alembic current                          # 查看当前版本
 ```
+
+> **迁移与 `create_all` 的关系**：应用启动时仍会用 `create_all` 建缺失的表，
+> 这只适合本地开发和测试。**对已存在的库做结构变更必须走 Alembic 迁移**，
+> 因为 `create_all` 不会修改已有表的列或约束。
+
+> **UI 诊断脚本不用装 Playwright/Puppeteer**：直接驱动系统自带 Edge 的 headless
+> 模式（CDP），零第三方依赖。`ui-diagnose` 逐页收集控制台错误、未捕获异常、
+> 失败请求与异常跳转；`ui-interact` 进一步逐个点击按钮，能发现「点了没反应」的
+> 死按钮。截图与报告输出到 `%TEMP%/af-diag-shots`（交互诊断在 `af-interact-shots`）。
 
 ---
 
