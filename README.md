@@ -193,7 +193,9 @@ cd frontend && npm install && npm run dev
 启动后可直接访问在线接口文档：http://localhost:8001/docs （Swagger）· http://localhost:8001/redoc
 
 ---
+## ！！！注意
 
+目前上传的版本并不是最新的版本，最新版本需要联系作者获取：联系邮箱:2730545346@qq.com
 ## 🤝 贡献
 
 Issue → Fork → Branch → Develop → Test → PR → Review → Merge
