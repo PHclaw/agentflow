@@ -402,7 +402,7 @@ Issue → Fork → Branch → Develop → Test → PR → Review → Merge
 | 渠道 | 地址 |
 |:--|:--|
 | 常见问题解答 | #700 |
-| 项目主页 | [GitHub 仓库](https://github.com/PHclaw/agentflow) |
+| 项目主页 | [主页](http://159.75.21.251:3000/) |
 | 问题反馈 | [Issues 页面](https://github.com/PHclaw/agentflow/issues) |
 | 功能建议 | [Discussions 页面](https://github.com/PHclaw/agentflow/discussions) |
 
