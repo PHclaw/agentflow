@@ -25,6 +25,8 @@
 
 [功能演示](#-功能演示) · [快速开始](#-快速开始) · [核心特性](#-核心特性) · [内置技能](#-内置技能) · [文档](#-文档) · [常见问题](docs/FAQ.md)
 
+[English](README.en.md) · [中文](README.md)
+
 </div>
 
 ---
@@ -195,7 +197,7 @@ cd frontend && npm install && npm run dev
 .\scripts\dev-backend.ps1
 ```
 
-> 环境变量、模型配置、PiAgent 引擎等细节见 **[配置说明](docs/CONFIGURATION.md)**。
+> 环境变量、模型配置等细节见 **[配置说明](docs/CONFIGURATION.md)**。
 
 ---
 
@@ -212,7 +214,6 @@ cd frontend && npm install && npm run dev
 | `ADMIN_EMAILS` | — | 管理员邮箱白名单，登录即获得后台权限（只授予不回收） |
 | `REQUIRE_EMAIL_CODE` | — | 生产保持 `true`；内网演示可设 `false` |
 | `MAIL_ENABLED` | — | `false` 时不发信，验证码直接打印在后端日志 |
-| `PIAGENT_ENABLED` | — | 开启后 Agent 可走 PiAgent 引擎（需镜像内已装 `pi` CLI） |
 | `FREE_AGENTS` / `TEAM_AGENTS` 等 | — | 套餐额度，**只在这一处定义**，文案与判定共用 |
 
 **三个容易踩的坑**（都在 `.env.example` 里写明了）：
@@ -254,7 +255,7 @@ agentflow/
 │   │   ├── api/        # REST 路由：auth / users / agents / templates / knowledge / chat / skills …
 │   │   ├── core/       # 配置、安全、数据库
 │   │   ├── models/     # SQLAlchemy 模型
-│   │   └── services/   # 工作流引擎、技能执行、模型网关、PiAgent
+│   │   └── services/   # 工作流引擎、技能执行、模型网关
 │   └── tests/
 ├── frontend/           # React + Vite 应用
 │   └── src/
@@ -319,7 +320,7 @@ agentflow/
 - [x] Docker Compose 一键部署（SQLite 默认）
 - [ ] pgvector 路径端到端验证
 - [ ] 异步任务队列（当前编排里没有 worker 容器，`celery_app.py` 未被引用）
-- [ ] 英文 README
+- [x] 英文 README — [README.en.md](README.en.md)
 - [ ] 更多预置技能与模板
 
 ---
@@ -328,7 +329,7 @@ agentflow/
 
 | 文档 | 内容 |
 |:--|:--|
-| [配置说明](docs/CONFIGURATION.md) | 环境变量 · 模型配置热切换 · SQLite 轻量模式 · PiAgent 引擎 |
+| [配置说明](docs/CONFIGURATION.md) | 环境变量 · 模型配置热切换 · SQLite 轻量模式 |
 | [架构说明](docs/ARCHITECTURE.md) | 系统架构 · 工作流节点类型 · 项目结构 |
 | [部署指南](docs/DEPLOYMENT.md) | Docker · Nginx 反向代理 · 数据库备份 |
 | [API 文档](docs/API.md) | REST 端点 · 认证 · 错误处理 |
