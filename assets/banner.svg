@@ -1,64 +1,160 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="AgentFlow — 拖拽式构建 AI Agent 工作流">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 440" width="1600" height="440" role="img" aria-label="agentflow — 零代码 AI Agent 平台">
+
+  <!--
+    品牌资产说明：
+    标识几何与配色照抄 frontend/src/components/layout/Logo.tsx 的 AFMark
+    （viewBox 0 0 68 50，PAD_REACH = 5.8，走线 5.5 / 焊盘环 3.2）。
+    深色底用深色主题那一档：藏青 #091B4D → #E7EBF5，青蓝 #00BFEF → #38C9F5。
+    标识只用这两色，不叠渐变 —— 双色本身已经是标识语言。
+
+    改标识请改 Logo.tsx，这里同步；不要在这里单独调色。
+  -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0B1226"/>
-      <stop offset="0.55" stop-color="#101E42"/>
-      <stop offset="1" stop-color="#0E2A3E"/>
+      <stop offset="0" stop-color="#050F27"/>
+      <stop offset="0.52" stop-color="#091B4D"/>
+      <stop offset="1" stop-color="#06203C"/>
     </linearGradient>
-    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#00D9C0"/>
-      <stop offset="1" stop-color="#3B82F6"/>
+
+    <linearGradient id="rail" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38C9F5"/>
+      <stop offset="1" stop-color="#38C9F5" stop-opacity="0.15"/>
     </linearGradient>
-    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#00D9C0" stop-opacity="0.05"/>
-      <stop offset="1" stop-color="#00D9C0" stop-opacity="0.55"/>
+
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38C9F5" stop-opacity="0.65"/>
+      <stop offset="0.5" stop-color="#38C9F5" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#38C9F5" stop-opacity="0"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.85" cy="0.2" r="0.75">
-      <stop offset="0" stop-color="#00D9C0" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#00D9C0" stop-opacity="0"/>
+
+    <linearGradient id="wire" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38C9F5" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#38C9F5" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <radialGradient id="glowL" cx="0.18" cy="0.34" r="0.6">
+      <stop offset="0" stop-color="#38C9F5" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#38C9F5" stop-opacity="0"/>
     </radialGradient>
+
+    <radialGradient id="glowR" cx="0.78" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#38C9F5" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#38C9F5" stop-opacity="0"/>
+    </radialGradient>
+
+    <pattern id="dots" width="30" height="30" patternUnits="userSpaceOnUse">
+      <circle cx="1.4" cy="1.4" r="1.4" fill="#9DB4E8" fill-opacity="0.12"/>
+    </pattern>
   </defs>
 
-  <rect width="1200" height="320" fill="url(#bg)"/>
-  <rect width="1200" height="320" fill="url(#glow)"/>
+  <rect width="1600" height="440" fill="url(#bg)"/>
+  <rect width="1600" height="440" fill="url(#dots)"/>
+  <rect width="1600" height="440" fill="url(#glowL)"/>
+  <rect width="1600" height="440" fill="url(#glowR)"/>
 
-  <!-- 右上角：工作流节点母题，呼应产品的拖拽画布 -->
-  <g opacity="0.9">
-    <path d="M880 96 L1000 96" stroke="url(#line)" stroke-width="2"/>
-    <path d="M1000 96 L1120 150" stroke="url(#line)" stroke-width="2"/>
-    <path d="M1000 96 L1120 42" stroke="url(#line)" stroke-width="2"/>
-    <path d="M880 96 L880 210" stroke="url(#line)" stroke-width="2"/>
-    <path d="M880 210 L1120 210" stroke="url(#line)" stroke-width="2"/>
+  <rect x="0" y="0" width="5" height="440" fill="url(#rail)"/>
 
-    <rect x="838" y="74" width="84" height="44" rx="10" fill="#13224A" stroke="#00D9C0" stroke-opacity="0.5"/>
-    <rect x="962" y="74" width="84" height="44" rx="10" fill="#13224A" stroke="#00D9C0" stroke-opacity="0.35"/>
-    <rect x="1086" y="128" width="84" height="44" rx="10" fill="#13224A" stroke="#3B82F6" stroke-opacity="0.45"/>
-    <rect x="1086" y="20" width="84" height="44" rx="10" fill="#13224A" stroke="#3B82F6" stroke-opacity="0.45"/>
-    <rect x="838" y="188" width="84" height="44" rx="10" fill="#13224A" stroke="#00D9C0" stroke-opacity="0.3"/>
-    <rect x="1078" y="188" width="92" height="44" rx="10" fill="#13224A" stroke="#00D9C0" stroke-opacity="0.55"/>
+  <!--
+    右侧：工作流节点母题，沿用标识的双色。
+    整体右移 30px —— 左边那排特性胶囊一直到 x=892，不挪会和「知识库」节点贴住。
+  -->
+  <g opacity="0.95" transform="translate(30, 0)">
 
-    <circle cx="880" cy="96" r="4" fill="#00D9C0"/>
-    <circle cx="1000" cy="96" r="4" fill="#00D9C0"/>
-    <circle cx="880" cy="210" r="4" fill="#3B82F6"/>
+    <g stroke="url(#wire)" stroke-width="2" stroke-linecap="round" fill="none">
+      <path d="M1050 152 H1120"/>
+      <path d="M1270 152 H1340"/>
+      <path d="M1050 312 H1120"/>
+      <path d="M1270 312 H1340"/>
+    </g>
+    <g stroke="#E7EBF5" stroke-opacity="0.22" stroke-width="2" stroke-dasharray="6 7" fill="none">
+      <path d="M975 178 V258"/>
+      <path d="M1195 178 V258"/>
+    </g>
+
+    <!-- 第一行：青蓝，对应标识里的 flow 那一路 -->
+    <g font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" font-size="17" fill="#CFE6F7">
+      <rect x="900" y="126" width="150" height="52" rx="12" fill="#0B1F47" stroke="#38C9F5" stroke-opacity="0.6"/>
+      <text x="975" y="159" text-anchor="middle">触发器</text>
+
+      <rect x="1120" y="126" width="150" height="52" rx="12" fill="#0B1F47" stroke="#38C9F5" stroke-opacity="0.5"/>
+      <text x="1195" y="159" text-anchor="middle">LLM</text>
+
+      <rect x="1340" y="126" width="150" height="52" rx="12" fill="#0B1F47" stroke="#38C9F5" stroke-opacity="0.38"/>
+      <text x="1415" y="159" text-anchor="middle">回复</text>
+
+      <!-- 第二行：近白，对应标识里的 agent 那一路 -->
+      <rect x="900" y="286" width="150" height="52" rx="12" fill="#0B1F47" stroke="#E7EBF5" stroke-opacity="0.42"/>
+      <text x="975" y="319" text-anchor="middle">知识库</text>
+
+      <rect x="1120" y="286" width="150" height="52" rx="12" fill="#0B1F47" stroke="#E7EBF5" stroke-opacity="0.34"/>
+      <text x="1195" y="319" text-anchor="middle">工具</text>
+
+      <rect x="1340" y="286" width="150" height="52" rx="12" fill="#0B1F47" stroke="#E7EBF5" stroke-opacity="0.24"/>
+      <text x="1415" y="319" text-anchor="middle">条件</text>
+    </g>
+
+    <g fill="#38C9F5">
+      <circle cx="1050" cy="152" r="3.5"/>
+      <circle cx="1270" cy="152" r="3.5"/>
+      <circle cx="1120" cy="152" r="3.5"/>
+      <circle cx="1340" cy="152" r="3.5"/>
+    </g>
+    <g fill="#E7EBF5" fill-opacity="0.7">
+      <circle cx="1050" cy="312" r="3.5"/>
+      <circle cx="1270" cy="312" r="3.5"/>
+      <circle cx="1120" cy="312" r="3.5"/>
+      <circle cx="1340" cy="312" r="3.5"/>
+      <circle cx="975" cy="286" r="3.5"/>
+      <circle cx="1195" cy="286" r="3.5"/>
+    </g>
   </g>
 
-  <!-- 左侧：标识与标题 -->
-  <g transform="translate(84, 92)">
-    <rect x="0" y="0" width="72" height="72" rx="20" fill="url(#mark)"/>
-    <path d="M22 52 L36 20 L50 52 M28.5 41 H43.5"
-          fill="none" stroke="#0B1226" stroke-width="6"
-          stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- ================= 左侧：标识（几何照抄 Logo.tsx 的 AFMark） ================= -->
+  <g transform="translate(100, 132) scale(1.72)" fill="none" stroke-linecap="round">
+    <!-- A：折线两笔，一长一短；长脚末端带焊盘 -->
+    <path d="M30 3 L11.9 35.9" stroke="#E7EBF5" stroke-width="5.5"/>
+    <path d="M30 3 L40 16" stroke="#E7EBF5" stroke-width="5.5"/>
+    <circle cx="9" cy="41" r="4.6" stroke="#E7EBF5" stroke-width="3.2"/>
+
+    <!-- F：竖笔 + 顶横（末端带焊盘）+ 中横 -->
+    <path d="M35 24 L35 35.2" stroke="#38C9F5" stroke-width="5.5"/>
+    <path d="M35 24 L52.2 24" stroke="#38C9F5" stroke-width="5.5"/>
+    <circle cx="35" cy="41" r="4.6" stroke="#38C9F5" stroke-width="3.2"/>
+    <circle cx="58" cy="24" r="4.6" stroke="#38C9F5" stroke-width="3.2"/>
+    <path d="M35 32.5 L50 32.5" stroke="#38C9F5" stroke-width="5.5"/>
   </g>
 
-  <text x="184" y="130" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
-        font-size="58" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">AgentFlow</text>
+  <!-- 字标：小写，agent 近白 / flow 青蓝，对应标识的两色 -->
+  <text x="246" y="200" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+        font-size="66" font-weight="600" letter-spacing="-2"><tspan fill="#E7EBF5">agent</tspan><tspan fill="#38C9F5">flow</tspan></text>
 
-  <text x="186" y="170" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
-        font-size="21" fill="#9FB3CE" letter-spacing="0.3">拖拽式构建 AI Agent 工作流</text>
+  <!-- 版本胶囊：字标实测结束于 x≈532，留 28px 再放，否则会压在 w 上 -->
+  <g>
+    <rect x="560" y="166" width="92" height="34" rx="17" fill="#38C9F5" fill-opacity="0.14" stroke="#38C9F5" stroke-opacity="0.45"/>
+    <text x="606" y="189" text-anchor="middle" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+          font-size="16" fill="#38C9F5" letter-spacing="0.5">v2.0.2</text>
+  </g>
 
-  <text x="186" y="228" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
-        font-size="15" fill="#6E82A0" letter-spacing="0.4">无需一行代码  ·  多模型支持  ·  知识库 RAG  ·  5 分钟上线</text>
+  <text x="248" y="252" font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif"
+        font-size="23" fill="#93AACB" letter-spacing="0.2">零代码 AI Agent 平台 · 拖拽画布，5 分钟上线</text>
 
-  <rect x="0" y="0" width="6" height="320" fill="url(#mark)"/>
-  <rect x="84" y="252" width="76" height="3" rx="1.5" fill="#00D9C0" opacity="0.85"/>
+  <!-- 特性胶囊 -->
+  <g font-family="'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif" font-size="15" fill="#B3CBE4">
+    <rect x="248" y="290" width="118" height="34" rx="17" fill="#38C9F5" fill-opacity="0.10" stroke="#38C9F5" stroke-opacity="0.32"/>
+    <text x="307" y="312" text-anchor="middle">拖拽工作流</text>
+
+    <rect x="378" y="290" width="134" height="34" rx="17" fill="#38C9F5" fill-opacity="0.10" stroke="#38C9F5" stroke-opacity="0.32"/>
+    <text x="445" y="312" text-anchor="middle">多模型热切换</text>
+
+    <rect x="524" y="290" width="124" height="34" rx="17" fill="#E7EBF5" fill-opacity="0.08" stroke="#E7EBF5" stroke-opacity="0.28"/>
+    <text x="586" y="312" text-anchor="middle">知识库 RAG</text>
+
+    <rect x="660" y="290" width="110" height="34" rx="17" fill="#E7EBF5" fill-opacity="0.08" stroke="#E7EBF5" stroke-opacity="0.28"/>
+    <text x="715" y="312" text-anchor="middle">Skill 广场</text>
+
+    <rect x="782" y="290" width="110" height="34" rx="17" fill="#E7EBF5" fill-opacity="0.08" stroke="#E7EBF5" stroke-opacity="0.28"/>
+    <text x="837" y="312" text-anchor="middle">一键部署</text>
+  </g>
+
+  <rect x="0" y="437" width="1600" height="3" fill="url(#hair)"/>
 </svg>

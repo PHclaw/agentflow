@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="assets/banner.svg" alt="AgentFlow — 拖拽式构建 AI Agent 工作流" width="100%">
+<!-- 这里用 GIF 而不是 SVG：GitHub 会把 SVG 交给 camo 代理做净化，脚本一定被剥掉、SMIL/CSS 动画也不保证执行，GIF 则无条件播放。可编辑源文件是同目录的 assets/banner.svg，静态回退是 assets/banner.png -->
+<img src="assets/banner.gif" alt="AgentFlow — 拖拽式构建 AI Agent 工作流" width="100%">
 
 <br>
 
@@ -21,6 +22,8 @@
 开源零代码 AI Agent 平台：拖拽式工作流编辑器 + 多模型支持 + 知识库 RAG + 一键部署。
 
 [功能演示](#-功能演示) · [快速开始](#-快速开始) · [核心特性](#-核心特性) · [文档](#-文档) · [常见问题](docs/FAQ.md)
+
+[English](README.en.md) · [中文](README.md)
 
 </div>
 
@@ -146,7 +149,7 @@ cd frontend && npm install && npm run dev
 .\scripts\dev-backend.ps1
 ```
 
-> 环境变量、模型配置、SQLite 模式、PiAgent 引擎等细节见 **[配置说明](docs/CONFIGURATION.md)**。
+> 环境变量、模型配置、SQLite 模式等细节见 **[配置说明](docs/CONFIGURATION.md)**。
 
 ---
 
@@ -182,7 +185,7 @@ cd frontend && npm install && npm run dev
 
 | 文档 | 内容 |
 |:--|:--|
-| [配置说明](docs/CONFIGURATION.md) | 环境变量 · 模型配置热切换 · SQLite 轻量模式 · PiAgent 引擎 |
+| [配置说明](docs/CONFIGURATION.md) | 环境变量 · 模型配置热切换 · SQLite 轻量模式 |
 | [架构说明](docs/ARCHITECTURE.md) | 系统架构 · 工作流节点类型 · 项目结构 |
 | [部署指南](docs/DEPLOYMENT.md) | Docker · Nginx 反向代理 · 数据库备份 |
 | [API 文档](docs/API.md) | REST 端点 · 认证 · 错误处理 |
