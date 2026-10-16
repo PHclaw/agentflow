@@ -407,7 +407,7 @@ Released under the **GPL-2.0** license. See the [LICENSE](LICENSE) file for deta
 | Channel | Where |
 |:--|:--|
 | FAQ | #700 |
-| Project home | [GitHub repository](https://github.com/PHclaw/agentflow) |
+| Project home | [GitHub repository](http://159.75.21.251:3000/) |
 | Bug reports | [Issues](https://github.com/PHclaw/agentflow/issues) |
 | Feature requests | [Discussions](https://github.com/PHclaw/agentflow/discussions) |
 
