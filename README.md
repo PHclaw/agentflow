@@ -424,8 +424,6 @@ Issue → Fork → Branch → Develop → Test → PR → Review → Merge
 **觉得有用？给个 ⭐ 吧**
 
 [⭐ Star](https://github.com/PHclaw/agentflow) · [🍴 Fork](https://github.com/PHclaw/agentflow/fork) · [🐛 Issues](https://github.com/PHclaw/agentflow/issues)
-
-</div>
 **Star History**
 
 <a href="https://www.star-history.com/?repos=phclaw%2Fagentflow&type=date&legend=top-left">
@@ -435,3 +433,5 @@ Issue → Fork → Branch → Develop → Test → PR → Review → Merge
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=phclaw/agentflow&type=date&legend=top-left" />
  </picture>
 </a>
+</div>
+
