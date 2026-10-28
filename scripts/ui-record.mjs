@@ -42,6 +42,8 @@ const BACKEND = process.env.BACKEND_URL || 'http://127.0.0.1:8001'
 const W = 1440
 const H = 900
 const FPS = 30
+/** 兜底抓帧的间隔（毫秒）—— 页面没动静时靠它保证时间轴不断 */
+const GRAB_INTERVAL = Number(process.env.GRAB_INTERVAL || 200)
 const DEMO_EMAIL = process.env.DEMO_EMAIL || 'smoke@test.com'
 const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'Smoke@12345'
 
@@ -295,13 +297,41 @@ class Recorder {
 
   start() {
     this.t0 = Date.now()
-    return this.send('Page.startScreencast', {
+    this.screencast = this.send('Page.startScreencast', {
       format: 'jpeg',
       quality: 80,
       maxWidth: W,
       maxHeight: H,
       everyNthFrame: 1,
     })
+    // 兜底抓帧。
+    //
+    // CDP 的 screencast 是「页面有变化才推帧」，可一旦页面静下来（比如
+    // 检索请求在飞、界面没动画），它就干脆不推了 —— 之前知识库那段就因为
+    // 提交检索后页面没动，录像在结果出来前 5 秒就断了，最后只剩一片没变化的
+    // 画面，GIF 里当然「没出结果」。
+    // 所以再叠一个定时截图：不管页面动不动，每 200ms 存一张，
+    // 至少保证时间轴是连续的、内容是最新的。
+    this._grabTimer = setInterval(() => this._grab(), GRAB_INTERVAL)
+    return this.screencast
+  }
+
+  /** 定时兜底截图（抓帧期间不重复触发） */
+  async _grab() {
+    if (this._grabbing || this._stopped) return
+    this._grabbing = true
+    try {
+      const { data } = await this.send('Page.captureScreenshot', {
+        format: 'jpeg',
+        quality: 80,
+        captureBeyondViewport: false,
+      })
+      if (data) this.frames.push({ t: Date.now(), data, shot: true })
+    } catch {
+      /* 页面正在跳转时抓不到很正常，忽略 */
+    } finally {
+      this._grabbing = false
+    }
   }
 
   // ------------------------------------------------------------ 基础动作
@@ -683,6 +713,11 @@ class Recorder {
   // ------------------------------------------------------------ 收尾与合成
 
   async stop() {
+    this._stopped = true
+    if (this._grabTimer) {
+      clearInterval(this._grabTimer)
+      this._grabTimer = null
+    }
     try {
       await this.send('Page.stopScreencast')
     } catch {
@@ -716,6 +751,9 @@ class Recorder {
     fs.mkdirSync(seqDir, { recursive: true })
 
     // 1) 原始帧落盘
+    //    兜底截图和 screencast 帧会交错，按时间戳排一下，
+    //    否则后到的旧帧会被当成「倒退」，时间轴就断了。
+    this.frames.sort((a, b) => a.t - b.t)
     const srcPaths = this.frames.map((f, idx) => {
       const p = path.join(frameDir, `f_${String(idx).padStart(6, '0')}.jpg`)
       fs.writeFileSync(p, Buffer.from(f.data, 'base64'))
@@ -766,6 +804,23 @@ class Recorder {
       `[视频] ${path.relative(REPO, mp4)}  ` +
         `${(fs.statSync(mp4).size / 1048576).toFixed(2)} MB  ` +
         `采样帧=${this.frames.length}  成片帧=${seq}  时长=${(seq / FPS).toFixed(1)}s`
+    )
+    // 诊断：抓到的最后一帧落在录制时间的哪一刻。
+    // 页面明明还在变、录像却提前收尾时，看这条就知道是「没抓到帧」还是「时间轴算错」。
+    const lastT = this.frames[this.frames.length - 1]?.t ?? 0
+    const maxT = Math.max(...this.frames.map((f) => f.t))
+    let gap = 0
+    let gapAt = 0
+    for (let i = 1; i < this.frames.length; i++) {
+      const d = this.frames[i].t - this.frames[i - 1].t
+      if (d > gap) {
+        gap = d
+        gapAt = this.frames[i - 1].t - this.t0
+      }
+    }
+    console.log(
+      `       末帧落点 ${((lastT - this.t0) / 1000).toFixed(1)}s / 最新帧 ${((maxT - this.t0) / 1000).toFixed(1)}s` +
+        ` / 收尾落点 ${((Date.now() - this.t0) / 1000).toFixed(1)}s / 最大断档 ${(gap / 1000).toFixed(1)}s@${(gapAt / 1000).toFixed(1)}s`
     )
 
     // GIF：README 里内嵌展示用，必须短且小，所以只取一段窗口
@@ -1320,7 +1375,26 @@ async function demoKnowledge(rec) {
     await sleep(5000)
     const hit = await rec.waitForText('相关度', 20000)
     console.log('[知识库] 检索命中片段：', hit)
-    await sleep(1500)
+    // 命中片段夹在文档列表中间，不把镜头挪过去根本看不见 ——
+    // 找到带「相关度」的那张片段卡，滚到画面中间。
+    const focused = await rec.evaluate(`(()=>{
+      const leaf=[...document.querySelectorAll('span,div,p,small')]
+        .find(e=>e.children.length===0 && /相关度/.test(e.textContent||''));
+      if(!leaf) return null;
+      let card=leaf;
+      for(let i=0;i<6 && card;i++){
+        const r=card.getBoundingClientRect();
+        if(r.height>=40 && r.width>200) break;
+        card=card.parentElement;
+      }
+      if(!card) return null;
+      card.scrollIntoView({block:'center', inline:'nearest'});
+      const r=card.getBoundingClientRect();
+      return {top:Math.round(r.top), h:Math.round(r.height)};
+    })()`)
+    console.log('[知识库] 命中片段已居中：', JSON.stringify(focused))
+    await rec.caption('③ 命中片段带相关度，答案有出处')
+    await sleep(1800)
     rec.mark('kb-result')
   }
 }
@@ -1940,11 +2014,14 @@ const SCENARIOS = {
  * 所以按场景挑最出彩的一段切出来，完整过程还是看 mp4。
  */
 const GIF_SPEC = {
-  tour: { from: 'chat-sent', pre: 2.5, duration: 15 },
-  workflow: { from: 'nodes-added', pre: 3, duration: 17 },
-  knowledge: { from: 'kb-result', pre: 3, duration: 15 },
+  // 一律锚在「结果出现的那一刻」上，而不是「开始动手」的那一刻 ——
+  // 之前 tour 的 GIF 卡在流式输出中间、chat 的 GIF 停在思考中，
+  // 观众看到的就是「没出结果」。
+  tour: { from: 'chat-reply', pre: 9, duration: 13 },
+  workflow: { from: 'connected', pre: 12, duration: 11.5 },
+  knowledge: { from: 'kb-result', pre: 6, duration: 14 },
   // 技能场景的看点落在"产物曝光"上：截取生成结束前后那一段
-  skills: { from: 'skill-done', pre: 5, duration: 15 },
+  skills: { from: 'skill-done', pre: 7, duration: 12 },
   // PPT 那段最出彩的是产物出现的一刻
   ppt: { from: 'ppt-done', pre: 4, duration: 15 },
   // 逐页预览：取最后几页，翻页最密集
