@@ -7,11 +7,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        // 用 127.0.0.1 而不是 localhost：Windows 上 localhost 会先解析到 IPv6 的 ::1，
+        // 而后端默认只监听 IPv4，代理就会连不通（表现为接口 500）
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
       '/static': {
-        target: 'http://localhost:8001',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },
