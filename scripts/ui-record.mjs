@@ -176,6 +176,30 @@ class Recorder {
     const t = this.t0 ? (Date.now() - this.t0) / 1000 : 0
     this.marks.push({ label, t })
     console.log(`  ⏱  ${t.toFixed(1).padStart(6)}s  ${label}`)
+    // 截图模式：停在指定节点上拍一张（比如工作流连完线的那一刻）
+    if (this.shotAt && this.shotAt.mark === label) {
+      this.shot(this.shotAt.file).catch(() => {})
+    }
+  }
+
+  /**
+   * 截一张整屏图，存到 assets/screens/。
+   *
+   * README 的「界面一览」用的就是这些图 —— 前端改版之后必须重拍，
+   * 否则文档里挂的还是老界面的截图。
+   */
+  async shot(name) {
+    const dir = path.join(REPO, 'assets', 'screens')
+    fs.mkdirSync(dir, { recursive: true })
+    const file = path.join(dir, name + '.png')
+    const { data } = await this.send('Page.captureScreenshot', {
+      format: 'png',
+      captureBeyondViewport: false,
+    })
+    if (!data) throw new Error('截图失败：' + name)
+    fs.writeFileSync(file, Buffer.from(data, 'base64'))
+    console.log(`[截图] ${path.relative(REPO, file)}  ${(fs.statSync(file).size / 1024).toFixed(0)} KB`)
+    return file
   }
 
   /** 取标记对应的秒数；找不到则返回 fallback */
@@ -343,6 +367,8 @@ class Recorder {
    * 字幕说明「这一步在干什么」—— 两者一起才是一条自解释的片子。
    */
   async caption(text) {
+    // 截图模式不挂字幕：README 里的静态图要干净，不能有解说气泡
+    if (this.captionsOff) return
     const on = text ? 'true' : 'false'
     const body = text ? JSON.stringify(text) : "''"
     await this.evaluate(`(()=>{
@@ -1651,6 +1677,99 @@ async function demoPptPreview(rec) {
 }
 
 // ---------------------------------------------------------------------------
+// 场景 7：界面截图（README「界面一览」用的那批图）
+//
+// 前端整体重构过之后，仓库里那 11 张截图还是老界面的，
+// 文档里挂着一张跟实际产品对不上的图，说服力全无 —— 全部重拍。
+// ---------------------------------------------------------------------------
+async function demoScreens(rec) {
+  // 静态图不要解说气泡
+  rec.captionsOff = true
+
+  // 落地页必须在未登录状态下拍
+  await rec.goto(FRONTEND + '/', 4200)
+  await sleep(3000)
+  await rec.shot('01-landing')
+
+  const token = await apiLogin()
+  await loginByToken(rec, token)
+
+  const pages = [
+    ['/dashboard', '02-dashboard'],
+    ['/agents', '03-agents'],
+    ['/agents/new', '04-agent-create'],
+    ['/conversations', '07-conversations'],
+    ['/templates', '08-templates'],
+    ['/skills', '09-skills'],
+    ['/settings', '11-settings'],
+  ]
+  for (const [route, name] of pages) {
+    await rec.goto(FRONTEND + route, 3200)
+    await sleep(2600)
+    await rec.shot(name)
+  }
+
+  // 知识库：默认停在「选一个知识库」的空状态，右边一片空白，
+  // 截图得先选中一个真有文档的知识库。
+  await rec.goto(FRONTEND + '/knowledge', 3200)
+  await sleep(2200)
+  const kbs = await apiGet('/knowledge', token)
+  const kbList = Array.isArray(kbs) ? kbs : kbs?.items || kbs?.knowledge_bases || []
+  let bestName = null
+  let bestCount = -1
+  for (const kb of kbList) {
+    const docs = await apiGet('/knowledge/' + kb.id + '/documents', token)
+    const arr = Array.isArray(docs) ? docs : docs?.items || []
+    if (arr.length > bestCount) {
+      bestCount = arr.length
+      bestName = kb.name
+    }
+  }
+  console.log('[截图] 目标知识库：', bestName, bestCount, '份文档')
+  const kbName = await rec.evaluate(`(()=>{
+    const want=${JSON.stringify(bestName || '')};
+    const btns=[...document.querySelectorAll('button')];
+    const hit=btns.find(b=>(b.textContent||'').trim().startsWith(want));
+    if(!hit) return null;
+    hit.click();
+    return (hit.textContent||'').replace(/\\s+/g,' ').trim().slice(0,40);
+  })()`)
+  console.log('[截图] 选中知识库：', kbName)
+  await sleep(2800)
+  await rec.shot('10-knowledge')
+
+  // 对话页要截到「回复 + 产物内联预览」，
+  // 所以打开那段真生成了 PPT 的会话，而不是空白对话。
+  const agents = await apiGet('/agents', token)
+  const agentList = Array.isArray(agents) ? agents : agents?.items || agents?.data || []
+  const office = agentList.find((a) => a.name === '办公助手') || agentList[0]
+  if (office) {
+    const sessions = await apiGet('/chat/sessions?limit=50', token)
+    const all = Array.isArray(sessions)
+      ? sessions
+      : sessions?.sessions || sessions?.items || sessions?.data || []
+    const mine = all
+      .filter((s) => !s.agent_id || s.agent_id === office.id)
+      .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+    const pptSession = mine.find((s) => /ppt/i.test(s.title || '')) || mine[0]
+    await rec.goto(
+      FRONTEND + '/agents/' + office.id + '/chat' + (pptSession?.id ? '?session=' + pptSession.id : ''),
+      4200
+    )
+    await rec.waitForSelector('textarea', 20000)
+    await sleep(3500)
+    await rec.shot('06-chat')
+  } else {
+    console.log('[截图] 没有可用 Agent，跳过对话页')
+  }
+
+  // 工作流编辑器：直接复用录制场景，停在「四个节点串成一条链」那一刻
+  rec.shotAt = { mark: 'connected', file: '05-workflow' }
+  await demoWorkflow(rec)
+  rec.shotAt = null
+}
+
+// ---------------------------------------------------------------------------
 // 分段录制：四个模块各录一段，最后用 ffmpeg 拼成一条完整宣传片
 //   seg-landing    落地页（含真实登录）
 //   seg-agent      Agent 列表 → 空白创建 → 对话
@@ -2002,6 +2121,7 @@ const SCENARIOS = {
   skills: demoSkills,
   ppt: demoPpt,
   'ppt-preview': demoPptPreview,
+  screens: demoScreens,
   'seg-landing': demoSegLanding,
   'seg-agent': demoSegAgent,
   'seg-skill': demoSegSkill,
@@ -2056,6 +2176,13 @@ async function main() {
 
   await sleep(500)
   await rec.stop()
+
+  // 截图场景不产出视频
+  if (DEMO === 'screens') {
+    await rec.close()
+    console.log('[完成] 界面截图')
+    return
+  }
 
   const spec = GIF_SPEC[DEMO]
   const gifWindow = spec

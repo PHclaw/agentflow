@@ -112,15 +112,15 @@ Agent 执行时实时显示「正在调用工具」，同屏只保留当前这�
 <table>
 <tr>
 <td width="50%"><img src="assets/screens/01-landing.png" alt="落地页"><br><sub><b>落地页</b> — 无代码搭建的价值主张</sub></td>
-<td width="50%"><img src="assets/screens/02-dashboard.png" alt="控制台"><br><sub><b>控制台</b> — Agent 数、活跃对话、模型用量</sub></td>
+<td width="50%"><img src="assets/screens/02-dashboard.png" alt="控制台"><br><sub><b>控制台</b> — 总 Agent 数、活跃对话、知识库、本月新增对话</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="assets/screens/04-agent-create.png" alt="Agent 配置"><br><sub><b>Agent 配置</b> — 模型、提示词、工作流、技能</sub></td>
+<td width="50%"><img src="assets/screens/04-agent-create.png" alt="Agent 配置"><br><sub><b>Agent 配置</b> — 名称、提示词、模型，工作流与知识库分页配置</sub></td>
 <td width="50%"><img src="assets/screens/06-chat.png" alt="对话页"><br><sub><b>对话页</b> — 流式回复 + 产物内联预览</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screens/08-templates.png" alt="模板市场"><br><sub><b>模板市场</b> — 按分类挑，一键套用成 Agent</sub></td>
-<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — 11 个预置技能，开箱即用</sub></td>
+<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — 23 个预置技能，开箱即用</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screens/10-knowledge.png" alt="知识库"><br><sub><b>知识库</b> — 上传、分块、语义检索</sub></td>
@@ -135,7 +135,7 @@ Agent 执行时实时显示「正在调用工具」，同屏只保留当前这�
 - **🎨 拖拽式工作流编辑** — ReactFlow 画布，触发器 / LLM / 知识库 / 工具 / 条件分支 / 回复 六类节点自由组合，改完即生效
 - **🤖 多模型热切换** — 在「设置 → 模型配置」里填端点与模型名即可，支持任意 **OpenAI 兼容**端点（含本地 Ollama），**改完不用重启**
 - **📚 知识库 RAG** — 上传文档自动分块入库，向量检索召回结果带相关度；向量模型与对话模型**分开配置**
-- **🧩 Skill 广场** — 11 个预置技能（Excel / PPT / PDF / 学术检索 / 会议纪要 / 统计分析等），管理员可在后台增删
+- **🧩 Skill 广场** — 23 个预置技能（Excel / PPT / PDF / 学术检索 / 会议纪要 / 统计分析等），管理员可在后台增删
 - **📎 产物交付** — Agent 生成的文件回传为可下载附件；**图片类产物在对话里直接内联渲染**，不用先下载再看
 - **🧰 模板市场** — 客服 / 销售 / HR / 财务等场景模板，一键套用即成为可用的 Agent
 - **👤 用户体系** — JWT 认证、邮箱验证码注册、套餐额度、管理后台白名单，数据完全自托管
