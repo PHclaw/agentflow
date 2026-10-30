@@ -25,7 +25,13 @@
 An open-source, zero-code AI Agent platform: drag-and-drop workflow editor + multi-model hot-swap + knowledge-base RAG + Skill marketplace + one-command deploy.<br>
 Runs on SQLite out of the box, so a single machine is enough — and every byte of data stays on your own hardware.
 
-[Live demo](#-live-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
+<br>
+
+**🚀 [Try it online: http://159.75.21.251:3000/](http://159.75.21.251:3000/)** — no install, just open it
+
+<br>
+
+[Try it online](http://159.75.21.251:3000/) · [Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
 
 <br>
 
@@ -37,7 +43,7 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 
 ## 📖 Table of contents
 
-- [Live demo](#-live-demo)　·　[Screenshots](#️-screenshots)
+- [Product demo](#️-product-demo)　·　[Screenshots](#️-screenshots)
 - [Features](#-features)　·　[Built-in skills](#-built-in-skills)
 - [Quick start](#-quick-start)　·　[Key configuration](#️-key-configuration)
 - [Architecture](#️-architecture)　·　[Project layout](#-project-layout)
@@ -47,7 +53,7 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 
 ---
 
-## 📽️ Live demo
+## 📽️ Product demo
 
 > Real screen recordings (captured by a headless browser, unedited). Full videos live in `assets/videos/`.
 
@@ -407,8 +413,8 @@ Released under the **GPL-2.0** license. See the [LICENSE](LICENSE) file for deta
 
 | Channel | Where |
 |:--|:--|
-| FAQ | #700 |
-| Project home | [GitHub repository](http://159.75.21.251:3000/) |
+| FAQ | [docs/FAQ.md](docs/FAQ.md) |
+| Live demo | [http://159.75.21.251:3000/](http://159.75.21.251:3000/) |
 | Bug reports | [Issues](https://github.com/PHclaw/agentflow/issues) |
 | Feature requests | [Discussions](https://github.com/PHclaw/agentflow/discussions) |
 
