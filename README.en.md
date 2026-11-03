@@ -27,11 +27,15 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 
 <br>
 
-**🚀 [Try it online: http://159.75.21.251:3000/](http://159.75.21.251:3000/)** — no install, just open it
+<a href="http://159.75.21.251:3000/"><img src="https://img.shields.io/badge/%F0%9F%9A%80_Try_it_online-159.75.21.251%3A3000-6366F1?style=for-the-badge&labelColor=4338CA" alt="Try it online · no install"></a>
 
 <br>
 
-[Try it online](http://159.75.21.251:3000/) · [Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
+<sub>No install needed · just open it in a browser · sign up and build your own Agent</sub>
+
+<br>
+
+[Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
 
 <br>
 
