@@ -1,8 +1,7 @@
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  Bot,
-  FileText,
-  LayoutDashboard,
+  History,
+  MessageSquare,
   Sparkles,
   User,
   type LucideIcon,
@@ -54,27 +53,15 @@ interface NavItem {
 }
 
 /**
- * 五个核心入口。
- *
- * 用户指定了三个：AI Agent、Skill 广场、个人信息。另外两个按「功能区是否
- * 独立」来补：
- *
- * - **控制台**：整个产品的落地页，用户登录后第一眼看到的汇总，也是回「首页」
- *   的唯一入口 —— 没有它用户得点 Logo，那是桌面端的习惯，手机上没有。
- * - **知识库**：与 Skill 广场同级的**资源面**（一个管技能、一个管资料），
- *   而 Agent 是消费方。三者构成「资源 → 消费」的主链路。
- *
- * 没放进去的：对话记录、工作流、模板市场、帮助。前三个都是**从某个 Agent
- * 进入**的下游页面（对话记录还要先选 Agent 才有意义），属于二级入口；
- * 帮助与设置同属「我的」，塞进设置页即可。五档位的空间有限，把二级入口
- * 放进来会把一级入口挤小。
+ * 四个核心入口，与侧边栏主导航 + 设置保持一致：
+ * 对话、对话记录、Skill 广场、设置。
+ * 控制台、Agent、工作流、模板市场、知识库已从精简版移除。
  */
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', icon: LayoutDashboard, label: '控制台' },
-  { to: '/agents', icon: Bot, label: 'Agent', prefix: true },
+  { to: '/chat', icon: MessageSquare, label: '对话', prefix: true },
+  { to: '/conversations', icon: History, label: '对话记录', prefix: true },
   { to: '/skills', icon: Sparkles, label: 'Skill 广场', prefix: true },
-  { to: '/knowledge', icon: FileText, label: '知识库', prefix: true },
-  { to: '/settings', icon: User, label: '我的', prefix: true },
+  { to: '/settings', icon: User, label: '设置', prefix: true },
 ]
 
 export function BottomNav() {

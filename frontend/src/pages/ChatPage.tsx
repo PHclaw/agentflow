@@ -34,6 +34,7 @@ import {
 import { Markdown } from '../components/ui/Markdown'
 import { useToastStore } from '../stores'
 import { Modal } from '../components/ui/Modal'
+import { LogoMorph } from '../components/dashboard/LogoMorph'
 
 interface Message {
   id: string
@@ -158,6 +159,8 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   // 从「对话记录」点进来时会带?session=xxx，据此加载指定的那一段
   const [searchParams, setSearchParams] = useSearchParams()
   const sessionParam = searchParams.get('session')
+  // 从侧边栏「对话 / 新建对话」进入时带 new=1：直接开新会话，不恢复上一段历史
+  const newChatParam = searchParams.get('new')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -217,8 +220,9 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
     loadAgent()
     loadHistory()
     loadPiStatus()
-    // sessionParam 也要进依赖：从「对话记录」切到另一段时要重新加载
-  }, [id, sessionParam])
+    // sessionParam：从「对话记录」切到另一段时要重新加载
+    // newChatParam：从新对话空态切回普通聊天页时要恢复历史
+  }, [id, sessionParam, newChatParam])
 
   const loadPiStatus = async () => {
     try {
@@ -268,6 +272,12 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   }
 
   const loadHistory = async () => {
+    // 从侧边栏「对话 / 新建对话」进来时复用真实的新建对话逻辑，
+    // 不恢复上一段历史；?new=1 保留在地址栏，刷新后仍是新对话。
+    if (newChatParam === '1') {
+      handleNewChat()
+      return
+    }
     try {
       // 带session 参数时加载指定的那一段，否则取最近一次
       const data: any = await chatApi.history(id!, sessionParam || undefined)
@@ -1088,6 +1098,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         /* 空状态：大字标题 + 居中输入区 */
         <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16 overflow-y-auto">
           <div className="w-full max-w-2xl text-center mb-8">
+            <LogoMorph className="mb-2 max-w-[200px]" />
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-4 break-words">
               {agent?.name || 'AI Agent'}
             </h1>

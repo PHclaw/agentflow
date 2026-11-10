@@ -1,12 +1,13 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toast } from './components/ui/Toast'
 import { AppLayout, AuthLayout } from './components/layout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { useAuthStore } from './stores'
+import { agents as agentsApi } from './services/api'
 
 // Pages
 import HomePage from './pages/HomePage'
-import DashboardPage from './pages/DashboardPage'
 import AgentListPage from './pages/AgentListPage'
 import AgentCreatePage from './pages/AgentCreatePage'
 import ChatPage from './pages/ChatPage'
@@ -25,6 +26,34 @@ import AdminSkillsPage from './pages/AdminSkillsPage'
 import { AdminRoute } from './components/auth/AdminRoute'
 
 // Pages wrapper components
+/**
+ * 「对话」入口：不写死任何 Agent id，从真实接口取当前账号的第一个 Agent，
+ * 再跳到项目原有的 /agents/:id/chat —— PiAgent 链路在 ChatPage.tsx 里。
+ */
+function ChatEntry() {
+  const [target, setTarget] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    agentsApi
+      .list({ limit: 1 })
+      .then((data: any) => {
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : data?.items ?? data?.agents ?? []
+        setTarget(list[0]?.id ? `/agents/${list[0].id}/chat?new=1` : '/agents')
+      })
+      .catch(() => {
+        if (!cancelled) setTarget('/agents')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (!target) return <div className="p-8 text-sm text-slate-500">正在进入对话…</div>
+  return <Navigate to={target} replace />
+}
+
 function LandingPage() {
   return <HomePage />
 }
@@ -68,12 +97,14 @@ export default function Router() {
         <Route path="/templates" element={<TemplateMarketRoute />} />
         <Route path="/pricing" element={<LandingPage />} />
 
+        {/* 对话：跳到真实 Agent 的聊天页（PiAgent 链路） */}
+        <Route path="/chat" element={<ProtectedDashboard><ChatEntry /></ProtectedDashboard>} />
+
         {/* Auth Routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
 
         {/* Protected Routes with Sidebar */}
-        <Route path="/dashboard" element={<ProtectedDashboard><DashboardPage /></ProtectedDashboard>} />
         <Route path="/agents" element={<ProtectedDashboard><AgentListPage /></ProtectedDashboard>} />
         <Route path="/agents/new" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
         <Route path="/agents/:id/edit" element={<ProtectedDashboard><AgentCreatePage /></ProtectedDashboard>} />
