@@ -34,7 +34,7 @@ import {
 import { Markdown } from '../components/ui/Markdown'
 import { useToastStore } from '../stores'
 import { Modal } from '../components/ui/Modal'
-import { LogoMorph } from '../components/dashboard/LogoMorph'
+import { LogoMorph } from '../components/pixel/LogoMorph'
 
 interface Message {
   id: string

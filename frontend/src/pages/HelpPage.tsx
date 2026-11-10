@@ -84,28 +84,10 @@ const GUIDES: Guide[] = [
     to: '/agents',
   },
   {
-    icon: Workflow,
-    title: '工作流编排',
-    body: '拖拽节点串流程：消息触发 → 模型 / 知识检索 → 回复',
-    to: '/workflow/new',
-  },
-  {
-    icon: FileText,
-    title: '知识库',
-    body: '上传 txt / md / pdf / docx，自动切分入库并参与检索',
-    to: '/knowledge',
-  },
-  {
     icon: Sparkles,
     title: 'Skill 广场',
     body: '平台预置技能，部分自带脚本与产物导出',
     to: '/skills',
-  },
-  {
-    icon: LayoutTemplate,
-    title: '模板市场',
-    body: '开箱即用的模板，一键建出带工作流的 Agent',
-    to: '/templates',
   },
   {
     icon: History,
@@ -184,8 +166,6 @@ const FAQS: Faq[] = [
     question: '上传文档支持哪些格式？',
     answer:
       'txt / md / pdf / docx。上传后会自动切分并写入向量库，稍等即可参与检索。解析失败会明确报错，不会把二进制内容当文本塞进库里。',
-    to: '/knowledge',
-    toLabel: '去上传',
   },
   {
     id: 'kb-no-result',
@@ -202,8 +182,6 @@ const FAQS: Faq[] = [
     question: '工作流和普通 Agent 有什么区别？',
     answer:
       '普通 Agent = 一段系统提示词 + 多轮对话，适合开放问答。工作流把步骤画出来（消息触发、模型调用、知识检索、条件分支…），适合流程固定的场景。两者可以绑在一起：Agent 编辑页的「工作流」标签。',
-    to: '/workflow/new',
-    toLabel: '新建工作流',
   },
   {
     id: 'workflow-kb-node',
