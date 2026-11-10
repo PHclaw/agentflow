@@ -1,31 +1,71 @@
 """
 Agent CRUD API — 数据库版本
 """
-from fastapi import APIRouter, Depends, HTTPException
-from typing import Optional, List
-from pydantic import BaseModel
+import re
+import shutil
+from pathlib import Path
+from typing import Optional, List, Union
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ..core.database import get_db
+from ..core.paths import pi_agent_workspace
 from ..models.agent import Agent
+from ..models.subscription import Subscription
+from ..services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+    release as release_quota,
+)
+from ..services.workflow_runtime import normalize_workflow_definition
 from .auth import get_current_user_id
+from .deps import current_subscription
 
 router = APIRouter()
 
+from app.logging_setup import get_logger
+logger = get_logger("api.agents")
+
 
 class WorkflowNode(BaseModel):
-    """工作流节点"""
+    """工作流节点
+
+    字段必须与前端 ReactFlow 的节点结构对齐：前端保存的是
+    {id, type, position, data}，节点的配置（模型、提示词、响应模板等）全部在 data 里。
+
+    这里额外放开 extra：本类原先只声明 {id, type, config}，pydantic 默认忽略
+    未声明字段，导致前端传来的 position 与 data 被静默丢弃，
+    工作流保存后节点配置全部变为空。放开 extra 可避免以后前端新增字段时重蹈覆辙。
+    """
+    model_config = ConfigDict(extra="allow")
+
     id: str = ""
     type: str = "llm"
+    position: dict = {}
+    data: dict = {}
     config: dict = {}
 
 
 class WorkflowEdge(BaseModel):
-    """工作流边"""
+    """工作流边
+
+    sourceHandle 用于区分条件节点的 yes / no 分支，必须保留。
+    """
+    model_config = ConfigDict(extra="allow")
+
+    id: str = ""
     source: str = ""
     target: str = ""
-    condition: Optional[dict] = None
+    sourceHandle: Optional[str] = None
+    # 编辑器写对象、预置模板写字符串表达式（如 "intent == 'faq'"）。
+    # 执行时并不读这个字段（分支由 sourceHandle 决定），但类型太窄会让
+    # 套用模板直接 422：Input should be a valid dictionary
+    condition: Optional[Union[dict, str]] = None
 
 
 class WorkflowDefinition(BaseModel):
@@ -38,7 +78,10 @@ class WorkflowDefinition(BaseModel):
 class ModelConfig(BaseModel):
     """模型配置"""
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    # 留空 = 跟随「大模型 API 配置」里当前生效的模型。
+    # 写死 gpt-4o-mini 的话，用户的生效端点是本地 Ollama / DeepSeek 时，
+    # 这个名字会被原样发过去并换来一句「model not found」。
+    model: str = ""
     temperature: float = 0.7
     max_tokens: int = 2000
 
@@ -49,6 +92,12 @@ class AgentCreate(BaseModel):
     description: Optional[str] = None
     workflow_definition: Optional[WorkflowDefinition] = None
     llm_config: Optional[ModelConfig] = None
+    # 前端 Agent 表单会带上它；此前模型里没声明，pydantic 直接丢弃，
+    # 于是选了知识库也存不下来，工作流的知识节点拿不到 kb_id
+    knowledge_base_id: Optional[str] = None
+    # 系统提示词存在 settings JSON 里。前端表单收集了它但从没发出来，
+    # 导致这块一直是空的；工作流的 LLM 节点也拿不到 system_prompt
+    system_prompt: Optional[str] = None
 
 
 class AgentUpdate(BaseModel):
@@ -57,10 +106,27 @@ class AgentUpdate(BaseModel):
     description: Optional[str] = None
     workflow_definition: Optional[WorkflowDefinition] = None
     llm_config: Optional[ModelConfig] = None
+    knowledge_base_id: Optional[str] = None
+    system_prompt: Optional[str] = None
     is_active: Optional[bool] = None
 
 
 # ----- 辅助 -----
+
+def _normalized_workflow(value) -> dict:
+    """把工作流定义换算成运行时形状后再落库。
+
+    读写边界都做归一化，好处是编辑器拿到的永远是可渲染的形状：
+    预置模板用的是另一套写法（节点类型 start/output、配置放 config、
+    边用 from/to、没有 position），原样存进去会让编辑器加载出
+    渲染不出的节点、NaN 坐标和断开的连线。
+    """
+    if value is None:
+        return {"nodes": [], "edges": []}
+    if hasattr(value, "model_dump"):
+        value = value.model_dump()
+    return normalize_workflow_definition(value)
+
 
 def _agent_to_dict(agent: Agent) -> dict:
     """将 Agent ORM 对象转为前端需要的格式"""
@@ -69,10 +135,16 @@ def _agent_to_dict(agent: Agent) -> dict:
         "id": agent.id,
         "name": agent.name,
         "description": agent.description or "",
-        "model": mc.get("model", "gpt-4o-mini"),
+        "model": mc.get("model", ""),
         "status": "active" if agent.is_active else "inactive",
         "message_count": agent.message_count or 0,
         "is_active": agent.is_active,
+        # 编辑器靠这个字段回填画布；此前这里漏了它，
+        # 导致每次打开工作流编辑器都是空画布，已保存的工作流看起来凭空消失。
+        # 读取时同样归一化：历史数据里可能存着模板那套写法
+        "workflow_definition": _normalized_workflow(agent.workflow_definition),
+        "system_prompt": (agent.settings or {}).get("system_prompt", ""),
+        "knowledge_base_id": agent.knowledge_base_id or "",
         "created_at": agent.created_at.isoformat() if agent.created_at else "",
         "updated_at": agent.updated_at.isoformat() if agent.updated_at else "",
     }
@@ -85,26 +157,31 @@ async def create_agent(
     data: AgentCreate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """创建 Agent"""
+    # 先校验再落库。反过来做的话，超额的那条已经写进库，
+    # 还得靠回滚收尾，而且用户会在列表里看到它闪一下。
+    await check_quota(db, sub, Resource.AGENTS)
+
     agent = Agent(
         user_id=user_id,
         name=data.name,
         description=data.description or "",
-        workflow_definition=(
-            data.workflow_definition.model_dump()
-            if data.workflow_definition
-            else {"nodes": [], "edges": []}
-        ),
+        workflow_definition=_normalized_workflow(data.workflow_definition),
         model_config=(
             data.llm_config.model_dump()
             if data.llm_config
-            else {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7}
+            # 不给 llm_config 时留空模型名，交给运行时的生效配置兜底
+            else {"provider": "openai", "model": "", "temperature": 0.7}
         ),
-        settings={},
+        knowledge_base_id=data.knowledge_base_id,
+        settings=({"system_prompt": data.system_prompt} if data.system_prompt else {}),
         is_active=True,
     )
     db.add(agent)
+    await db.flush()
+    await consume_quota(db, sub, Resource.AGENTS)
     await db.commit()
     await db.refresh(agent)
     return _agent_to_dict(agent)
@@ -124,6 +201,113 @@ async def list_agents(
     result = await db.execute(stmt)
     agents = result.scalars().all()
     return [_agent_to_dict(a) for a in agents]
+
+
+# ----- 聊天上传：文件存进该 Agent 的工作目录 -----
+#
+# 放在这里而不是 pi_agent.py：这些是 Agent 级的能力，与用哪个引擎无关。
+# 落到 pi 工作区是因为那是 AI Agent 引擎运行时的 cwd，
+# 上传完模型可以直接读取/处理，不需要用户再手工搬一次。
+
+#: 单个上传文件的大小上限，超出直接拒绝，避免一个请求把磁盘塞满
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+
+async def _load_owned_agent(db: AsyncSession, agent_id: str, user_id: str) -> Agent:
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Agent 不存在")
+    return agent
+
+
+@router.post("/{agent_id}/files")
+async def upload_agent_file(
+    agent_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """上传文件到该 Agent 的工作目录"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    # 文件名由前端提供，必须净化：只取 basename、挡掉分隔符与控制字符
+    raw_name = Path(file.filename or "").name.strip() or "upload.bin"
+    safe_name = re.sub(r'[\x00-\x1f<>:"/\\|?*]', "_", raw_name)[:120]
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="文件内容为空")
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{safe_name} 超过 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB 上限",
+        )
+
+    workspace = pi_agent_workspace(agent_id)
+    # 同名文件不覆盖：加序号，避免重复上传同一份资料时把前一份弄丢
+    target = workspace / safe_name
+    if target.exists():
+        stem, suffix = target.stem, target.suffix
+        for i in range(1, 100):
+            candidate = workspace / f"{stem}({i}){suffix}"
+            if not candidate.exists():
+                target = candidate
+                break
+    target.write_bytes(content)
+
+    return {
+        "name": target.name,
+        "size": len(content),
+        "path": target.name,
+        "url": f"/api/v1/agents/{agent_id}/files/{target.name}",
+    }
+
+
+@router.get("/{agent_id}/files")
+async def list_agent_files(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """列出该 Agent 工作目录下的文件"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    workspace = pi_agent_workspace(agent_id)
+    files = []
+    for path in sorted(workspace.iterdir()):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        files.append({
+            "name": path.name,
+            "size": size,
+            "path": path.name,
+            "url": f"/api/v1/agents/{agent_id}/files/{path.name}",
+        })
+    return {"files": files}
+
+
+@router.get("/{agent_id}/files/{file_path:path}")
+async def download_agent_file(
+    agent_id: str,
+    file_path: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """下载已上传的文件"""
+    await _load_owned_agent(db, agent_id, user_id)
+
+    workspace = pi_agent_workspace(agent_id).resolve()
+    target = (workspace / file_path).resolve()
+    if workspace != target and workspace not in target.parents:
+        raise HTTPException(status_code=403, detail="禁止访问工作目录之外的文件")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(target, filename=target.name)
 
 
 @router.get("/{agent_id}")
@@ -160,10 +344,19 @@ async def update_agent(
         if value is None:
             continue
         db_key = key_map.get(key, key)
-        if db_key == "model_config" and hasattr(value, "model_dump"):
+        if db_key == "workflow_definition":
+            # 统一归一化后再落库：编辑器直接读取该字段，
+            # 若把预置模板的写法（start/output、config、from/to、无 position）
+            # 原样存进去，编辑器打开就是一堆渲染不出的节点和 NaN 坐标
+            agent.workflow_definition = _normalized_workflow(value)
+        elif db_key == "model_config" and hasattr(value, "model_dump"):
             setattr(agent, db_key, value.model_dump())
         elif db_key == "workflow_definition" and hasattr(value, "model_dump"):
             setattr(agent, db_key, value.model_dump())
+        elif db_key == "system_prompt":
+            # 系统提示词不是独立列，合并进 settings；
+            # 直接 setattr 只会挂一个不落库的 Python 属性
+            agent.settings = {**(agent.settings or {}), "system_prompt": value}
         else:
             setattr(agent, db_key, value)
 
@@ -177,6 +370,7 @@ async def delete_agent(
     agent_id: str,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """删除 Agent"""
     agent = await db.get(Agent, agent_id)
@@ -184,5 +378,21 @@ async def delete_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     await db.delete(agent)
+    # 删除必须释放名额。agents_used 记的是「当前存量」而非历史累计，
+    # 否则用户删掉 Agent 后依然无法新建，会以为是产品出了 bug。
+    await release_quota(db, sub, Resource.AGENTS)
     await db.commit()
+
+    # 工作区与 Agent 同生命期：不在这里 rmtree 就会变成孤儿目录 ——
+    # uploads/pi_workspace/ 下会累积一堆 files=0 的空子目录（已实测到 5 个），
+    # 以及 AI 产物 / 用户曾上传的附件永久占地。
+    #
+    # ignore_errors=True：Windows 上 pi CLI 子进程可能还扣着句柄；这时宁可
+    # 删 DB 不回滚（已 commit），把残留交给下一次 TTL 任务兵底。
+    try:
+        shutil.rmtree(pi_agent_workspace(agent_id), ignore_errors=True)
+    except OSError as exc:  # noqa: BLE001
+        # 不阻断接口：用户关心的是 Agent 从列表里消失，工作区回收是异步的。
+        logger.warning("删除 Agent %s 后清理工作区失败: %s", agent_id, exc)
+
     return {"message": "Deleted successfully"}

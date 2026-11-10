@@ -6,6 +6,15 @@ from sqlalchemy import select, func
 from app.models.agent import WorkflowTemplate
 
 
+# 模板里**不写 model**。
+#
+# 节点里的模型名只是一个会被原样发给「当前生效配置的端点」的字符串，
+# 而那个端点由每个用户自己配。把 gpt-4 钉在模板里，等于替所有用户
+# 指定了模型：本地 Ollama / DeepSeek 用户直接吃到
+# ``model 'gpt-4' not found``，即便是 OpenAI 用户也被强行锁在一个
+# 可能已下线的型号上。
+#
+# 留空即「跟随生效配置」，由 LLMNode 回退到用户实际可用的模型。
 DEFAULT_TEMPLATES = [
     {
         "name": "智能客服",
@@ -17,9 +26,9 @@ DEFAULT_TEMPLATES = [
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "用户输入"},
-                {"id": "classify", "type": "llm", "label": "意图分类", "config": {"model": "gpt-4", "prompt": "判断用户意图：FAQ问答/工单/转人工", "temperature": 0.1}},
+                {"id": "classify", "type": "llm", "label": "意图分类", "config": {"prompt": "判断用户意图：FAQ问答/工单/转人工", "temperature": 0.1}},
                 {"id": "faq", "type": "knowledge", "label": "FAQ 检索", "config": {"top_k": 3}},
-                {"id": "ticket", "type": "llm", "label": "工单生成", "config": {"model": "gpt-4", "prompt": "提取工单信息：标题、描述、优先级"}},
+                {"id": "ticket", "type": "llm", "label": "工单生成", "config": {"prompt": "提取工单信息：标题、描述、优先级"}},
                 {"id": "end", "type": "output", "label": "回复用户"},
             ],
             "edges": [
@@ -42,7 +51,7 @@ DEFAULT_TEMPLATES = [
         "workflow_definition": {
             "nodes": [
                 {"id": "start", "type": "start", "label": "客户输入"},
-                {"id": "analyze", "type": "llm", "label": "需求分析", "config": {"model": "gpt-4", "prompt": "分析客户需求：产品兴趣、预算范围、决策阶段"}},
+                {"id": "analyze", "type": "llm", "label": "需求分析", "config": {"prompt": "分析客户需求：产品兴趣、预算范围、决策阶段"}},
                 {"id": "quote", "type": "tool", "label": "生成报价", "config": {"tool": "generate_quote"}},
                 {"id": "schedule", "type": "tool", "label": "安排会议", "config": {"tool": "schedule_meeting"}},
                 {"id": "end", "type": "output", "label": "回复客户"},
@@ -68,7 +77,7 @@ DEFAULT_TEMPLATES = [
             "nodes": [
                 {"id": "start", "type": "start", "label": "员工提问"},
                 {"id": "retrieve", "type": "knowledge", "label": "政策检索", "config": {"top_k": 5, "kb_name": "hr_policies"}},
-                {"id": "answer", "type": "llm", "label": "生成回答", "config": {"model": "gpt-4", "prompt": "基于检索到的 HR 政策回答员工问题。如果不确定，请引导员工联系 HR 部门。"}},
+                {"id": "answer", "type": "llm", "label": "生成回答", "config": {"prompt": "基于检索到的 HR 政策回答员工问题。如果不确定，请引导员工联系 HR 部门。"}},
                 {"id": "end", "type": "output", "label": "回复员工"},
             ],
             "edges": [
@@ -90,8 +99,8 @@ DEFAULT_TEMPLATES = [
             "nodes": [
                 {"id": "start", "type": "start", "label": "用户提问"},
                 {"id": "search", "type": "knowledge", "label": "文档检索", "config": {"top_k": 5, "score_threshold": 0.7}},
-                {"id": "rerank", "type": "llm", "label": "重排序", "config": {"model": "gpt-4", "prompt": "根据问题相关性重排序检索结果，保留最相关的3条"}},
-                {"id": "summarize", "type": "llm", "label": "摘要回答", "config": {"model": "gpt-4", "prompt": "基于检索内容生成简洁准确的回答，引用来源"}},
+                {"id": "rerank", "type": "llm", "label": "重排序", "config": {"prompt": "根据问题相关性重排序检索结果，保留最相关的3条"}},
+                {"id": "summarize", "type": "llm", "label": "摘要回答", "config": {"prompt": "基于检索内容生成简洁准确的回答，引用来源"}},
                 {"id": "end", "type": "output", "label": "回答用户"},
             ],
             "edges": [

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { auth } from '../services/api'
 import type { Toast, User, Agent, Message } from '../types'
 
 // Auth Store
@@ -9,6 +10,14 @@ interface AuthState {
   isAuthenticated: boolean
   setUser: (user: User | null) => void
   setToken: (token: string | null) => void
+  /**
+   * 拉一次当前用户资料。
+   *
+   * persist 只保存登录那一刻返回的 user，角色若在那之后才被授予
+   * （比如刚被加进 ADMIN_EMAILS），前端就一直是旧的。进应用时同步一次，
+   * 顺手也把后端「配置角色落库」的结果带回来。
+   */
+  fetchMe: () => Promise<void>
   logout: () => void
 }
 
@@ -27,6 +36,16 @@ export const useAuthStore = create<AuthState>()(
         }
         set({ token, isAuthenticated: !!token })
       },
+      fetchMe: async () => {
+        if (!localStorage.getItem('token')) return
+        try {
+          const me = await auth.getCurrentUser()
+          set({ user: me, isAuthenticated: true })
+        } catch {
+          // 401 已由 api 客户端统一处理（清 token + 跳登录页），
+          // 这里再弹一次提示只会造成重复打扰
+        }
+      },
       logout: () => {
         localStorage.removeItem('token')
         set({ user: null, token: null, isAuthenticated: false })
@@ -35,6 +54,10 @@ export const useAuthStore = create<AuthState>()(
     { name: 'auth-storage' }
   )
 )
+
+/** 当前登录者是否管理员。 */
+export const useIsAdmin = () =>
+  useAuthStore((s) => s.user?.role === 'admin' || s.user?.is_admin === true)
 
 // Theme Store
 interface ThemeState {

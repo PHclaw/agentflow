@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
 import time
 
@@ -15,7 +16,11 @@ from app.core.database import init_db, get_async_session_factory
 from app.core.logging import setup_logging, logger
 from app.core.monitoring import router as monitoring_router
 from app.core.websocket import router as websocket_router
+from app.services.entitlement import HTTP_QUOTA_EXCEEDED, QuotaExceeded
 from app.api import auth, users, agents, templates, chat, billing, skills
+from app.api import admin as admin_api
+from app.api import llm_configs, pi_agent as pi_agent_api
+from app.api import connectors
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.api.agent_routes import router as agent_routes_router
@@ -37,11 +42,34 @@ async def lifespan(app: FastAPI):
     
     # 播种模板数据
     from app.core.seed import seed_templates
-    async for db in get_async_session_factory()():
+    async with get_async_session_factory()() as db:
         await seed_templates(db)
         logger.info("Templates seeded")
-        break
-    
+
+        # 预加载「大模型 API 配置」的生效快照，保证首个请求就能用上
+        from app.services import llm_config
+        active = await llm_config.ensure_fresh(db, force=True)
+        logger.info(
+            "LLM config loaded: alias=%s source=%s",
+            active.alias if active else "-",
+            active.source if active else "none",
+        )
+
+    # 注册验证码：把「邮件没配」和「验证码落在哪个后端」在启动时就写清楚，
+    # 否则要等到用户注册失败才发现
+    from app.services import verification
+    await verification.log_store_backend()
+    if not settings.REQUIRE_EMAIL_CODE:
+        logger.warning(
+            "⚠️  REQUIRE_EMAIL_CODE=false：注册不校验邮箱验证码。"
+            "仅建议用于自动化测试与内网演示。"
+        )
+    elif not settings.MAIL_ENABLED:
+        logger.warning(
+            "⚠️  MAIL_ENABLED=false：注册需要验证码，但邮件不会真的发出，"
+            "验证码只打印在后端日志里（[MAIL_ENABLED=false] 开头）。"
+        )
+
     yield
     
     # 关闭时清理资源
@@ -66,6 +94,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 大模型配置热刷新中间件
+# 快照带 TTL，这里只在过期时才查库，因此正常请求几乎无额外开销；
+# 多 worker 部署时依靠它让「改了配置」在 TTL 秒内对所有进程生效。
+@app.middleware("http")
+async def refresh_llm_config(request: Request, call_next):
+    try:
+        from app.services import llm_config
+
+        # 中间件跑在依赖解析之前，只能自己开连接 —— 测试期间必须停掉，
+        # 否则它查的是**真实库**，会把真实配置写进全局快照，
+        # 让所有断言「生效配置」的用例失真。
+        if llm_config.middleware_refresh_enabled() and llm_config.is_stale():
+            async with get_async_session_factory()() as db:
+                await llm_config.ensure_fresh(db)
+    except Exception:  # noqa: BLE001 - 刷新失败不应阻断请求（会继续用旧快照）
+        logger.warning("刷新大模型配置快照失败", exc_info=True)
+
+    return await call_next(request)
+
 
 # 请求日志中间件
 @app.middleware("http")
@@ -113,6 +161,10 @@ app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
 app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
+app.include_router(pi_agent_api.router, prefix="/api/v1/pi", tags=["PiAgent 引擎"])
+app.include_router(llm_configs.router, prefix="/api/v1/llm-configs", tags=["大模型 API 配置"])
+app.include_router(connectors.router, prefix="/api/v1/connectors", tags=["外部数据连接器"])
+app.include_router(admin_api.router, prefix="/api/v1/admin", tags=["管理后台"])
 
 # Skill 工具产出（Excel/PDF/PPT 等）
 _static_root = static_root()
@@ -171,14 +223,28 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 404 处理
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
+# 配额超限处理
+# 单独注册而不是让 QuotaExceeded 落到全局 Exception 处理器里变成 500：
+# 前端要靠 402 + error code 区分「该升级了」和「服务挂了」，弹不同的引导。
+@app.exception_handler(QuotaExceeded)
+async def quota_exceeded_handler(request: Request, exc: QuotaExceeded):
     return JSONResponse(
-        status_code=404,
-        content={
-            "error": "Not Found",
-            "message": f"Route {request.url.path} not found",
-            "path": request.url.path
-        }
+        status_code=HTTP_QUOTA_EXCEEDED,
+        content={**exc.to_payload(), "path": request.url.path},
+    )
+
+
+# HTTPException 处理
+# 注意：不能直接注册 exception_handler(404)，那样会把所有业务 404（如「文档不存在」）
+# 的 detail 一并替换成「路由不存在」，前端只能拿到无意义的报错。
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail
+    if exc.status_code == 404 and detail in (None, "Not Found"):
+        detail = f"路由 {request.url.path} 不存在"
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail, "path": request.url.path},
+        headers=getattr(exc, "headers", None),
     )

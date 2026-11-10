@@ -98,6 +98,8 @@ class KnowledgeBase(Base):
     
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     agent_id = Column(String(36), nullable=True, index=True)
+    # 归属账号：此前知识库没有归属字段，导致任何登录用户都能看到并删除别人的库
+    user_id = Column(String(36), nullable=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     

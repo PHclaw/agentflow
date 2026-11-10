@@ -13,6 +13,7 @@ from ..models.agent import KnowledgeBase
 from ..models.document import Document, DocumentChunk
 from ..services.llm import LLMService
 from ..core.config import settings
+from ..core.paths import uploads_root
 
 # LangChain imports
 from langchain_core.documents import Document as LCDocument
@@ -23,8 +24,72 @@ from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # 向量存储缓存
 _vector_stores: Dict[str, Any] = {}
+
+
+class EmbeddingNotConfiguredError(RuntimeError):
+    """没有任何可用于生成向量的凭证。"""
+
+
+class OpenAICompatibleEmbeddingFunction:
+    """走官方 openai SDK 的嵌入函数。
+
+    不用 langchain 的 OpenAIEmbeddings：它在本项目的依赖组合下
+    （openai 3.x + langchain-openai 0.0.5）会把文本先本地切成 token id，
+    再带 encoding_format=base64 发出去，本地 ollama 直接回
+    400 invalid input type。官方 SDK 发的是字符串，任何 OpenAI 兼容端点都能用。
+    """
+
+    def __init__(self, api_key: str | None, base_url: str | None, model: str) -> None:
+        from openai import OpenAI
+
+        self.model = model
+        self._client = OpenAI(
+            api_key=api_key or "not-needed",
+            base_url=base_url or None,
+            max_retries=1,
+            timeout=60,
+        )
+
+    def __call__(self, input):
+        texts = [input] if isinstance(input, str) else list(input)
+        if not texts:
+            return []
+        # 端点对单条数有限制，分批以免 400
+        batch_size = 64
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), batch_size):
+            batch = texts[start: start + batch_size]
+            resp = self._client.embeddings.create(model=self.model, input=batch)
+            vectors.extend(item.embedding for item in resp.data)
+        return vectors
+
+    # chroma 0.5+ 需要这两个元信息方法才能序列化/复用一个嵌入函数
+    def name(self) -> str:
+        return "agentflow-openai-compatible"
+
+    @staticmethod
+    def build_from_config(config: dict):
+        return OpenAICompatibleEmbeddingFunction(
+            api_key=config.get("api_key"),
+            base_url=config.get("base_url"),
+            model=config.get("model", "text-embedding-3-small"),
+        )
+
+    def get_config(self) -> dict:
+        return {"model": self.model}
+
+    # 兼容旧接口
+    def embed_documents(self, texts):
+        return self(texts)
+
+    def embed_query(self, text: str):
+        return self([text])[0]
 
 
 class KnowledgeService:
@@ -35,25 +100,90 @@ class KnowledgeService:
         self.kb_id = kb_id
         self.llm = LLMService()
         self._vector_store = None
-    
+
+    def _resolve_credentials(self) -> tuple[str | None, str | None]:
+        """解析向量端点： EMBEDDING_* 专用配置 > 「大模型 API 配置」 > .env。
+
+        此前直接读 settings.OPENAI_API_KEY，导致用户在设置页配好密钥后
+        知识库仍判定为「没有凭证」而完全不可用。
+
+        单独留出 EMBEDDING_* 是为了不牵连聊天模型：知识库要用向量端点，
+        通常和对话用的模型不是一回事（本地 ollama 就能做嵌入），
+        不该为了知识库去改「设置」里正在用的对话模型。
+        """
+        api_key = settings.EMBEDDING_API_KEY or None
+        base_url = settings.EMBEDDING_BASE_URL or None
+        if api_key or base_url:
+            return api_key, base_url
+
+        try:
+            api_key, base_url = self.llm._active_credentials()
+        except Exception:  # noqa: BLE001 - 配置表异常不应连带知识库不可用
+            logger.debug("读取模型配置失败，回退 .env", exc_info=True)
+
+        api_key = api_key or settings.OPENAI_API_KEY or None
+        base_url = base_url or settings.MODEL_BASE_URL or None
+        return api_key, base_url
+
+    def _resolve_embeddings_model(self) -> str:
+        """嵌入模型名。
+
+        EMBEDDING_BASE_URL 已显式配置时，模型名与它成对来自 EMBEDDING_MODEL
+        （默认那个 sentence-transformers 路径对OpenAI 兼容端点毫无意义，
+        只会让请求被拒）；否则沿用「大模型 API 配置」里选的模型。
+        """
+        if settings.EMBEDDING_BASE_URL:
+            return settings.EMBEDDING_MODEL
+        try:
+            from app.services.llm_config import get_active
+
+            active = get_active()
+            if active is not None and active.model:
+                return active.model
+        except Exception:  # noqa: BLE001 - 读不到就用默认模型名
+            logger.debug("读取生效模型名失败，使用 EMBEDDING_MODEL", exc_info=True)
+        return settings.EMBEDDING_MODEL
+
     def _get_embeddings(self):
-        """获取嵌入模型"""
-        return OpenAIEmbeddings(
-            api_key=settings.OPENAI_API_KEY,
-            model="text-embedding-3-small"
+        """获取嵌入模型。
+
+        任何 OpenAI 兼容的向量端点都能用（官方、硅基流动、通义、本地 ollama 等），
+        本地端点无需密钥，因此只要有 base_url 就算配置好了。
+        """
+        api_key, base_url = self._resolve_credentials()
+        if not api_key and not base_url:
+            raise EmbeddingNotConfiguredError(
+                "知识库需要向量端点：请在 backend/.env 里配置 EMBEDDING_BASE_URL"
+                "（本地 ollama 填 http://localhost:11434/v1 即可，无需密钥），"
+                "或在「设置 → 模型配置」中填写 API Key"
+            )
+        return OpenAICompatibleEmbeddingFunction(
+            api_key=api_key,
+            base_url=base_url,
+            model=self._resolve_embeddings_model(),
         )
     
     def _get_llm(self, model: str = None, temperature: float = 0.7):
         """获取 LLM 模型"""
+        api_key, base_url = self._resolve_credentials()
+        if not api_key and not base_url:
+            raise EmbeddingNotConfiguredError(
+                "尚未配置大模型 API：请在「设置 → 模型配置」中填写密钥与端点"
+            )
         return ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
+            api_key=api_key or "not-needed",
+            base_url=base_url,
             model=model or settings.OPENAI_MODEL,
-            temperature=temperature
+            temperature=temperature,
         )
     
     def _get_vector_store_path(self, kb_id: str) -> Path:
-        """获取向量存储路径"""
-        return Path(settings.UPLOAD_DIR) / "vectorstore" / kb_id
+        """获取向量存储路径。
+
+        必须用 uploads_root()：此前用相对路径 settings.UPLOAD_DIR（"./uploads"），
+        会解析到进程工作目录（backend/）下，和 API 存原始文件的 uploads/ 不是同一处。
+        """
+        return uploads_root() / "vectorstore" / kb_id
     
     async def create_knowledge_base(
         self,
@@ -67,6 +197,8 @@ class KnowledgeService:
             name=name,
             description=description,
             agent_id=None,
+            # 归属账号：此前这个参数被接收却完全没用，导致知识库没有归属
+            user_id=user_id,
         )
         self.db.add(kb)
         await self.db.commit()
@@ -86,6 +218,7 @@ class KnowledgeService:
         file_type: str = "txt",
         chunk_size: int = 1000,
         chunk_overlap: int = 200,
+        stored_path: str = None,
     ) -> Document:
         """添加文档 - 使用 LangChain 处理"""
         doc = Document(
@@ -93,6 +226,7 @@ class KnowledgeService:
             filename=filename,
             file_type=file_type,
             file_size=len(content),
+            stored_path=stored_path,
             status="processing",
         )
         self.db.add(doc)
@@ -131,15 +265,19 @@ class KnowledgeService:
             await self._save_vector_store(kb_id, vector_store)
             
             # 保存分块信息到数据库
-            for i, chunk_content in enumerate(chunks):
-                chunk = DocumentChunk(
+            for i, chunk in enumerate(chunks):
+                self.db.add(DocumentChunk(
                     document_id=doc.id,
                     kb_id=kb_id,
                     chunk_index=i,
-                    content=chunk_content,
-                    metadata=json.dumps(chunks[i].metadata),
-                )
-                self.db.add(chunk)
+                    # chunks 里装的是 LCDocument 对象，直接塞进 Text 列会报
+                    # "Error binding parameter: type 'Document' is not supported"，
+                    # 这正是文档上传必然失败的根因
+                    content=chunk.page_content,
+                    # 列名是 chunk_metadata；此前误写成 metadata，
+                    # 该关键字被静默丢弃，分块元数据全丢
+                    chunk_metadata=chunk.metadata,
+                ))
             
             # 更新文档状态
             doc.status = "done"
@@ -196,7 +334,7 @@ class KnowledgeService:
         query: str,
         kb_ids: List[str] = None,
         top_k: int = 5,
-        threshold: float = 0.7,
+        threshold: float = 0.25,
         filter_metadata: Dict = None,
     ) -> List[dict]:
         """语义搜索 - LangChain Retriever"""
@@ -216,7 +354,11 @@ class KnowledgeService:
             
             search_results = []
             for doc, score in results:
-                relevance = 1 - score if score > 0 else score
+                # similarity_search_with_relevance_scores 返回的已经是
+                # 「相关性」（0~1，越大越相关）。此前又算了一次 1 - score，
+                # 等于把排名整个反转：最相关的结果 relevance 变成 0.05，
+                # 永远过不了阈值，检索基本返回空。
+                relevance = float(score)
                 if relevance >= threshold:
                     search_results.append({
                         "id": f"{kb_id}_{doc.metadata.get('document_id', 'unknown')}",
@@ -227,12 +369,14 @@ class KnowledgeService:
                         "score": relevance,
                         "metadata": doc.metadata,
                     })
-            
+
             return search_results
             
         except Exception as e:
-            print(f"Search error: {e}")
-            return []
+            # 此前是 print + 返回空列表，检索失败与「没搜到」无法区分，
+            # 用户只看到空结果，完全不知道发生了什么
+            logger.warning("知识库检索失败 kb=%s: %s", kb_id, e)
+            raise
     
     async def similarity_search(
         self,
@@ -259,7 +403,11 @@ class KnowledgeService:
         top_k: int = 10,
     ) -> str:
         """获取 RAG 上下文"""
-        results = await self.search(query, kb_ids, top_k=top_k)
+        try:
+            results = await self.search(query, kb_ids, top_k=top_k)
+        except Exception as e:  # noqa: BLE001 - 检索失败不应让整个请求崩掉
+            logger.warning("获取 RAG 上下文失败: %s", e)
+            return ""
         
         context_parts = []
         total_chars = 0

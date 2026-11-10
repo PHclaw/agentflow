@@ -71,7 +71,16 @@ export interface User {
   email: string
   nickname?: string
   avatar?: string
-  plan: 'free' | 'pro' | 'enterprise'
+  /**
+   * 套餐由 /billing/subscription 提供，登录响应里不带，所以是可选的。
+   * 原先这里写死成必填，且用了后端不存在的 'enterprise'，属于凭空约定。
+   */
+  plan?: 'free' | 'pro' | 'team'
+  /** 角色。管理后台的入口显隐与路由守卫都按它判断 */
+  role?: 'user' | 'admin'
+  is_admin?: boolean
+  is_active?: boolean
+  created_at?: string
 }
 
 // 知识库类型

@@ -1,8 +1,9 @@
 """
 工作流运行时 - 节点数据传递与执行
-基于 LangGraph 实现工作流节点的数据流动
+
+注意：实现已不依赖 LangGraph，为自研执行器（拓扑排序 + 分支选择）。
 """
-from typing import Dict, List, Any, Optional
+from typing import Awaitable, Callable, Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -11,7 +12,141 @@ from datetime import datetime
 
 from .llm import LLMService
 from .knowledge import KnowledgeService
+from ..core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _effective_model_name() -> str:
+    """当前生效配置里的模型名；没有配置时退回 .env 的默认模型。
+
+    解析逻辑收敛在 ``llm_config.effective_model_name``，这里只负责决定
+    兜底成什么 —— 别再在别处重写一遍，那种重写正是这次 404 的来源。
+    """
+    try:
+        from .llm_config import effective_model_name
+
+        return effective_model_name(settings.OPENAI_MODEL)
+    except Exception:  # noqa: BLE001 - 取不到就用默认值，不能因此让节点直接失败
+        return settings.OPENAI_MODEL
+
+
+# --------------------------------------------------------------------------
+# 工作流定义归一化
+#
+# 项目里同时存在三套工作流写法，字段名互不相同：
+#
+#   1. 运行时（本文件）：type=trigger/llm/...，节点配置在 data，边用 source/target
+#   2. 前端编辑器：同上，但响应节点写 response_template、工具节点写 tool_params
+#   3. 预置模板（core/seed.py）：type=start/output，配置在 config，边用 from/to
+#
+# 不归一化就执行的话，模板开出来的工作流会：节点类型未知（退化成 BaseNode 直接
+# NotImplementedError）、配置全空、边上没有 source/target 导致拓扑排序认为没有依赖。
+# 这里统一成第 1 种形状，三种来源都能跑。
+# --------------------------------------------------------------------------
+
+_NODE_TYPE_ALIASES = {
+    "start": "trigger",
+    "end": "response",
+    "output": "response",
+}
+
+# 前端字段名 -> 运行时字段名
+_DATA_KEY_ALIASES = {
+    "response_template": "template",
+    "tool_params": "params",
+    "tool": "tool_name",
+}
+
+
+def normalize_workflow_definition(raw: Optional[Dict]) -> Dict:
+    """把任意一种历史写法归一成运行时可直接执行的形状。"""
+    raw = raw or {}
+
+    nodes: List[Dict[str, Any]] = []
+    for node in raw.get("nodes") or []:
+        item = dict(node)
+        node_type = str(item.get("type") or "")
+        item["type"] = _NODE_TYPE_ALIASES.get(node_type, node_type)
+
+        # 顶层 config 与 data 合并，data 优先（编辑器用 data，模板用 config）
+        merged: Dict[str, Any] = dict(item.get("config") or {})
+        merged.update(item.get("data") or {})
+
+        # 模板把展示名放在节点顶层
+        if item.get("label") and "label" not in merged:
+            merged["label"] = item["label"]
+
+        for old_key, new_key in _DATA_KEY_ALIASES.items():
+            if old_key in merged and new_key not in merged:
+                merged[new_key] = merged[old_key]
+
+        item["data"] = merged
+
+        # 坐标必须是带数字 x/y 的对象，否则编辑器会算出 NaN。
+        # 注意 {} 是真值，会绕过前端 `node.position || 兜底` 的写法，
+        # 所以这里直接删掉不合法的值，让前端用默认排布。
+        position = item.get("position")
+        if not (
+            isinstance(position, dict)
+            and isinstance(position.get("x"), (int, float))
+            and isinstance(position.get("y"), (int, float))
+        ):
+            item.pop("position", None)
+
+        nodes.append(item)
+
+    edges: List[Dict[str, Any]] = []
+    for edge in raw.get("edges") or []:
+        item = dict(edge)
+        # 必须按「值是否为空」判断，不能按「键是否存在」：
+        # API 的 WorkflowEdge 模型声明了 source/target 默认空串，
+        # 模板那套 {from, to} 走一遍模型后会变成
+        # {"source": "", "target": "", "from": "start", "to": "classify"}，
+        # 键存在但值是空的，于是回退逻辑从不触发 —— 结果是画布一条线都没有，
+        # 执行器拓扑排序认为没有依赖，下游节点全部不执行。
+        if not item.get("source") and item.get("from"):
+            item["source"] = item["from"]
+        if not item.get("target") and item.get("to"):
+            item["target"] = item["to"]
+        # 归一化后清掉旧字段，避免同一根线出现两套键名
+        item.pop("from", None)
+        item.pop("to", None)
+        if not item.get("id"):
+            item.pop("id", None)
+        edges.append(item)
+
+    normalized: Dict[str, Any] = {"nodes": nodes, "edges": edges}
+    if raw.get("entry"):
+        normalized["entry"] = raw["entry"]
+    return normalized
+
+
+def has_workflow(workflow_definition: Optional[Dict]) -> bool:
+    """是否配置了可执行的工作流（至少要有一个节点）"""
+    return bool((workflow_definition or {}).get("nodes"))
+
+
+def extract_final_response(state) -> Optional[str]:
+    """从执行结果里取最终回复。
+
+    倒序扫描执行历史，优先取 response 节点的 final_response，
+    其次取任意节点的 response 输出。
+
+    注意 status 是 NodeStatus 枚举，必须用 .value 比较 ——
+    原先调用方写的是 `status == NodeStatus.SUCCESS.value`（枚举 vs 字符串），
+    恒为假，导致 final_output 永远是 null。
+    """
+    success = NodeStatus.SUCCESS.value
+    for node_result in reversed(state.execution_history):
+        status = getattr(node_result.status, "value", node_result.status)
+        if status != success:
+            continue
+        outputs = state.node_outputs.get(node_result.node_id, {})
+        for key in ("final_response", "response_content", "response", "result"):
+            value = outputs.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+    return None
 
 
 class NodeStatus(Enum):
@@ -53,13 +188,19 @@ class NodeResult:
 @dataclass
 class WorkflowState:
     """工作流状态"""
+
     workflow_id: str
     nodes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     edges: List[Dict[str, str]] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)  # 全局上下文
+    context: Dict[str, Any] = field(default_factory=dict)  # 全局上下文（数据）
     node_outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # 节点输出缓存
     execution_history: List[NodeResult] = field(default_factory=list)
     current_node: Optional[str] = None
+    #: 运行时管线（数据库会话等）。**不要放进 context** ——
+    #: /workflow/execute 会把 context 原样返回，里面塞了 AsyncSession 就会
+    #: 序列化失败、整个接口 500（'AsyncEngine' object is not iterable）。
+    #: internal 不出现在任何对外响应里。
+    internal: Dict[str, Any] = field(default_factory=dict)
 
 
 class BaseNode:
@@ -82,6 +223,35 @@ class BaseNode:
             return state.context[input_key]
         
         return None
+
+    def get_upstream_output(self, state: WorkflowState) -> Any:
+        """取上游节点的主要输出。
+
+        条件节点通常只要「上一个节点的结果」，配置里往往不写变量名；
+        此前它只能取到空串，导致条件恒为同一分支。
+        """
+        for edge in state.edges:
+            if edge.get("target") != self.node_id:
+                continue
+            upstream = state.node_outputs.get(edge.get("source"), {})
+            for key in ("response", "final_response", "response_content", "result", "context", "message"):
+                value = upstream.get(key)
+                if value not in (None, ""):
+                    return value
+        return ""
+
+    def _resolve_variable(self, value: Any, state: WorkflowState) -> Any:
+        """解析变量引用：$user_message 或 $node_id.key
+
+        放在基类上，工具节点与技能节点共用。
+        """
+        if isinstance(value, str) and value.startswith("$"):
+            var_path = value[1:]
+            if "." in var_path:
+                parts = var_path.split(".")
+                return state.node_outputs.get(parts[0], {}).get(parts[1], value)
+            return state.context.get(var_path, value)
+        return value
     
     def set_output(self, state: WorkflowState, key: str, value: Any, metadata: Dict = None):
         """设置输出到状态"""
@@ -144,8 +314,11 @@ class LLMNode(BaseNode):
             if not input_text:
                 input_text = state.context.get("user_message", "")
             
-            # 获取配置
-            model = self.config.get("model", "gpt-4o-mini")
+            # 获取配置。
+            # 模型名缺省时回退到**当前生效配置的模型**，而不是写死 gpt-4o-mini：
+            # 凭证与端点都取自生效配置，把一个 gpt-4o-mini 发给本地 Ollama
+            # 只会得到「模型不存在」。
+            model = self.config.get("model") or _effective_model_name()
             temperature = float(self.config.get("temperature", 0.7))
             prompt_template = self.config.get("prompt", "")
             system_prompt = self.config.get("system_prompt", "")
@@ -162,8 +335,10 @@ class LLMNode(BaseNode):
             else:
                 messages.append({"role": "user", "content": input_text})
             
-            # 调用 LLM - 传入 model 到构造函数
-            llm = LLMService(model=model) if model != "gpt-4o-mini" else LLMService()
+            # 调用 LLM。始终显式传 model —— 此前写成
+            # 「model != 'gpt-4o-mini' 才传」，等于用户恰好选了 gpt-4o-mini 时
+            # 反而被忽略、改用 .env 里的 OPENAI_MODEL。
+            llm = LLMService(model=model)
             response = await llm.chat(messages, temperature=temperature)
             
             # 设置输出
@@ -224,7 +399,7 @@ class KnowledgeNode(BaseNode):
                 return result
             
             # 执行 RAG 搜索
-            db = state.context.get("db_session")
+            db = state.internal.get("db_session")
             if not db:
                 result.status = NodeStatus.FAILED
                 result.error = "数据库会话不可用"
@@ -271,8 +446,13 @@ class ConditionNode(BaseNode):
         result = NodeResult(node_id=self.node_id, status=NodeStatus.RUNNING, start_time=datetime.now())
         
         try:
-            # 获取输入
-            input_value = self.get_input(state, "value") or self.config.get("value", "")
+            # 获取输入：显式变量 > 配置值 > 上游节点输出
+            input_value = self.get_input(state, "value")
+            if input_value in (None, ""):
+                input_value = self.config.get("value", "")
+            if input_value in (None, ""):
+                input_value = self.get_upstream_output(state)
+
             condition_type = self.config.get("condition_type", "equals")
             condition_value = self.config.get("condition_value", "")
             
@@ -378,16 +558,6 @@ class ToolNode(BaseNode):
         
         return result
     
-    def _resolve_variable(self, value: Any, state: WorkflowState) -> Any:
-        """解析变量引用"""
-        if isinstance(value, str) and value.startswith("$"):
-            var_path = value[1:]
-            if "." in var_path:
-                parts = var_path.split(".")
-                return state.node_outputs.get(parts[0], {}).get(parts[1], value)
-            return state.context.get(var_path, value)
-        return value
-    
     async def _call_tool(
         self, tool_name: str, params: Dict, input_data: Any, state: WorkflowState
     ) -> Any:
@@ -400,6 +570,7 @@ class ToolNode(BaseNode):
             "formatter": self._tool_formatter,
             "text_process": self._tool_text_process,
             "date_time": self._tool_datetime,
+            "erp_read": self._tool_erp_read,
         }
         
         if tool_name in tools:
@@ -470,6 +641,65 @@ class ToolNode(BaseNode):
         format_str = params.get("format", "%Y-%m-%d %H:%M:%S")
         return datetime.now().strftime(format_str)
 
+    async def _tool_erp_read(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
+        """只读外部数据源（ERP）连接器。
+
+        入参（节点 config 或 params 均可，config 为底、params 覆盖）：
+        - connector_id：ERPConnectorConfig.id（必填）
+        - resource：表名，须在连接器白名单内（必填）
+        - filters：等值过滤 {列: 值}；columns：选取列；limit：行数上限
+
+        归属校验以 state.context["caller_id"] 为准（工作流入口注入）；
+        读到的行已由连接器层脱敏，直接以 JSON 字符串作为节点输出，
+        下游智能体节点会自动把它当作 message 喂给 PiAgent。
+        """
+        def pick(key: str, default: Any = None) -> Any:
+            # params 优先，其次节点 config
+            if key in params and params[key] not in (None, ""):
+                return params[key]
+            return self.config.get(key, default)
+
+        conn_id = str(pick("connector_id") or "").strip()
+        resource = str(pick("resource") or "").strip()
+        if not conn_id or not resource:
+            return json.dumps({"ok": False, "error": "erp_read 需要 connector_id 与 resource"}, ensure_ascii=False)
+
+        db = state.internal.get("db_session")
+        if not db:
+            return json.dumps({"ok": False, "error": "数据库会话不可用"}, ensure_ascii=False)
+
+        caller_id = str(state.context.get("caller_id") or "").strip()
+        if not caller_id:
+            return json.dumps({"ok": False, "error": "缺少调用者身份，无法校验连接器归属"}, ensure_ascii=False)
+
+        try:
+            from app.models.erp_connector import ERPConnectorConfig
+            from app.services import connectors
+
+            cfg = await db.get(ERPConnectorConfig, conn_id)
+            if not cfg or cfg.owner_id != caller_id:
+                # 不存在与不属于本人一律报不存在，不泄露他人配置
+                return json.dumps({"ok": False, "error": f"连接器不存在或无权访问：{conn_id}"}, ensure_ascii=False)
+
+            filters = pick("filters", {}) or {}
+            columns = pick("columns", []) or []
+            limit = pick("limit")
+            if not isinstance(filters, dict):
+                filters = {}
+            if not isinstance(columns, list):
+                columns = [str(columns)]
+
+            rows = await connectors.erp.read(
+                cfg, resource=resource, filters=filters, columns=columns,
+                limit=int(limit) if limit else None,
+            )
+            return json.dumps({"ok": True, "resource": resource, "count": len(rows), "rows": rows}, ensure_ascii=False)
+        except connectors.erp.ConnectorError as exc:
+            # 白名单/参数/超时等可读错误：不抛栈，结构化回传
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        except Exception as exc:  # noqa: BLE001 - 工具节点不得因外部异常中断整个工作流
+            return json.dumps({"ok": False, "error": f"读取失败：{type(exc).__name__}: {exc}"}, ensure_ascii=False)
+
 
 class ResponseNode(BaseNode):
     """响应节点 - 回复用户"""
@@ -517,6 +747,109 @@ class ResponseNode(BaseNode):
         return re.sub(r'\{\{([^}]+)\}\}', replace_var, template)
 
 
+class AgentNode(BaseNode):
+    """智能体节点 - 调用一个 Agent，并可为它指定技能
+
+    为什么不是「技能节点」：Agent 才是行为的单元（它有自己的模型、
+    系统提示词与工作区），技能只是它的能力之一。直接调技能反而绕过了
+    Agent 这一层，且技能运行时与 AI Agent 引擎是两套不同的执行体。
+    这里统一走 AI Agent 引擎，与对话页里「选 Agent + 勾技能」的语义一致。
+    """
+
+    async def execute(self, state: WorkflowState) -> NodeResult:
+        result = NodeResult(node_id=self.node_id, status=NodeStatus.RUNNING, start_time=datetime.now())
+
+        try:
+            if not settings.PIAGENT_ENABLED:
+                result.status = NodeStatus.FAILED
+                result.error = (
+                    "AI Agent 引擎未启用：请在 backend/.env 中设置 PIAGENT_ENABLED=true"
+                )
+                return result
+
+            db = state.internal.get("db_session")
+            if not db:
+                result.status = NodeStatus.FAILED
+                result.error = "数据库会话不可用"
+                return result
+
+            # 目标 Agent：节点指定优先；留空则用工作流所属的 Agent
+            target_id = str(
+                self.config.get("agent_id") or state.context.get("agent_id") or ""
+            ).strip()
+            if not target_id:
+                result.status = NodeStatus.FAILED
+                result.error = "未指定 Agent，且当前工作流没有归属的 Agent"
+                return result
+
+            # 延迟导入：pi 运行时依赖较重，避免拖慢工作流模块加载
+            from app.models.agent import Agent
+            from app.services.pi_agent import build_agent_context, pi_agent_runner
+
+            agent = await db.get(Agent, target_id)
+            if not agent:
+                result.status = NodeStatus.FAILED
+                result.error = f"Agent 不存在：{target_id}"
+                return result
+
+            # 输入优先级：节点配置的 input > 上游节点输出 > 本轮用户消息
+            raw_input = (
+                self.config.get("input")
+                or self.get_upstream_output(state)
+                or state.context.get("user_message", "")
+            )
+
+            # 技能：可写成数组或逗号分隔字符串
+            skills = self.config.get("skills") or []
+            if isinstance(skills, str):
+                skills = [part.strip() for part in skills.split(",") if part.strip()]
+            skills = [str(item).strip() for item in skills if str(item).strip()]
+
+            timeout = self.config.get("timeout")
+            try:
+                timeout_value = int(timeout) if timeout else None
+            except (TypeError, ValueError):
+                timeout_value = None
+
+            run_result = await pi_agent_runner.run(
+                message=str(raw_input),
+                agent_id=agent.id,
+                agent=build_agent_context(agent),
+                session_id=state.context.get("agent_session_id"),
+                skills=skills or None,
+                timeout=timeout_value,
+            )
+
+            if not run_result.get("success"):
+                result.status = NodeStatus.FAILED
+                result.error = run_result.get("error") or "Agent 执行失败"
+                return result
+
+            content = run_result.get("content") or ""
+            self.set_output(state, "result", content)
+            self.set_output(state, "output", content)
+            self.set_output(state, "agent_id", agent.id)
+            self.set_output(state, "agent_name", agent.name)
+            if skills:
+                self.set_output(state, "skills", skills)
+
+            # Agent 在工作区生成的文件（表格、图片等）
+            files = run_result.get("files") or []
+            if files:
+                self.set_output(state, "files", files)
+
+            result.status = NodeStatus.SUCCESS
+
+        except Exception as e:
+            result.status = NodeStatus.FAILED
+            result.error = str(e)
+
+        finally:
+            result.end_time = datetime.now()
+
+        return result
+
+
 class WorkflowRuntime:
     """工作流运行时"""
     
@@ -527,6 +860,7 @@ class WorkflowRuntime:
             "knowledge": KnowledgeNode,
             "condition": ConditionNode,
             "tool": ToolNode,
+            "agent": AgentNode,
             "response": ResponseNode,
         }
     
@@ -544,9 +878,10 @@ class WorkflowRuntime:
         for edge in edges:
             source = edge.get("source")
             target = edge.get("target")
-            if source and target:
+            # 忽略指向不存在节点的悬空边，否则后续遍历邻接表会 KeyError
+            if source in adjacency and target in adjacency:
                 adjacency[source].append(target)
-                in_degree[target] = in_degree.get(target, 0) + 1
+                in_degree[target] += 1
         
         # Kahn's algorithm
         queue = [n for n, d in in_degree.items() if d == 0]
@@ -587,8 +922,21 @@ class WorkflowRuntime:
         workflow_def: Dict,
         input_data: Dict,
         db_session: AsyncSession,
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> WorkflowState:
-        """执行工作流"""
+        """执行工作流。
+
+        on_event：可选的进度回调，每个节点**真正**开始和结束时各触发一次。
+
+        在此之前 /execute/stream 是等工作流整体跑完，再回头遍历
+        execution_history 把结果一次性吐出去 —— 那是"分批传输"而不是流式，
+        编辑器在整个执行期间收不到任何事件，节点上的执行态动画没有东西可放
+        （前端那段 `status === 'running'` 因此一直是死代码）。
+        有了这个回调，事件才是随着执行发出来的，进度也就真的对得上。
+        """
+        # 三种历史写法先归一，避免模板/旧数据一执行就全是未知节点
+        workflow_def = normalize_workflow_definition(workflow_def)
+
         workflow_id = str(uuid.uuid4())
         
         # 初始化状态
@@ -598,7 +946,7 @@ class WorkflowRuntime:
             edges=workflow_def.get("edges", []),
             context=input_data,
         )
-        state.context["db_session"] = db_session
+        state.internal["db_session"] = db_session
         
         # 拓扑排序获取执行顺序
         execution_order = self.get_execution_order(
@@ -623,6 +971,15 @@ class WorkflowRuntime:
             # 设置当前节点
             state.current_node = node_id
             
+            # 先报"开始"再执行。顺序反了的话事件会晚于实际耗时发出，
+            # 前端那根进度条就跑在了真实执行的前面
+            if on_event:
+                await on_event({
+                    "type": "node_start",
+                    "node_id": node_id,
+                    "node_type": node_type,
+                })
+
             # 执行节点
             result = await node.execute(state)
             result.execution_time = (
@@ -632,6 +989,16 @@ class WorkflowRuntime:
             
             state.execution_history.append(result)
             executed.add(node_id)
+
+            if on_event:
+                await on_event({
+                    "type": "node_complete",
+                    "node_id": node_id,
+                    "status": result.status.value,
+                    "outputs": state.node_outputs.get(node_id, {}),
+                    "execution_time": result.execution_time,
+                    "error": result.error,
+                })
             
             # 如果节点失败且是关键节点，停止执行
             if result.status == NodeStatus.FAILED:
@@ -664,13 +1031,15 @@ class WorkflowRuntime:
         db_session: AsyncSession,
     ) -> NodeResult:
         """单独执行某个节点"""
+        workflow_def = normalize_workflow_definition(workflow_def)
+
         state = WorkflowState(
             workflow_id="single",
             nodes={n["id"]: n for n in workflow_def.get("nodes", [])},
             edges=workflow_def.get("edges", []),
             context=input_data,
         )
-        state.context["db_session"] = db_session
+        state.internal["db_session"] = db_session
         
         node_def = state.nodes.get(node_id, {})
         node_type = node_def.get("type", "")

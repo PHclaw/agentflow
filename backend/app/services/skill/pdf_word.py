@@ -12,9 +12,12 @@ from app.logging_setup import get_logger
 
 logger = get_logger("pdf-word")
 
-from app.core.paths import generated_root
+from app.core.paths import generated_root, repo_root
 
 GENERATED_DIR = generated_root()
+# _local_from_url 要把 /static/... 映射回本地文件，此前这里直接用了
+# 未定义的 ROOT，命中该分支就抛 NameError
+ROOT = repo_root()
 
 _IMG_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")

@@ -198,9 +198,14 @@ class TestChatFlow:
 
     @pytest.mark.asyncio
     async def test_multi_agent_chat(
-        self, async_client: AsyncClient, test_user: User, auth_headers: dict
+        self, async_client: AsyncClient, test_user: User, auth_headers: dict,
+        pro_subscription,
     ):
-        """多 Agent 协作对话"""
+        """多 Agent 协作对话
+
+        需要 pro 订阅：免费版只允许 1 个 Agent，第二个会被配额拦下。
+        这里测的是多 Agent 编排本身，不是配额，所以先升级。
+        """
         # 创建两个 Agent
         agent1_resp = await async_client.post(
             "/api/v1/agents",

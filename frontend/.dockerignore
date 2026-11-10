@@ -1,0 +1,17 @@
+# frontend 构建上下文（docker-compose 里 frontend 的 context 是 ./frontend）。
+#
+# 前端没有任何 import.meta.env / process.env 的使用，所以排除 .env 不会
+# 影响构建产物 —— 不必为了构建期变量把密钥文件拷进镜像。
+
+node_modules
+dist
+.vite
+
+.env
+.env.local
+.env.production
+.env.staging
+
+*.log
+*.tsbuildinfo
+coverage

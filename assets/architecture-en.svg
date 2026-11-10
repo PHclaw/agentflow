@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="880" viewBox="0 0 1440 880" role="img" aria-label="AgentFlow system architecture: input and data, orchestration, response and artifacts">
+  <defs>
+    <marker id="ar-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="ar-dash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="ar-warm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706"/>
+    </marker>
+    <marker id="ar-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#db2777"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="880" fill="#ffffff"/>
+
+  <text x="720" y="36" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">AgentFlow · System Architecture</text>
+  <text x="720" y="58" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" fill="#64748b">Zero-code AI Agent platform · visual workflows / hot-swap models / knowledge-base RAG / skills / artifact delivery</text>
+
+  <!-- ============ Section frames ============ -->
+  <rect x="32" y="88" width="300" height="712" rx="18" fill="#f1f8f1" stroke="#a5d6a7" stroke-width="1.5"/>
+  <rect x="352" y="88" width="712" height="712" rx="18" fill="#fbfcfe" stroke="#dbe3ec" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <rect x="1080" y="88" width="328" height="712" rx="18" fill="#fdf1f6" stroke="#f48fb1" stroke-width="1.5"/>
+
+  <text x="52" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2e7d32">Input &amp; Data Layer</text>
+  <text x="52" y="138" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#7cb342">INPUT &amp; DATA</text>
+
+  <text x="372" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#334155">Orchestration Layer</text>
+  <text x="440" y="120" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#94a3b8">ORCHESTRATION</text>
+
+  <text x="1100" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#ad1457">Response &amp; Artifacts</text>
+  <text x="1100" y="138" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#d81b60">RESPONSE &amp; ARTIFACTS</text>
+
+  <!-- ============ Left: Input &amp; Data Layer ============ -->
+  <rect x="52" y="152" width="260" height="46" rx="10" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.3"/>
+  <circle cx="78" cy="175" r="13" fill="#bbdefb"/>
+  <circle cx="78" cy="170" r="4" fill="#1976d2"/>
+  <path d="M 71 184 q 7 -8 14 0" fill="none" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/>
+  <text x="100" y="181" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="15" font-style="italic" font-weight="600" fill="#1565c0">User Query</text>
+
+  <line x1="182" y1="198" x2="182" y2="216" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar-solid)"/>
+
+  <rect x="52" y="220" width="260" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="68" y="243" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1e293b">FastAPI application</text>
+  <text x="68" y="261" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">REST / WebSocket · /api · /static</text>
+  <line x1="282" y1="238" x2="300" y2="238" stroke="#94a3b8" stroke-width="1.4"/>
+  <line x1="282" y1="246" x2="300" y2="246" stroke="#94a3b8" stroke-width="1.4"/>
+  <line x1="282" y1="254" x2="300" y2="254" stroke="#94a3b8" stroke-width="1.4"/>
+
+  <line x1="166" y1="280" x2="178" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+  <line x1="178" y1="280" x2="190" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+  <line x1="190" y1="280" x2="202" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+
+  <rect x="52" y="300" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="324" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">Knowledge Base (RAG)</text>
+  <text x="68" y="345" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Upload → chunking → vector retrieval</text>
+  <text x="68" y="363" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">chromadb + configurable embeddings</text>
+  <text x="68" y="381" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Retrieved snippets with relevance scores</text>
+
+  <rect x="52" y="402" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="426" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">Skill Plaza</text>
+  <text x="68" y="447" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Folder + SKILL.md, install on demand</text>
+  <text x="68" y="465" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Admins add / remove in console</text>
+  <text x="68" y="483" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Third-party skills ship separately</text>
+
+  <rect x="52" y="504" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="528" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">Model config</text>
+  <text x="68" y="549" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">config/models.json · allowlist</text>
+  <text x="68" y="567" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Any OpenAI-compatible endpoint</text>
+  <text x="68" y="585" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Hot-swap in UI, no restart</text>
+
+  <rect x="52" y="614" width="260" height="62" rx="10" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.3"/>
+  <ellipse cx="80" cy="638" rx="12" ry="4.5" fill="none" stroke="#558b2f" stroke-width="1.6"/>
+  <path d="M 68 638 v 14 a 12 4.5 0 0 0 24 0 v -14" fill="none" stroke="#558b2f" stroke-width="1.6"/>
+  <path d="M 68 645 a 12 4.5 0 0 0 24 0" fill="none" stroke="#558b2f" stroke-width="1.4"/>
+  <text x="104" y="641" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">SQLite · agentflow.db</text>
+  <text x="104" y="659" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#558b2f">Users / sessions / knowledge, all local</text>
+
+  <text x="52" y="712" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#4f9a52">Self-hosted · data stays local</text>
+  <text x="52" y="738" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Runs on one machine; no Redis / PG needed</text>
+
+  <!-- ============ Center: three agent columns ============ -->
+  <!-- Column 1 -->
+  <rect x="456" y="134" width="40" height="36" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.3"/>
+  <rect x="462" y="142" width="11" height="9" rx="2" fill="#3b82f6"/>
+  <rect x="479" y="142" width="11" height="9" rx="2" fill="#60a5fa"/>
+  <rect x="470" y="157" width="11" height="9" rx="2" fill="#93c5fd"/>
+  <text x="476" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">Workflow Agent</text>
+  <text x="476" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Drag-and-drop workflows</text>
+
+  <!-- Column 2 -->
+  <circle cx="708" cy="152" r="18" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.3"/>
+  <rect x="700" y="144" width="16" height="16" rx="3" fill="#6366f1"/>
+  <line x1="704" y1="140" x2="704" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="708" y1="140" x2="708" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="712" y1="140" x2="712" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="704" y1="160" x2="704" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="708" y1="160" x2="708" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="712" y1="160" x2="712" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="708" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">LLM Agent</text>
+  <text x="708" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Model gateway</text>
+
+  <!-- Column 3 -->
+  <circle cx="940" cy="152" r="18" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.3"/>
+  <path d="M 932 144 l 16 8 l -16 8 z" fill="#10b981"/>
+  <circle cx="940" cy="152" r="3" fill="#ffffff"/>
+  <text x="940" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">Tool &amp; Skill Agent</text>
+  <text x="940" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Tool &amp; skill execution</text>
+
+  <!-- Tool boxes -->
+  <rect x="372" y="222" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="476" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">ReactFlow canvas</text>
+  <rect x="604" y="222" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="708" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">OpenAI-compatible endpoint</text>
+  <rect x="836" y="222" width="208" height="40" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.2"/>
+  <text x="940" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#047857">Skill invocation</text>
+
+  <line x1="476" y1="262" x2="476" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="262" x2="708" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="262" x2="940" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- Plan boxes -->
+  <rect x="372" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="476" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · Task decomposition</text>
+  <rect x="604" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="708" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · Task decomposition</text>
+  <rect x="836" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="940" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · Task decomposition</text>
+
+  <line x1="476" y1="318" x2="476" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="318" x2="708" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="318" x2="940" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- Execution boxes -->
+  <rect x="372" y="336" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="476" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">Six node types</text>
+  <rect x="604" y="336" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="708" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">Hot-swap models</text>
+  <rect x="836" y="336" width="208" height="40" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.2"/>
+  <text x="940" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#047857">Files / tool calls</text>
+
+  <line x1="476" y1="376" x2="476" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="376" x2="708" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="376" x2="940" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- Analysis boxes -->
+  <rect x="372" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="476" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Chunked analysis &amp; reflection</text>
+  <text x="476" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+  <rect x="604" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="708" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Chunked analysis &amp; reflection</text>
+  <text x="708" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+  <rect x="836" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="940" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Chunked analysis &amp; reflection</text>
+  <text x="940" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+
+  <line x1="476" y1="456" x2="476" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <line x1="708" y1="456" x2="708" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <line x1="940" y1="456" x2="940" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+
+  <!-- Runtime bar -->
+  <rect x="372" y="482" width="672" height="54" rx="12" fill="#fff3e0" stroke="#f0b429" stroke-width="1.5"/>
+  <text x="708" y="507" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#b45309">Workflow Runtime</text>
+  <text x="708" y="526" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#d97706">In-house engine · no LangGraph · shared node results</text>
+
+  <line x1="476" y1="536" x2="476" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="536" x2="708" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="536" x2="940" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <rect x="372" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="476" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">Node Output</text>
+  <text x="476" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">Intermediate results</text>
+  <rect x="604" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="708" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">Node Output</text>
+  <text x="708" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">Intermediate results</text>
+  <rect x="836" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="940" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">Node Output</text>
+  <text x="940" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">Intermediate results</text>
+
+  <text x="708" y="650" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#94a3b8">Orchestration needs only FastAPI + SQLite; fully self-hostable</text>
+  <text x="708" y="676" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Six node types: Trigger · LLM · Knowledge · Tool · Condition · Response</text>
+
+  <!-- ============ Right: Response &amp; Artifacts ============ -->
+  <circle cx="1244" cy="168" r="20" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.3"/>
+  <path d="M 1244 154 v 28 M 1230 168 h 28 M 1234 158 l 20 20 M 1254 158 l -20 20" stroke="#db2777" stroke-width="2" stroke-linecap="round"/>
+  <text x="1244" y="206" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#831843">Response Agent</text>
+  <text x="1244" y="224" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#9d174d">Reply generation &amp; artifact delivery</text>
+
+  <rect x="1100" y="240" width="288" height="44" rx="9" fill="#ffffff" stroke="#ec4899" stroke-width="2"/>
+  <rect x="1114" y="253" width="18" height="18" rx="3" fill="#fce4ec" stroke="#f48fb1"/>
+  <path d="M 1118 260 h 10 M 1118 264 h 7" stroke="#db2777" stroke-width="1.4" stroke-linecap="round"/>
+  <text x="1142" y="267" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#831843">Final Reply</text>
+
+  <rect x="1100" y="296" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="321" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Streaming render</text>
+
+  <rect x="1100" y="348" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="373" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Artifact binding</text>
+
+  <rect x="1100" y="400" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="425" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Inline image preview</text>
+
+  <rect x="1100" y="452" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="477" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Cited retrieval snippets</text>
+
+  <rect x="1100" y="504" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="529" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Persist sessions / SQLite</text>
+
+  <rect x="1100" y="556" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="581" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">Research notes / interim output</text>
+
+  <line x1="1244" y1="556" x2="1244" y2="546" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="504" x2="1244" y2="494" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="452" x2="1244" y2="442" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="400" x2="1244" y2="390" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="348" x2="1244" y2="338" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="296" x2="1244" y2="286" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+
+  <rect x="1100" y="614" width="288" height="62" rx="10" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.3"/>
+  <text x="1244" y="640" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#831843">Session records &amp; all outputs</text>
+  <text x="1244" y="658" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#ad1457">Forum Records &amp; All Research Data</text>
+
+  <text x="1100" y="712" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#d81b60">Downloads · inline images · traceable</text>
+  <text x="1100" y="738" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">Static files via /static; data in SQLite</text>
+
+  <!-- ============ Cross-section connectors ============ -->
+  <path d="M 312 246 L 350 246" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="334" y="238" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Dispatch</text>
+
+  <path d="M 332 645 L 344 645 L 344 509 L 370 509" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="352" y="690" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Data / config</text>
+
+  <path d="M 1044 581 L 1088 581" fill="none" stroke="#db2777" stroke-width="1.8" marker-end="url(#ar-pink)"/>
+
+  <path d="M 1080 660 L 1066 660 L 1066 509 L 1046 509" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="1050" y="694" text-anchor="end" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Session feedback</text>
+
+  <!-- ============ Legend and caption ============ -->
+  <line x1="440" y1="826" x2="486" y2="826" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar-solid)"/>
+  <text x="496" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Main flow</text>
+  <line x1="620" y1="826" x2="666" y2="826" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="676" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Auxiliary / feedback</text>
+  <line x1="820" y1="826" x2="866" y2="826" stroke="#d97706" stroke-width="1.6" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <text x="876" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">Interaction / reflection</text>
+
+  <text x="720" y="860" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" fill="#94a3b8">Figure 1 · AgentFlow system architecture: Input &amp; Data → Orchestration → Response &amp; Artifacts (Apache-2.0, self-hosted first)</text>
+</svg>

@@ -66,6 +66,14 @@ class RateLimiter:
             remaining = max(0, max_requests - count)
             return count <= max_requests, remaining
 
+    def reset(self) -> None:
+        """清空内存计数。
+
+        限流器是全局单例，计数会一直累积。测试之间必须清掉，
+        否则后面的用例会莫名撞上前面积累的配额。
+        """
+        self._memory_store.clear()
+
 
 # 全局速率限制器
 _limiter: Optional[RateLimiter] = None

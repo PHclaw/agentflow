@@ -1,42 +1,32 @@
 import { memo } from 'react'
-import { Handle, Position, NodeProps } from 'reactflow'
+import { NodeProps } from 'reactflow'
 import { Send } from 'lucide-react'
+import { NodeBadge, NodeMeta, NodeShell, NodeTitle } from './NodeShell'
 
-export const ResponseNode = memo(({ data, selected }: NodeProps) => {
+/**
+ * 回复节点：工作流的终点。
+ *
+ * 色条用**中性灰**而不是 2.0.2 的 `indigo-500` —— 2.0.2 的 LLM 节点用的是
+ * `purple-500`，而它的配置把 indigo / purple 映射到同一个色阶，两种节点会
+ * 长得一模一样。终点节点本来就「不再加工」，用中性表达比再占一个彩色更准。
+ */
+export const ResponseNode = memo(({ id, data, selected }: NodeProps) => {
   return (
-    <div className={`relative group ${selected ? 'scale-105' : ''} transition-transform`}>
-      {/* Glow effect */}
-      <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition-opacity" />
-      
-      {/* Main card */}
-      <div className="relative bg-white rounded-2xl border-2 border-indigo-200 shadow-lg overflow-hidden min-w-[180px]">
-        {/* Gradient header */}
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-white/20">
-              <Send className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-sm font-semibold text-white">响应</span>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-4">
-          <div className="font-medium text-slate-900 mb-1">{data.label}</div>
-          <div className="text-xs text-slate-500 mb-2">{data.description}</div>
-          <div className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg inline-block">
-            回复用户
-          </div>
-        </div>
-
-        {/* Handles */}
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-indigo-500 !border-2 !border-white !top-[-6px]"
-        />
+    <NodeShell
+      id={id}
+      selected={selected}
+      accent="bg-slate-500"
+      icon={<Send className="w-3.5 h-3.5" />}
+      typeLabel="回复"
+      hasTarget
+      hasSource={false}
+    >
+      <NodeTitle>{data.label}</NodeTitle>
+      {data.description && <NodeMeta>{data.description}</NodeMeta>}
+      <div>
+        <NodeBadge>回复用户</NodeBadge>
       </div>
-    </div>
+    </NodeShell>
   )
 })
 

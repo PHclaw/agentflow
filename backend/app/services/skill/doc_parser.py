@@ -16,9 +16,12 @@ from app.logging_setup import get_logger
 
 logger = get_logger("docparse")
 
-from app.core.paths import generated_root
+from app.core.paths import generated_root, repo_root
 
 GENERATED_DIR = generated_root()
+# ROOT 此前未定义，且用在模块顶层 —— 导入这个模块就会抛
+# NameError，导致所有走文档解析的技能全部不可用
+ROOT = repo_root()
 DEFAULT_JAR = ROOT / "demo-1.1-SNAPSHOT.jar"
 
 PARSEABLE_SUFFIX = {

@@ -53,3 +53,32 @@ def uploads_root() -> Path:
 
 def models_catalog_path() -> Path:
     return repo_root() / "config" / "models.json"
+
+
+def pi_workspace_root() -> Path:
+    """PiAgent 工作区根目录（每个 Agent 在其下占一个子目录）。"""
+    from app.core.config import settings
+
+    env = (settings.PIAGENT_WORKSPACE_ROOT or "").strip()
+    path = Path(env).resolve() if env else (uploads_root() / "pi_workspace")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def pi_agent_workspace(agent_id: str) -> Path:
+    """单个 Agent 的独立工作区。
+
+    agent_id 会被净化为单个目录名，避免通过 ../ 逃逸出工作区根目录。
+    """
+    safe_id = Path(str(agent_id)).name.strip() or "default"
+    path = pi_workspace_root() / safe_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def pi_skills_root() -> Path:
+    """PiAgent 可加载的技能目录。"""
+    from app.core.config import settings
+
+    env = (settings.PIAGENT_SKILLS_DIR or "").strip()
+    return Path(env).resolve() if env else skills_root()

@@ -1,28 +1,39 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
-  Send,
+  ArrowUp,
   Bot,
-  User,
-  Settings,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
-  RefreshCw,
-  MoreVertical,
-  MessageSquare,
-  Sparkles,
   BookOpen,
-  Zap,
+  Brain,
   Check,
+  ChevronDown,
+  Copy,
+  Download,
+  MessageSquare,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Settings,
+  Sparkles,
+  Square,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
   X,
+  Zap,
 } from 'lucide-react'
 import { api } from '../services/api'
-import { chat as chatApi } from '../services/api'
-import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
-import { Card } from '../components/ui/Card'
+import {
+  chat as chatApi,
+  pi,
+  type PiArtifact,
+  type PiStatus,
+  type UploadedFile,
+} from '../services/api'
+import { Markdown } from '../components/ui/Markdown'
+import { useToastStore } from '../stores'
+import { Modal } from '../components/ui/Modal'
 
 interface Message {
   id: string
@@ -31,6 +42,10 @@ interface Message {
   timestamp: string
   sources?: any[]
   thinking?: string
+  /** PiAgent 引擎生成的可下载附件 */
+  files?: PiArtifact[]
+  /** 用户随这条消息上传到工作目录的文件 */
+  attachments?: UploadedFile[]
 }
 
 interface AgentInfo {
@@ -40,19 +55,126 @@ interface AgentInfo {
   model: string
 }
 
-export default function ChatPage() {
-  const { id } = useParams<{ id: string }>()
+type Engine = 'builtin' | 'pi'
+
+/** PiAgent 运行过程中的实时事件状态 */
+interface PiLiveState {
+  logs: string[]
+  /**
+   * 当前正在执行的工具调用（只保留最近一条）。
+   *
+   * 此前是累积数组，30 多次工具调用会把整块屏幕铺满，
+   * 真正要看的正文被挤到很下面。现在只显示当前这一条，
+   * 新调用到来时替换掉旧的；回复生成完毕即不再显示。
+   */
+  currentTool: string
+  thinking: string
+  text: string
+}
+
+/** 输入框上方附挂的功能项 */
+interface PanelItem {
+  key: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  hint?: string
+  active?: boolean
+  disabled?: boolean
+  onClick: () => void
+}
+
+const EMPTY_PI_LIVE: PiLiveState = { logs: [], currentTool: '', thinking: '', text: '' }
+
+interface ChatSessionProps {
+  /** Agent id */
+  id: string
+  /** 从技能广场进入时携带的技能 id：自动启用该技能 */
+  skillId?: string
+  /** 技能流程下切换 Agent 的回调（不传则不显示切换入口） */
+  onSwitchAgent?: () => void
+}
+
+/** 单个文件上限，与后端 MAX_UPLOAD_BYTES 保持一致 */
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+/** 单条消息最多带的文件数 */
+const MAX_FILES_PER_MESSAGE = 50
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** 图片类产物：内联渲染，省得用户只看到一个文件名 */
+const IMAGE_ARTIFACT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i
+const isImageArtifact = (file: PiArtifact) => IMAGE_ARTIFACT.test(file.name)
+
+/**
+ * 产物图片预览。
+ *
+ * 工作区文件的 URL 需要带 Bearer 头，`<img src>` 直接用会 401，
+ * 所以先取成 blob 再转成 object URL；卸载时回收，避免内存泄漏。
+ * 取不到就静默失败，只保留下载入口。
+ */
+function ArtifactImage({ file, agentId }: { file: PiArtifact; agentId?: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    let objectUrl: string | null = null
+    ;(async () => {
+      try {
+        const blob = file.url
+          ? await api.getBlob(file.url)
+          : agentId
+            ? await pi.downloadArtifact(agentId, file.path)
+            : null
+        if (!blob) return
+        if (!alive) return
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      } catch {
+        /* 预览失败不影响下载 */
+      }
+    })()
+    return () => {
+      alive = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file.url, file.path, agentId])
+
+  if (!src) return null
+  return (
+    <img
+      src={src}
+      alt={file.name}
+      className="w-full max-h-[420px] object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-white"
+    />
+  )
+}
+
+export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const navigate = useNavigate()
+  // 从「对话记录」点进来时会带?session=xxx，据此加载指定的那一段
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sessionParam = searchParams.get('session')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  
+
   const [agent, setAgent] = useState<AgentInfo | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [inputMessage, setInputMessage] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [streamingContent, setStreamingContent] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  /**
+   * 「新建对话」后置位：下一条消息要强制另起一段会话。
+   * 只清界面不够 —— 后端默认会复用最近一次会话，消息会被追加回旧记录，
+   * 模型侧也仍带着上一段的上下文。
+   */
+  const [startNewSession, setStartNewSession] = useState(false)
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, string>>({})
   const [settings, setSettings] = useState({
     model: 'gpt-4o-mini',
@@ -60,14 +182,74 @@ export default function ChatPage() {
     systemPrompt: '',
   })
 
+  // PiAgent 引擎相关状态
+  const [engine, setEngine] = useState<Engine>('builtin')
+  const [piStatus, setPiStatus] = useState<PiStatus | null>(null)
+  const [piLive, setPiLive] = useState<PiLiveState>(EMPTY_PI_LIVE)
+  const [expandedThinking, setExpandedThinking] = useState<Record<string, boolean>>({})
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([])
+  /** 待发送的附件（已上传到该 Agent 的工作目录） */
+  const [attachments, setAttachments] = useState<UploadedFile[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  /** 该 Agent 是否配置了工作流（配了则由工作流编排执行） */
+  const [hasWorkflow, setHasWorkflow] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
+
+  const piReady = Boolean(piStatus?.enabled && piStatus?.available)
+
+  /**
+   * 实际生效的引擎。
+   *
+   * 配了工作流的 Agent 只能走内置链路（后端只在 /chat 上按编排执行，
+   * AI Agent 引擎不读工作流）。
+   *
+   * 这里用派生值而不是用 effect 去改 engine：loadPiStatus 会在拿到状态后
+   * 无条件 setEngine('pi')，而 React 严格模式下 effect 会执行两次，第二个
+   * 请求返回时 piReady 值没变、依赖不触发，兜底的 effect 不会重跑，
+   * 引擎就会停在 pi。派生值不受这个竞态影响。
+   */
+  const effectiveEngine: Engine = hasWorkflow ? 'builtin' : engine
+  const isEmptyState = messages.length === 0 && !isLoading && !streamingContent
+
   useEffect(() => {
     loadAgent()
     loadHistory()
-  }, [id])
+    loadPiStatus()
+    // sessionParam 也要进依赖：从「对话记录」切到另一段时要重新加载
+  }, [id, sessionParam])
+
+  const loadPiStatus = async () => {
+    try {
+      const status = await pi.status()
+      setPiStatus(status)
+      // pi 引擎就绪时默认使用它
+      if (status.enabled && status.available) setEngine('pi')
+    } catch {
+      setPiStatus(null)
+    }
+  }
 
   useEffect(() => {
     scrollToBottom()
   }, [messages, streamingContent])
+
+  // 从技能广场进入：自动启用该技能。
+  // 技能只有 AI Agent 引擎支持（内置链路不传 skills），因此同时把引擎切过去。
+  useEffect(() => {
+    if (!skillId) return
+    setSelectedSkills((prev) => (prev.includes(skillId) ? prev : [...prev, skillId]))
+    if (piReady && !hasWorkflow) setEngine('pi')
+  }, [skillId, piReady, hasWorkflow])
+
+  // 输入框随内容增高（上限 200px），与参考实现的告示输入区一致
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+  }, [inputMessage])
 
   const loadAgent = async () => {
     try {
@@ -76,8 +258,10 @@ export default function ChatPage() {
         id: data.id,
         name: data.name,
         description: data.description || '',
-        model: data.model || 'gpt-4o-mini',
+        model: data.model || '',
       })
+      const nodes = data.workflow_definition?.nodes ?? []
+      setHasWorkflow(nodes.length > 0)
     } catch (error) {
       console.error('Failed to load agent:', error)
     }
@@ -85,12 +269,18 @@ export default function ChatPage() {
 
   const loadHistory = async () => {
     try {
-      const data = await api.get(`/chat/${id}/history`)
+      // 带session 参数时加载指定的那一段，否则取最近一次
+      const data: any = await chatApi.history(id!, sessionParam || undefined)
       if (data?.messages) {
         setMessages(data.messages)
       }
+      // 必须把会话 id 一起恢复：它既是历史主键也是 pi 的会话键，
+      // 只回填消息而丢掉它，刷新后下一轮会另起一段对话、pi 也接不上上下文
+      if (data?.session_id) {
+        setConversationId(data.session_id)
+      }
     } catch (error) {
-      // No chat history yet
+      // 尚无历史会话，不算错误
     }
   }
 
@@ -107,6 +297,35 @@ export default function ChatPage() {
 
   const copyMessage = (content: string) => {
     navigator.clipboard.writeText(content)
+  }
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
+
+  const toggleThinking = (key: string) =>
+    setExpandedThinking((prev) => ({ ...prev, [key]: !prev[key] }))
+
+  /** 下载 PiAgent 工作区产物 */
+  const handleDownloadArtifact = async (file: PiArtifact) => {
+    try {
+      // 优先用产物自带的 url：工作流里的智能体节点可能指向另一个 Agent，
+      // 它的 url 里带的是真正持有该工作区的 agent id，
+      // 若一律用当前 id 拼路径会 404
+      const blob = file.url
+        ? await api.getBlob(file.url)
+        : await pi.downloadArtifact(id!, file.path)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
+    }
   }
 
   const handleFeedback = async (messageId: string, rating: string) => {
@@ -134,382 +353,901 @@ export default function ChatPage() {
     setTimeout(() => handleSend(), 100)
   }
 
-  const handleSend = async () => {
-    if (!inputMessage.trim() || isLoading) return
+  const handleStop = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setIsLoading(false)
+  }
 
+  const handleNewChat = () => {
+    setMessages([])
+    setConversationId(null)
+    setStartNewSession(true)
+    // 同时清掉地址栏上的 ?session=，否则刷新又会跳回刚才看的那一段
+    if (sessionParam) setSearchParams({}, { replace: true })
+    setStreamingContent('')
+    setPiLive(EMPTY_PI_LIVE)
+    setInputMessage('')
+    inputRef.current?.focus()
+  }
+
+  /** 内置链路：直连大模型或按工作流编排执行
+   *  （SSE：session / chunk / done / error，done 可能带 files）
+   */
+  const sendWithBuiltin = async (
+    message: string,
+    signal: AbortSignal,
+    newSession = false
+  ): Promise<{ content: string; files: PiArtifact[] }> => {
+    let fullContent = ''
+    let files: PiArtifact[] = []
+
+    for await (const event of chatApi.stream(id!, message, conversationId, signal, newSession)) {
+      if (event.type === 'session' && event.session_id) {
+        setConversationId(event.session_id)
+      } else if (event.type === 'chunk' && event.content) {
+        fullContent += event.content
+        setStreamingContent(fullContent)
+      } else if (event.type === 'done') {
+        if (event.content) fullContent = event.content
+        if (event.session_id) setConversationId(event.session_id)
+        // 工作流里的智能体节点生成的产物要作为附件展示
+        if (event.files?.length) files = event.files
+      } else if (event.type === 'error') {
+        throw new Error(event.error || '对话失败')
+      }
+    }
+
+    return {
+      content: fullContent || '抱歉，我暂时无法回答这个问题。',
+      files,
+    }
+  }
+
+  /** PiAgent 链路：外部 agent CLI，带思考/工具调用/产物 */
+  const sendWithPi = async (message: string, signal: AbortSignal, newSession = false) => {
+    let text = ''
+    let thinking = ''
+    const logs: string[] = []
+    let files: PiArtifact[] = []
+
+    setPiLive(EMPTY_PI_LIVE)
+
+    for await (const event of pi.stream(
+      id!,
+      {
+        message,
+        // 会话 id 同时是 pi 的会话键（后端用 chat_sessions.id），
+        // 所以刷新后接着上次聊，pi 侧的上下文也在
+        session_id: conversationId,
+        new_session: newSession,
+        skills: selectedSkills.length ? selectedSkills : undefined,
+      },
+      signal
+    )) {
+      switch (event.type) {
+        case 'log':
+          if (event.content) {
+            logs.push(event.content)
+            setPiLive((prev) => ({ ...prev, logs: [...logs] }))
+          }
+          break
+        case 'thinking':
+          thinking += event.content || ''
+          setPiLive((prev) => ({ ...prev, thinking }))
+          break
+        case 'tool_call':
+          // 只保留最近一条：新调用直接顶掉旧的，避免堆成几十个标签
+          if (event.content) {
+            setPiLive((prev) => ({ ...prev, currentTool: event.content! }))
+          }
+          break
+        case 'text':
+          text += event.content || ''
+          setPiLive((prev) => ({ ...prev, text }))
+          break
+        case 'done':
+          if (event.content) text = event.content
+          files = event.files || []
+          if (event.session_id) setConversationId(event.session_id)
+          break
+        case 'error':
+          throw new Error(event.content || 'AI Agent 执行失败')
+      }
+    }
+
+    return {
+      content: text || '（AI Agent 未返回内容）',
+      files,
+      thinking,
+    }
+  }
+
+  const handleSend = async () => {
+    if ((!inputMessage.trim() && attachments.length === 0) || isLoading || uploading) return
+
+    const pendingFiles = attachments
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: inputMessage,
       timestamp: new Date().toISOString(),
+      ...(pendingFiles.length ? { attachments: pendingFiles } : {}),
     }
 
     setMessages((prev) => [...prev, userMessage])
     const currentInput = inputMessage
     setInputMessage('')
+    setAttachments([])
     setIsLoading(true)
     setStreamingContent('')
+    setShowPanel(false)
+
+    // 附件清单随消息一起给模型，否则它不知道工作目录里多了哪些文件
+    const outgoingText =
+      pendingFiles.length > 0
+        ? `${currentInput}\n\n[用户上传了以下文件，已存放在工作目录：${pendingFiles
+            .map((f) => f.name)
+            .join('、')}]`
+        : currentInput
+
+    const controller = new AbortController()
+    abortRef.current = controller
 
     try {
-      const response = await fetch(`/api/v1/chat/${id}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(localStorage.getItem('token') ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {}),
-        },
-        body: JSON.stringify({
-          message: currentInput,
-          session_id: conversationId,
-          stream: true,
-        }),
-      })
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let fullContent = ''
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          const chunk = decoder.decode(value)
-          const lines = chunk.split('\n')
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const data = JSON.parse(line.slice(6))
-                if (data.type === 'session' && data.session_id) {
-                  setConversationId(data.session_id)
-                } else if (data.type === 'chunk' && data.content) {
-                  fullContent += data.content
-                  setStreamingContent(fullContent)
-                } else if (data.type === 'done') {
-                  fullContent = data.content || fullContent
-                  if (data.session_id) setConversationId(data.session_id)
-                }
-              } catch {}
-            }
-          }
-        }
-      }
-
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: fullContent || '抱歉，我暂时无法回答这个问题。',
+        content: '',
         timestamp: new Date().toISOString(),
+      }
+
+      // 「新建对话」只对紧接着的这一条生效，标记用掉即清
+      const newSession = startNewSession
+      if (startNewSession) setStartNewSession(false)
+
+      if (effectiveEngine === 'pi') {
+        const result = await sendWithPi(outgoingText, controller.signal, newSession)
+        assistantMessage.content = result.content
+        assistantMessage.files = result.files
+        assistantMessage.thinking = result.thinking
+      } else {
+        const result = await sendWithBuiltin(outgoingText, controller.signal, newSession)
+        assistantMessage.content = result.content
+        if (result.files.length) assistantMessage.files = result.files
       }
 
       setMessages((prev) => [...prev, assistantMessage])
-    } catch (error) {
-      console.error('Chat error:', error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '抱歉，发生了错误。请稍后重试。',
-        timestamp: new Date().toISOString(),
+    } catch (error: any) {
+      // 用户主动停止不算错误
+      if (error?.name !== 'AbortError') {
+        console.error('Chat error:', error)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: error?.message || '抱歉，发生了错误。请稍后重试。',
+            timestamp: new Date().toISOString(),
+          },
+        ])
       }
-      setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsLoading(false)
       setStreamingContent('')
+      setPiLive(EMPTY_PI_LIVE)
+      abortRef.current = null
     }
   }
 
+  // ---------------------------------------------------------------- 输入区
+
+  /**
+   * 选择文件后立即上传到该 Agent 的工作目录。
+   *
+   * 之所以先传再发消息：文件落在模型运行时的工作目录里，
+   * 消息里带上文件名，模型才能读到这些内容；
+   * 若先发消息再传，模型这一轮根本看不到文件。
+   */
+  const handlePickFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    const { addToast } = useToastStore.getState()
+    const incoming = Array.from(fileList)
+    const room = MAX_FILES_PER_MESSAGE - attachments.length
+    if (room <= 0) {
+      addToast({ type: 'error', message: `单条消息最多 ${MAX_FILES_PER_MESSAGE} 个文件` })
+      return
+    }
+
+    setUploading(true)
+    const accepted: UploadedFile[] = []
+    for (const file of incoming.slice(0, room)) {
+      if (file.size > MAX_FILE_BYTES) {
+        addToast({ type: 'error', message: `${file.name} 超过 10MB 上限` })
+        continue
+      }
+      try {
+        const uploaded = await pi.uploadToWorkspace(id!, file)
+        accepted.push(uploaded)
+      } catch (error: any) {
+        addToast({
+          type: 'error',
+          message: `${file.name} 上传失败：${error?.message || '未知错误'}`,
+        })
+      }
+    }
+    if (accepted.length) setAttachments((prev) => [...prev, ...accepted])
+    if (incoming.length > room) {
+      addToast({ type: 'error', message: `一次最多 ${MAX_FILES_PER_MESSAGE} 个文件，多余的已忽略` })
+    }
+    setUploading(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const removeAttachment = (name: string) => {
+    setAttachments((prev) => prev.filter((f) => f.name !== name))
+  }
+
+  /** 下载用户上传的文件 */
+  const handleDownloadUploaded = async (file: UploadedFile) => {
+    try {
+      const blob = await pi.downloadWorkspaceFile(id!, file.name)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
+    }
+  }
+
+  /** 输入框上方附挂的功能项。全部对应真实可用的能力，不放占位按钮。*/
+  const panelItems: PanelItem[] = [
+    {
+      key: 'upload',
+      icon: Paperclip,
+      label: '添加文件',
+      hint: `上传到该 Agent 的工作目录，单个不超过 10MB、最多 ${MAX_FILES_PER_MESSAGE} 个`,
+      onClick: () => fileInputRef.current?.click(),
+    },
+    {
+      key: 'engine',
+      icon: Sparkles,
+      label: hasWorkflow ? '工作流编排' : engine === 'pi' ? 'AI Agent 引擎' : '内置模型',
+      hint: hasWorkflow
+        ? '该 Agent 已配置工作流，按画布编排执行'
+        : piReady
+          ? '点击切换引擎'
+          : '仅内置模型可用',
+      active: true,
+      // 配了工作流就不能切换引擎：工作流只在编排链路上生效
+      disabled: !piReady || hasWorkflow,
+      onClick: () => setEngine((prev) => (prev === 'pi' ? 'builtin' : 'pi')),
+    },
+  ]
+
+  if (effectiveEngine === 'pi' && piStatus?.skills?.length) {
+    const count = selectedSkills.length
+    panelItems.push({
+      key: 'skills',
+      icon: Wrench,
+      label: count ? `已选 ${count} 项技能` : '选择技能',
+      hint: '来自仓库 skills/ 目录',
+      active: count > 0,
+      onClick: () => {
+        setShowPanel(false)
+        setShowSettings(true)
+      },
+    })
+  }
+
+  const renderComposer = (variant: 'hero' | 'docked') => (
+    <div className={variant === 'hero' ? 'w-full max-w-2xl' : 'w-full max-w-2xl mx-auto'}>
+      {/* 已启用的技能：会随每次请求带给 AI Agent 引擎 */}
+      {selectedSkills.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {selectedSkills.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 animate-fade-in"
+            >
+              <Wrench className="w-3 h-3" />
+              {name}
+              <button
+                type="button"
+                onClick={() => setSelectedSkills((prev) => prev.filter((s) => s !== name))}
+                title="取消使用该技能"
+                className="p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {hasWorkflow && (
+        <p className="mb-2 text-xs text-slate-400">
+          该 Agent 已配置工作流，对话按工作流编排执行。
+        </p>
+      )}
+
+      {hasWorkflow && selectedSkills.length > 0 && (
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
+          工作流编排优先，已选技能不会随本次对话执行；清空工作流后技能才生效。
+        </p>
+      )}
+
+      {skillId && !piReady && !hasWorkflow && (
+        <p className="mb-2 text-xs text-amber-600 dark:text-amber-500">
+          该技能依赖 AI Agent 引擎，当前未启用；对话仍可继续，但技能不会被执行。
+        </p>
+      )}
+
+      {/* 附挂功能项 */}
+      {showPanel && panelItems.length > 0 && (
+        <div className="mb-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 shadow-sm">
+          {panelItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={item.onClick}
+              disabled={item.disabled}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-left text-sm transition-colors ${
+                item.disabled
+                  ? 'opacity-40 cursor-not-allowed text-slate-400'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <item.icon className="w-4 h-4 flex-shrink-0 text-slate-400" />
+              <span className="font-medium">{item.label}</span>
+              {item.hint && (
+                <span className="text-xs font-normal text-slate-400">{item.hint}</span>
+              )}
+              {item.active && <Check className="w-4 h-4 ml-auto text-slate-900 dark:text-white" />}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 输入卡片 */}
+      <div
+        className="rounded-[26px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_2px_20px_rgba(15,23,42,0.06)] dark:shadow-none focus-within:border-slate-300 dark:focus-within:border-slate-700 transition-colors"
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+          handlePickFiles(e.dataTransfer.files)
+        }}
+      >
+        {/* 待发送的附件 */}
+        {attachments.length > 0 && (
+          <div className="px-5 pt-4 flex flex-wrap gap-2">
+            {attachments.map((file) => (
+              <span
+                key={file.name}
+                className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 animate-fade-in"
+              >
+                <Paperclip className="w-3 h-3 flex-shrink-0" />
+                <span className="max-w-[160px] truncate">{file.name}</span>
+                <span className="text-slate-400">{formatBytes(file.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(file.name)}
+                  title="移除"
+                  className="p-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {uploading && (
+          <p className="px-5 pt-3 text-xs text-slate-400">正在上传到工作目录…</p>
+        )}
+
+        {dragOver && (
+          <p className="px-5 pt-3 text-xs text-brand-500">松开即可上传到工作目录</p>
+        )}
+
+        {/* 真实的文件选择控件：面板里的「添加文件」点它 */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => handlePickFiles(e.target.files)}
+        />
+        <textarea
+          ref={inputRef}
+          value={inputMessage}
+          onChange={(e) => setInputMessage(e.target.value)}
+          onPaste={(e) => {
+            // 粘贴截图/文件时直接收下，剪贴板里的图片在对话里很常用
+            const files = Array.from(e.clipboardData?.files ?? [])
+            if (files.length > 0) {
+              e.preventDefault()
+              handlePickFiles(files as unknown as FileList)
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="尽管问，带图也行"
+          rows={1}
+          /*
+           * 这里要显式清掉焦点环：
+           * index.css 有一条全局 *:focus-visible { ring-2 ring-brand-500 }，
+           * ring 是 box-shadow 而非 outline，所以只写 focus:outline-none 挡不住它，
+           * 会在输入框四周描出一圈紫色方框（且不跟随卡片圆角）。
+           * 聚焦反馈由外层卡片的 focus-within:border-* 承担。
+           */
+          className="w-full bg-transparent px-5 pt-4 pb-1 text-[15px] text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          style={{ maxHeight: '200px' }}
+        />
+
+        <div className="flex items-center justify-between px-3.5 pb-3 pt-1">
+          {panelItems.length > 0 ? (
+            <button
+              onClick={() => setShowPanel((v) => !v)}
+              title="更多能力"
+              className={`p-2 rounded-full transition-colors ${
+                showPanel
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              <Plus
+                className={`w-4 h-4 transition-transform ${showPanel ? 'rotate-45' : ''}`}
+              />
+            </button>
+          ) : (
+            <span />
+          )}
+
+          <button
+            onClick={isLoading ? handleStop : handleSend}
+            disabled={!isLoading && !inputMessage.trim()}
+            title={isLoading ? '停止生成' : '发送'}
+            className={`w-9 h-9 flex items-center justify-center rounded-full transition-colors ${
+              isLoading
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                : inputMessage.trim()
+                  ? 'bg-slate-900 text-white hover:bg-slate-700 dark:bg-white dark:text-slate-900'
+                  : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            {isLoading ? <Square className="w-3.5 h-3.5 fill-current" /> : <ArrowUp className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+
+  // ---------------------------------------------------------------- 消息渲染
+
+  const renderThinking = (key: string, thinking: string, streaming = false) => {
+    const open = Boolean(expandedThinking[key])
+    return (
+      <button
+        onClick={() => toggleThinking(key)}
+        className="flex items-center gap-1.5 mb-2 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+      >
+        <Brain className={`w-4 h-4 ${streaming ? 'animate-pulse' : ''}`} />
+        <span>{streaming ? '思考中…' : '思考已完成'}</span>
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+    )
+  }
+
+  const assistantAvatar = (
+    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center">
+      <Sparkles className="w-3.5 h-3.5 text-white" />
+    </div>
+  )
+
+  const renderArtifacts = (files: PiArtifact[]) => (
+    <div className="mt-3 space-y-2">
+      {files.filter(isImageArtifact).map((file) => (
+        <ArtifactImage key={'preview-' + file.path} file={file} agentId={id} />
+      ))}
+      {files.map((file) => (
+        <button
+          key={file.path}
+          onClick={() => handleDownloadArtifact(file)}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 text-sm text-left transition-colors"
+        >
+          <Paperclip className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          <span className="flex-1 truncate">{file.name}</span>
+          <span className="text-xs text-slate-400">{formatSize(file.size)}</span>
+          <Download className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        </button>
+      ))}
+    </div>
+  )
+
+  /**
+   * 当前工具调用指示：只显示一条，带转圈动画。
+   * 新调用到来时内容原地替换；回复生成完毕后整个不再显示。
+   */
+  const renderCurrentTool = (currentTool: string) => (
+    <div className="mt-3">
+      <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 animate-fade-in">
+        <RefreshCw className="w-3 h-3 animate-spin" />
+        {currentTool}
+      </span>
+    </div>
+  )
+
+  /** 助手消息下方的操作条；只放已实现的能力 */
+  const renderActions = (message: Message, extra?: React.ReactNode) => (
+    <div className="flex items-center gap-1 mt-2 -ml-1.5 text-slate-400">
+      <button
+        onClick={() => copyMessage(message.content)}
+        title="复制"
+        className="p-1.5 rounded-lg hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+      >
+        <Copy className="w-3.5 h-3.5" />
+      </button>
+      {extra}
+      {message.role === 'assistant' && (
+        <>
+          <button
+            onClick={handleRegenerate}
+            title="重新生成"
+            className="p-1.5 rounded-lg hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleFeedback(message.id, 'up')}
+            title="赞同"
+            className={`p-1.5 rounded-lg ${
+              feedbackGiven[message.id] === 'up'
+                ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
+                : 'hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ThumbsUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleFeedback(message.id, 'down')}
+            title="反对"
+            className={`p-1.5 rounded-lg ${
+              feedbackGiven[message.id] === 'down'
+                ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                : 'hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ThumbsDown className="w-3.5 h-3.5" />
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  // ---------------------------------------------------------------- 页面
+
   return (
-    <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between max-w-4xl mx-auto">
-          <div className="flex items-center gap-4">
+    /*
+      h-full 而不是 h-screen。
+      本页渲染在带移动顶栏和底部导航的 AppLayout 里，h-screen（= 整个视口高）
+      会比可用空间高出正好「顶栏 + 底栏」，底部输入框被切在屏幕外。
+      h-full 取的是 main 的内容框高度，也就是「视口 - 顶栏 - 底栏预留」。
+    */
+    <div className="h-full flex flex-col bg-white dark:bg-slate-950">
+      {/* 顶栏：保持极简，仅保留导航与必要控制 */}
+      <header className="flex-shrink-0 px-4 py-3">
+        <div className="flex items-center justify-between max-w-3xl mx-auto">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => navigate(-1)}
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+              title="返回"
+              className="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5" />
+              <ArrowLeft className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h1 className="font-semibold text-slate-900 dark:text-white">
-                  {agent?.name || 'AI Assistant'}
-                </h1>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {agent?.model || 'gpt-4o-mini'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+              onClick={() => setShowSettings((v) => !v)}
+              title="对话设置"
+              className="flex items-center gap-1 min-w-0 px-1 text-[15px] font-medium text-slate-900 dark:text-white hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
             >
-              <Settings className="w-5 h-5" />
+              <span className="truncate max-w-[40vw]">{agent?.name || '新对话'}</span>
+              <ChevronDown
+                className={`w-4 h-4 flex-shrink-0 transition-transform ${
+                  showSettings ? 'rotate-180' : ''
+                }`}
+              />
             </button>
-            <button className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
-              <MoreVertical className="w-5 h-5" />
+          </div>
+
+          <div className="flex items-center gap-1">
+            {onSwitchAgent && (
+              <button
+                onClick={onSwitchAgent}
+                title="换一个 Agent 使用该技能"
+                className="px-2.5 py-1.5 rounded-lg text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+              >
+                切换 Agent
+              </button>
+            )}
+            {!isEmptyState && (
+              <button
+                onClick={handleNewChat}
+                title="新对话"
+                className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={() => setShowSettings((v) => !v)}
+              title="对话设置"
+              className={`p-2 rounded-lg transition-colors ${
+                showSettings
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                  : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
             </button>
           </div>
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto">
-        {/* Settings Panel */}
-        {showSettings && (
-          <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-6 py-4">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-slate-900 dark:text-white">对话设置</h3>
-                <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
-                  <X className="w-4 h-4 text-slate-500" />
-                </button>
+      {/* 对话设置：浮窗呈现。内容与之前的行内面板完全一致，
+          只是容器换成 Modal（自带遮罩、ESC 关闭、点击遮罩关闭、锁定背景滚动） */}
+      <Modal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        title="对话设置"
+        size="full"
+      >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">模型</label>
+                {/* 只读展示，不做选择器。
+                    ChatRequest 里没有 model 字段，选中的值从来不会发给后端 ——
+                    之前这里是个纯装饰的下拉框，看着能调模型，实际改了没用。
+                    要按会话切模型需要先在后端开这个口子。 */}
+                <div className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm text-slate-600 dark:text-slate-300">
+                  {agent?.model || '跟随「模型配置」中当前生效的模型'}
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">模型</label>
-                  <select
-                    value={settings.model}
-                    onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
-                  >
-                    <option value="gpt-4o-mini">GPT-4o Mini</option>
-                    <option value="gpt-4o">GPT-4o</option>
-                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                    <option value="deepseek-chat">DeepSeek V3</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">温度: {settings.temperature}</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={settings.temperature}
-                    onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
-                    className="w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">系统提示词</label>
-                  <input
-                    type="text"
-                    value={settings.systemPrompt}
-                    onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
-                    placeholder="自定义系统提示词..."
-                    className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  温度: {settings.temperature}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={settings.temperature}
+                  onChange={(e) => setSettings({ ...settings, temperature: parseFloat(e.target.value) })}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">系统提示词</label>
+                <input
+                  type="text"
+                  value={settings.systemPrompt}
+                  onChange={(e) => setSettings({ ...settings, systemPrompt: e.target.value })}
+                  placeholder="（Agent 侧配置优先）"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                />
               </div>
             </div>
+
+            {effectiveEngine === 'pi' && (
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                <label className="block text-xs font-medium text-slate-500 mb-2">
+                  启用技能
+                  <span className="ml-2 font-normal text-slate-400">
+                    来自仓库 skills/ 目录，不选则不加载任何技能
+                  </span>
+                </label>
+                {piStatus?.skills?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {piStatus.skills.map((name) => {
+                      const active = selectedSkills.includes(name)
+                      return (
+                        <button
+                          key={name}
+                          onClick={() =>
+                            setSelectedSkills((prev) =>
+                              prev.includes(name) ? prev.filter((s) => s !== name) : [...prev, name]
+                            )
+                          }
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                            active
+                              ? 'bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 dark:border-white'
+                              : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400'
+                          }`}
+                        >
+                          {active && <Check className="w-3 h-3" />}
+                          {name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-400">未发现可用技能</p>
+                )}
+              </div>
+            )}
+      </Modal>
+
+      {isEmptyState ? (
+        /* 空状态：大字标题 + 居中输入区 */
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16 overflow-y-auto">
+          <div className="w-full max-w-2xl text-center mb-8">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-4 break-words">
+              {agent?.name || 'AI Agent'}
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400">
+              {agent?.description || '我是您的智能助手，可以回答问题、帮助完成任务。'}
+            </p>
           </div>
-        )}
 
-        <div className="max-w-4xl mx-auto px-6 py-8">
-          {messages.length === 0 && !isLoading && (
-            <div className="text-center py-16">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-500/20">
-                <Sparkles className="w-10 h-10 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-3">
-                开始与 {agent?.name || 'AI'} 对话
-              </h2>
-              <p className="text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8">
-                {agent?.description || '我是您的智能助手，可以回答问题、帮助完成任务。'}
-              </p>
-              
-              {/* Quick suggestions */}
-              <div className="flex flex-wrap justify-center gap-3">
-                {[
-                  { icon: BookOpen, text: '知识问答' },
-                  { icon: Zap, text: '快速生成' },
-                  { icon: MessageSquare, text: '对话咨询' },
-                ].map((suggestion, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setInputMessage(suggestion.text)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                  >
-                    <suggestion.icon className="w-4 h-4" />
-                    {suggestion.text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {renderComposer('hero')}
 
-          {/* Message list */}
-          <div className="space-y-6">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-4 ${
-                  message.role === 'user' ? 'flex-row-reverse' : ''
-                }`}
+          {/* 快捷入口 */}
+          <div className="flex flex-wrap justify-center gap-2 mt-6">
+            {[
+              { icon: BookOpen, text: '知识问答' },
+              { icon: Zap, text: '快速生成' },
+              { icon: MessageSquare, text: '对话咨询' },
+            ].map((suggestion, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  setInputMessage(suggestion.text)
+                  inputRef.current?.focus()
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-300 hover:border-slate-400 dark:hover:border-slate-600 transition-colors"
               >
-                {/* Avatar */}
-                <div
-                  className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-                    message.role === 'user'
-                      ? 'bg-indigo-500'
-                      : 'bg-gradient-to-br from-emerald-500 to-green-600'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <User className="w-5 h-5 text-white" />
-                  ) : (
-                    <Bot className="w-5 h-5 text-white" />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div
-                  className={`flex-1 max-w-2xl ${
-                    message.role === 'user' ? 'text-right' : ''
-                  }`}
-                >
-                  <div
-                    className={`inline-block p-4 rounded-2xl text-left ${
-                      message.role === 'user'
-                        ? 'bg-indigo-500 text-white rounded-tr-md'
-                        : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-tl-md shadow-sm'
-                    }`}
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
-
-                  {/* Actions */}
-                  <div
-                    className={`flex items-center gap-2 mt-2 ${
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    <button
-                      onClick={() => copyMessage(message.content)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="复制"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
-                    {message.role === 'assistant' && (
-                      <>
-                        <button
-                          onClick={() => handleFeedback(message.id, 'up')}
-                          className={`p-1.5 rounded-lg ${
-                            feedbackGiven[message.id] === 'up'
-                              ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20'
-                              : 'text-slate-400 hover:text-emerald-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                          title="赞同"
-                        >
-                          <ThumbsUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleFeedback(message.id, 'down')}
-                          className={`p-1.5 rounded-lg ${
-                            feedbackGiven[message.id] === 'down'
-                              ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
-                              : 'text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                          title="反对"
-                        >
-                          <ThumbsDown className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={handleRegenerate}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          title="重新生成"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
-                    <span className="text-xs text-slate-400 ml-2">
-                      {new Date(message.timestamp).toLocaleTimeString('zh-CN', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                <suggestion.icon className="w-3.5 h-3.5" />
+                {suggestion.text}
+              </button>
             ))}
+          </div>
+        </main>
+      ) : (
+        <>
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-6 py-6 space-y-8">
+              {messages.map((message) =>
+                message.role === 'user' ? (
+                  <div key={message.id} className="flex justify-end">
+                    <div className="max-w-[80%]">
+                      {message.attachments?.length ? (
+                        <div className="mb-1.5 flex flex-wrap justify-end gap-1.5">
+                          {message.attachments.map((file) => (
+                            <button
+                              key={file.name}
+                              onClick={() => handleDownloadUploaded(file)}
+                              title={`下载 ${file.name}`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
+                            >
+                              <Paperclip className="w-3 h-3 flex-shrink-0" />
+                              <span className="max-w-[180px] truncate">{file.name}</span>
+                              <span className="text-slate-400">{formatBytes(file.size)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2.5 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap">
+                        {message.content}
+                      </div>
+                      {renderActions(message)}
+                    </div>
+                  </div>
+                ) : (
+                  <div key={message.id} className="flex gap-3">
+                    {assistantAvatar}
+                    <div className="flex-1 min-w-0">
+                      {message.thinking
+                        ? renderThinking(message.id, message.thinking)
+                        : null}
+                      {message.thinking && expandedThinking[message.id] && (
+                        <p className="mb-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          {message.thinking}
+                        </p>
+                      )}
 
-            {/* Streaming indicator */}
-            {streamingContent && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 max-w-2xl">
-                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="whitespace-pre-wrap">{streamingContent}</span>
-                      <span className="w-2 h-5 bg-indigo-500 animate-pulse rounded" />
+                      <Markdown
+                        content={message.content}
+                        className="text-[15px] text-slate-900 dark:text-white"
+                      />
+
+                      {message.files?.length ? renderArtifacts(message.files) : null}
+
+                      {renderActions(message)}
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* 内置链路：流式正文 */}
+              {effectiveEngine === 'builtin' && streamingContent && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[15px] text-slate-900 dark:text-white">
+                      <Markdown content={streamingContent} />
+                      <span className="inline-block w-1.5 h-3.5 bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Loading indicator */}
-            {isLoading && !streamingContent && (
-              <div className="flex gap-4">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
-                  <Bot className="w-5 h-5 text-white" />
+              {/* 内置链路：等待中 */}
+              {effectiveEngine === 'builtin' && isLoading && !streamingContent && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>思考中…</span>
+                  </div>
                 </div>
-                <div className="flex-1 max-w-2xl">
-                  <div className="inline-block p-4 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 shadow-sm">
-                    <div className="flex items-center gap-2 text-slate-500">
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>思考中...</span>
+              )}
+
+              {/* PiAgent 引擎：实时过程 */}
+              {effectiveEngine === 'pi' && isLoading && (
+                <div className="flex gap-3">
+                  {assistantAvatar}
+                  <div className="flex-1 min-w-0">
+                    {piLive.thinking ? renderThinking('live', piLive.thinking, true) : null}
+                    {piLive.thinking && expandedThinking['live'] && (
+                      <p className="mb-3 px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        {piLive.thinking}
+                      </p>
+                    )}
+
+                    {piLive.currentTool && renderCurrentTool(piLive.currentTool)}
+
+                    <div className="mt-2 text-[15px] text-slate-900 dark:text-white whitespace-pre-wrap leading-relaxed">
+                      {piLive.text ? (
+                        <>
+                          {piLive.text}
+                          <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-slate-900 dark:bg-white animate-pulse rounded-sm" />
+                        </>
+                      ) : (
+                        <span className="flex items-center gap-2 text-sm text-slate-500">
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          {piLive.logs[piLive.logs.length - 1] || 'AI Agent 启动中…'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
 
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
+              <div ref={messagesEndRef} />
+            </div>
+          </main>
 
-      {/* Input */}
-      <footer className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-6 py-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative">
-            <textarea
-              ref={inputRef}
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="输入消息... (Enter 发送, Shift+Enter 换行)"
-              rows={1}
-              className="w-full px-4 py-3 pr-12 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              style={{
-                maxHeight: '120px',
-                minHeight: '48px',
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!inputMessage.trim() || isLoading}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl bg-indigo-500 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
-          <p className="text-xs text-slate-400 mt-2 text-center">
-            {agent?.name} 可能会产生不准确的信息，请斟酌参考。
-          </p>
-        </div>
-      </footer>
+          <footer className="flex-shrink-0 px-6 pb-4 pt-2">
+            {renderComposer('docked')}
+            <p className="text-xs text-slate-400 mt-3 text-center">
+              内容由 AI 生成，请仔细甄别
+            </p>
+          </footer>
+        </>
+      )}
     </div>
   )
+}
+
+/** 路由包装：/agents/:id/chat */
+export default function ChatPage() {
+  const { id } = useParams<{ id: string }>()
+  return <ChatSession id={id ?? ''} />
 }

@@ -7,7 +7,9 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user_id
+from app.api.deps import current_subscription
 from app.core.database import get_db
+from app.models.subscription import Subscription
 from app.schemas import (
     AgentCallRequest,
     AgentCallResponse,
@@ -17,6 +19,11 @@ from app.schemas import (
     SkillResolveResponse,
 )
 from app.services import skill_service
+from app.services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+)
 from app.services.skill import resolve_skills
 from app.services.skill.store import get_skill
 from app.services.skill.taxonomy import list_categories
@@ -98,12 +105,17 @@ async def call_skill(
     payload: AgentCallRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ) -> AgentCallResponse:
     skill = get_skill(skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill 不存在")
+
+    # Skill 广场的「开始对话」走的也是模型调用，同样要计入消息额度
+    await check_quota(db, sub, Resource.MESSAGES)
+
     try:
-        return await skill_service.call_agent(
+        result = await skill_service.call_agent(
             db,
             skill,
             user_id,
@@ -113,7 +125,12 @@ async def call_skill(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
+        # 调用失败不扣额度
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    await consume_quota(db, sub, Resource.MESSAGES)
+    await db.commit()
+    return result
 
 
 @router.post("/{skill_id}/call-with-files", response_model=AgentCallResponse)
@@ -124,14 +141,18 @@ async def call_skill_with_files(
     files: list[UploadFile] = File(default=[]),
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ) -> AgentCallResponse:
     skill = get_skill(skill_id)
     if not skill:
         raise HTTPException(status_code=404, detail="Skill 不存在")
+
+    await check_quota(db, sub, Resource.MESSAGES)
+
     uploaded = await save_upload_files(user_id, files) if files else []
     variables = {"input": message}
     try:
-        return await skill_service.call_agent(
+        result = await skill_service.call_agent(
             db,
             skill,
             user_id,
@@ -143,3 +164,7 @@ async def call_skill_with_files(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    await consume_quota(db, sub, Resource.MESSAGES)
+    await db.commit()
+    return result

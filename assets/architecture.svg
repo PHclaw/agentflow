@@ -1,0 +1,249 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="880" viewBox="0 0 1440 880" role="img" aria-label="AgentFlow 系统框架：输入与数据层、编排层、响应与产物层">
+  <defs>
+    <marker id="ar-solid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="ar-dash" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+    <marker id="ar-warm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706"/>
+    </marker>
+    <marker id="ar-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#db2777"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="880" fill="#ffffff"/>
+
+  <text x="720" y="36" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#0f172a">AgentFlow · 系统框架</text>
+  <text x="720" y="58" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" fill="#64748b">零代码 AI Agent 平台 · 拖拽编排 / 多模型热切换 / 知识库 RAG / Skill 扩展 / 产物交付</text>
+
+  <!-- ============ 分区大框 ============ -->
+  <rect x="32" y="88" width="300" height="712" rx="18" fill="#f1f8f1" stroke="#a5d6a7" stroke-width="1.5"/>
+  <rect x="352" y="88" width="712" height="712" rx="18" fill="#fbfcfe" stroke="#dbe3ec" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <rect x="1080" y="88" width="328" height="712" rx="18" fill="#fdf1f6" stroke="#f48fb1" stroke-width="1.5"/>
+
+  <text x="52" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#2e7d32">输入与数据层</text>
+  <text x="52" y="138" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#7cb342">INPUT &amp; DATA</text>
+
+  <text x="372" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#334155">编排层</text>
+  <text x="440" y="120" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#94a3b8">ORCHESTRATION</text>
+
+  <text x="1100" y="120" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#ad1457">响应与产物层</text>
+  <text x="1100" y="138" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" letter-spacing="1.2" fill="#d81b60">RESPONSE &amp; ARTIFACTS</text>
+
+  <!-- ============ 左：输入与数据层 ============ -->
+  <rect x="52" y="152" width="260" height="46" rx="10" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.3"/>
+  <circle cx="78" cy="175" r="13" fill="#bbdefb"/>
+  <circle cx="78" cy="170" r="4" fill="#1976d2"/>
+  <path d="M 71 184 q 7 -8 14 0" fill="none" stroke="#1976d2" stroke-width="2" stroke-linecap="round"/>
+  <text x="100" y="181" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="15" font-style="italic" font-weight="600" fill="#1565c0">User Query</text>
+
+  <line x1="182" y1="198" x2="182" y2="216" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar-solid)"/>
+
+  <rect x="52" y="220" width="260" height="52" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="68" y="243" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1e293b">FastAPI 主应用</text>
+  <text x="68" y="261" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">REST / WebSocket · /api · /static</text>
+  <line x1="282" y1="238" x2="300" y2="238" stroke="#94a3b8" stroke-width="1.4"/>
+  <line x1="282" y1="246" x2="300" y2="246" stroke="#94a3b8" stroke-width="1.4"/>
+  <line x1="282" y1="254" x2="300" y2="254" stroke="#94a3b8" stroke-width="1.4"/>
+
+  <line x1="166" y1="280" x2="178" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+  <line x1="178" y1="280" x2="190" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+  <line x1="190" y1="280" x2="202" y2="292" stroke="#a5d6a7" stroke-width="2"/>
+
+  <rect x="52" y="300" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="324" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">知识库 RAG</text>
+  <text x="68" y="345" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">文档上传 → 自动分块 → 向量检索</text>
+  <text x="68" y="363" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">chromadb + 可配置 embedding</text>
+  <text x="68" y="381" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">召回片段带相关度标注</text>
+
+  <rect x="52" y="402" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="426" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">Skill 广场</text>
+  <text x="68" y="447" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">目录 + SKILL.md，按需安装</text>
+  <text x="68" y="465" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">管理员后台可增删</text>
+  <text x="68" y="483" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">第三方技能不随核心仓库分发</text>
+
+  <rect x="52" y="504" width="260" height="92" rx="10" fill="#ffffff" stroke="#c8e6c9" stroke-width="1.3"/>
+  <text x="68" y="528" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">模型配置</text>
+  <text x="68" y="549" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">config/models.json · 白名单校验</text>
+  <text x="68" y="567" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">任意 OpenAI 兼容端点</text>
+  <text x="68" y="585" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">界面热切换，无需重启</text>
+
+  <rect x="52" y="614" width="260" height="62" rx="10" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.3"/>
+  <ellipse cx="80" cy="638" rx="12" ry="4.5" fill="none" stroke="#558b2f" stroke-width="1.6"/>
+  <path d="M 68 638 v 14 a 12 4.5 0 0 0 24 0 v -14" fill="none" stroke="#558b2f" stroke-width="1.6"/>
+  <path d="M 68 645 a 12 4.5 0 0 0 24 0" fill="none" stroke="#558b2f" stroke-width="1.4"/>
+  <text x="104" y="641" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2e7d32">SQLite · agentflow.db</text>
+  <text x="104" y="659" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#558b2f">用户 / 会话 / 知识库，全部本地</text>
+
+  <text x="52" y="712" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#4f9a52">私有部署 · 数据不出本机</text>
+  <text x="52" y="738" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">默认单机可跑，无需 Redis / PostgreSQL</text>
+
+  <!-- ============ 中：三列 Agent ============ -->
+  <!-- 列 1 -->
+  <rect x="456" y="134" width="40" height="36" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.3"/>
+  <rect x="462" y="142" width="11" height="9" rx="2" fill="#3b82f6"/>
+  <rect x="479" y="142" width="11" height="9" rx="2" fill="#60a5fa"/>
+  <rect x="470" y="157" width="11" height="9" rx="2" fill="#93c5fd"/>
+  <text x="476" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">Workflow Agent</text>
+  <text x="476" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">拖拽编排工作流</text>
+
+  <!-- 列 2 -->
+  <circle cx="708" cy="152" r="18" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.3"/>
+  <rect x="700" y="144" width="16" height="16" rx="3" fill="#6366f1"/>
+  <line x1="704" y1="140" x2="704" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="708" y1="140" x2="708" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="712" y1="140" x2="712" y2="144" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="704" y1="160" x2="704" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="708" y1="160" x2="708" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <line x1="712" y1="160" x2="712" y2="164" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="708" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">LLM Agent</text>
+  <text x="708" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">模型网关与调用</text>
+
+  <!-- 列 3 -->
+  <circle cx="940" cy="152" r="18" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.3"/>
+  <path d="M 932 144 l 16 8 l -16 8 z" fill="#10b981"/>
+  <circle cx="940" cy="152" r="3" fill="#ffffff"/>
+  <text x="940" y="192" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">Tool &amp; Skill Agent</text>
+  <text x="940" y="210" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">工具与技能执行</text>
+
+  <!-- 工具框 -->
+  <rect x="372" y="222" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="476" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">ReactFlow 画布</text>
+  <rect x="604" y="222" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="708" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">OpenAI 兼容端点</text>
+  <rect x="836" y="222" width="208" height="40" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.2"/>
+  <text x="940" y="247" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#047857">Skill 调用</text>
+
+  <line x1="476" y1="262" x2="476" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="262" x2="708" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="262" x2="940" y2="278" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- Plan 框 -->
+  <rect x="372" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="476" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · 任务拆解</text>
+  <rect x="604" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="708" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · 任务拆解</text>
+  <rect x="836" y="280" width="208" height="38" rx="9" fill="#f3e8ff" stroke="#d8b4fe" stroke-width="1.2"/>
+  <text x="940" y="304" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#7e22ce">Plan · 任务拆解</text>
+
+  <line x1="476" y1="318" x2="476" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="318" x2="708" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="318" x2="940" y2="334" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- 执行框 -->
+  <rect x="372" y="336" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="476" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">六类节点编排</text>
+  <rect x="604" y="336" width="208" height="40" rx="9" fill="#e8f1fb" stroke="#93c5fd" stroke-width="1.2"/>
+  <text x="708" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1d4ed8">多模型热切换</text>
+  <rect x="836" y="336" width="208" height="40" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.2"/>
+  <text x="940" y="361" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#047857">文件 / 工具调用</text>
+
+  <line x1="476" y1="376" x2="476" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="376" x2="708" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="376" x2="940" y2="392" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <!-- 分析反思框 -->
+  <rect x="372" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="476" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">分块分析与反思</text>
+  <text x="476" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+  <rect x="604" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="708" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">分块分析与反思</text>
+  <text x="708" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+  <rect x="836" y="394" width="208" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3"/>
+  <text x="940" y="419" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1e293b">分块分析与反思</text>
+  <text x="940" y="438" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">Chunked Analysis &amp; Reflection</text>
+
+  <line x1="476" y1="456" x2="476" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <line x1="708" y1="456" x2="708" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <line x1="940" y1="456" x2="940" y2="480" stroke="#d97706" stroke-width="1.5" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+
+  <!-- 运行时横条 -->
+  <rect x="372" y="482" width="672" height="54" rx="12" fill="#fff3e0" stroke="#f0b429" stroke-width="1.5"/>
+  <text x="708" y="507" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#b45309">工作流运行时 · Workflow Runtime</text>
+  <text x="708" y="526" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#d97706">自研编排实现 · 不依赖 LangGraph · 节点结果共享与回传</text>
+
+  <line x1="476" y1="536" x2="476" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="708" y1="536" x2="708" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+  <line x1="940" y1="536" x2="940" y2="556" stroke="#64748b" stroke-width="1.5" marker-end="url(#ar-solid)"/>
+
+  <rect x="372" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="476" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">节点输出 / Node Output</text>
+  <text x="476" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">中间结果可回传</text>
+  <rect x="604" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="708" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">节点输出 / Node Output</text>
+  <text x="708" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">中间结果可回传</text>
+  <rect x="836" y="558" width="208" height="46" rx="9" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+  <text x="940" y="578" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#92400e">节点输出 / Node Output</text>
+  <text x="940" y="595" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#b45309">中间结果可回传</text>
+
+  <text x="708" y="650" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#94a3b8">编排层只依赖 FastAPI + SQLite，可整体自托管</text>
+  <text x="708" y="676" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">六类节点：Trigger · LLM · Knowledge · Tool · Condition · Response</text>
+
+  <!-- ============ 右：响应与产物层 ============ -->
+  <circle cx="1244" cy="168" r="20" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.3"/>
+  <path d="M 1244 154 v 28 M 1230 168 h 28 M 1234 158 l 20 20 M 1254 158 l -20 20" stroke="#db2777" stroke-width="2" stroke-linecap="round"/>
+  <text x="1244" y="206" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#831843">Response Agent</text>
+  <text x="1244" y="224" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="10" fill="#9d174d">回复生成与产物交付</text>
+
+  <rect x="1100" y="240" width="288" height="44" rx="9" fill="#ffffff" stroke="#ec4899" stroke-width="2"/>
+  <rect x="1114" y="253" width="18" height="18" rx="3" fill="#fce4ec" stroke="#f48fb1"/>
+  <path d="M 1118 260 h 10 M 1118 264 h 7" stroke="#db2777" stroke-width="1.4" stroke-linecap="round"/>
+  <text x="1142" y="267" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#831843">Final Reply · 最终回复</text>
+
+  <rect x="1100" y="296" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="321" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">流式渲染 / Streaming Render</text>
+
+  <rect x="1100" y="348" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="373" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">产物绑定 / Artifact Binding</text>
+
+  <rect x="1100" y="400" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="425" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">图片内联预览</text>
+
+  <rect x="1100" y="452" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="477" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">召回片段与引用标注</text>
+
+  <rect x="1100" y="504" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="529" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">会话持久化 / SQLite</text>
+
+  <rect x="1100" y="556" width="288" height="40" rx="9" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="1.2"/>
+  <text x="1244" y="581" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#9d174d">研究报告 / 中间产物</text>
+
+  <line x1="1244" y1="556" x2="1244" y2="546" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="504" x2="1244" y2="494" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="452" x2="1244" y2="442" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="400" x2="1244" y2="390" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="348" x2="1244" y2="338" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+  <line x1="1244" y1="296" x2="1244" y2="286" stroke="#db2777" stroke-width="1.4" marker-end="url(#ar-pink)"/>
+
+  <rect x="1100" y="614" width="288" height="62" rx="10" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.3"/>
+  <text x="1244" y="640" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#831843">会话记录与全部产物</text>
+  <text x="1244" y="658" text-anchor="middle" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#ad1457">Forum Records &amp; All Research Data</text>
+
+  <text x="1100" y="712" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" font-style="italic" fill="#d81b60">文件下载 · 图片内联 · 可追溯</text>
+  <text x="1100" y="738" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#94a3b8">静态资源走 /static，业务数据落 SQLite</text>
+
+  <!-- ============ 跨分区连线 ============ -->
+  <path d="M 312 246 L 350 246" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="334" y="238" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">请求分发</text>
+
+  <path d="M 332 645 L 344 645 L 344 509 L 370 509" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="352" y="690" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">数据 / 配置</text>
+
+  <path d="M 1044 581 L 1088 581" fill="none" stroke="#db2777" stroke-width="1.8" marker-end="url(#ar-pink)"/>
+
+  <path d="M 1080 660 L 1066 660 L 1066 509 L 1046 509" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="1050" y="694" text-anchor="end" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="9" fill="#94a3b8">会话记录回传</text>
+
+  <!-- ============ 图例与图注 ============ -->
+  <line x1="440" y1="826" x2="486" y2="826" stroke="#64748b" stroke-width="1.6" marker-end="url(#ar-solid)"/>
+  <text x="496" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">主流程 / 数据流</text>
+  <line x1="620" y1="826" x2="666" y2="826" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#ar-dash)"/>
+  <text x="676" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">辅助引用 / 回传</text>
+  <line x1="820" y1="826" x2="866" y2="826" stroke="#d97706" stroke-width="1.6" marker-start="url(#ar-warm)" marker-end="url(#ar-warm)"/>
+  <text x="876" y="830" font-family="Segoe UI, Microsoft YaHei, Helvetica, Arial, sans-serif" font-size="10" fill="#64748b">交互优化 / 反思</text>
+
+  <text x="720" y="860" text-anchor="middle" font-family="Segoe UI, Microsoft YaHei, PingFang SC, Helvetica, Arial, sans-serif" font-size="11" fill="#94a3b8">图 1 · AgentFlow 系统框架：输入与数据层 → 编排层 → 响应与产物层（Apache-2.0，自托管优先）</text>
+</svg>

@@ -22,7 +22,7 @@ import {
   Settings,
   FolderOpen,
 } from 'lucide-react'
-import { api } from '../services/api'
+import { api, knowledge } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -36,7 +36,7 @@ interface KnowledgeBase {
   chunk_count: number
   created_at: string
   updated_at: string
-  status: 'ready' | 'indexing' | 'error'
+  status: 'ready' | 'indexing' | 'empty' | 'error'
 }
 
 interface Document {
@@ -64,7 +64,31 @@ export default function KnowledgePage() {
   const [newKBDescription, setNewKBDescription] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  /** 上传失败原因（后端返回的可读提示），空串表示没有失败 */
+  const [uploadMessage, setUploadMessage] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  /** 语义检索 */
+  const [semanticQuery, setSemanticQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [searchedOnce, setSearchedOnce] = useState(false)
+
+  const handleSemanticSearch = async () => {
+    if (!selectedKB || !semanticQuery.trim()) return
+    setSearching(true)
+    setSearchError('')
+    try {
+      const data = await knowledge.search(semanticQuery.trim(), [selectedKB.id], 5)
+      setSearchResults(data?.results ?? [])
+      setSearchedOnce(true)
+    } catch (err: any) {
+      setSearchResults([])
+      setSearchError(err?.message || '检索失败')
+    } finally {
+      setSearching(false)
+    }
+  }
 
   useEffect(() => {
     loadKnowledgeBases()
@@ -135,24 +159,43 @@ export default function KnowledgePage() {
 
     setUploading(true)
     setUploadProgress(0)
+    setUploadMessage('')
+
+    const succeeded: string[] = []
+    const failed: string[] = []
 
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
-        
+
         // 模拟上传进度
         for (let progress = 0; progress <= 100; progress += 10) {
           setUploadProgress(progress)
           await new Promise(resolve => setTimeout(resolve, 100))
         }
 
-        await api.uploadFile(`/knowledge/${selectedKB.id}/documents`, file)
+        try {
+          await api.uploadFile(`/knowledge/${selectedKB.id}/documents`, file)
+          succeeded.push(file.name)
+        } catch (err: any) {
+          // 逐个文件收集失败原因：整体try 会让第一个失败就把后面的文件全丢掉
+          failed.push(`${file.name}：${err?.message || '上传失败'}`)
+        }
       }
 
       loadDocuments(selectedKB.id)
-      setShowUploadModal(false)
-    } catch (error) {
-      console.error('Upload failed:', error)
+      // 知识库列表里的文档数/分块数也要刷新：
+      // 只刷文档列表会让顶部统计一直停在「0 个文档」
+      loadKnowledgeBases()
+      if (failed.length === 0) {
+        setShowUploadModal(false)
+      } else {
+        // 此前失败只写console.error，界面上毫无提示，
+        // 用户看到进度条走完就没了，完全不知道发生了什么
+        setUploadMessage(
+          `成功 ${succeeded.length} 个，失败 ${failed.length} 个：\n${failed.join('\n')}`
+        )
+      }
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -192,21 +235,17 @@ export default function KnowledgePage() {
   }
 
   const handleDownloadDoc = async (doc: Document) => {
+    if (!selectedKB) return
     try {
-      const response = await fetch(`/api/v1/upload/${doc.name}`)
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = doc.name
-        a.click()
-        URL.revokeObjectURL(url)
-      } else {
-        alert('文件下载失败，文件可能尚未保存到服务器')
-      }
-    } catch {
-      alert('下载失败')
+      const blob = await knowledge.downloadDocument(selectedKB.id, doc.id)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.name
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error: any) {
+      alert(error?.message || '下载失败')
     }
   }
 
@@ -240,9 +279,17 @@ export default function KnowledgePage() {
         </Button>
       </div>
 
-      <div className="flex gap-6">
+      {/*
+        手机上改成上下堆叠。
+
+        原来是 `flex gap-6` + 左栏写死 `w-80`（320px）：在 375px 的手机上，
+        左栏自己就 320px，加上 gap 和页面内边距直接超出屏幕 —— 右侧的文档区
+        被挤成一条缝，而且整页产生横向滚动。改成 flex-col 后两栏各占满宽度，
+        `lg:` 以上才恢复左右并排。
+      */}
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Left sidebar - Knowledge Bases */}
-        <div className="w-80 flex-shrink-0">
+        <div className="w-full lg:w-80 lg:flex-shrink-0">
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900 dark:text-white">
@@ -276,14 +323,14 @@ export default function KnowledgePage() {
                     onClick={() => handleSelectKB(kb)}
                     className={`w-full p-3 rounded-xl text-left transition-colors ${
                       selectedKB?.id === kb.id
-                        ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200 dark:border-indigo-800'
+                        ? 'bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-800'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`p-2 rounded-lg ${
                         selectedKB?.id === kb.id
-                          ? 'bg-indigo-500'
+                          ? 'bg-brand-500'
                           : 'bg-slate-100 dark:bg-slate-700'
                       }`}>
                         <BookOpen className={`w-4 h-4 ${
@@ -302,6 +349,8 @@ export default function KnowledgePage() {
                         <CheckCircle className="w-4 h-4 text-emerald-500" />
                       ) : kb.status === 'indexing' ? (
                         <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />
+                      ) : kb.status === 'empty' ? (
+                        <FolderOpen className="w-4 h-4 text-slate-400" />
                       ) : (
                         <AlertCircle className="w-4 h-4 text-red-500" />
                       )}
@@ -317,40 +366,57 @@ export default function KnowledgePage() {
           {selectedKB ? (
             <>
               {/* KB Header */}
-              <Card className="p-6 mb-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {/*
+                知识库头部。
+
+                原来这一行是 `flex items-start justify-between`，**没有 flex-wrap，
+                左块也没有 min-w-0** —— 于是「设置 / 上传文档」两个按钮被挤出卡片
+                甚至屏幕外。原因是 flex 子项默认 `min-width: auto`，左块的最小宽度
+                就是它内容（标题 + 描述 + 三个统计项，统计项那行还是 `gap-6` 不换行）
+                的宽度，压根压不下去；按钮组只能被顶出去。
+
+                三处一起改才成立：
+                - 外层改成手机竖排 / 桌面横排（`flex-col sm:flex-row`）
+                - 左块加 `min-w-0`，允许它收缩到比内容窄，标题与描述 `break-words`
+                - 统计行改成 `flex-wrap`，窄屏上分两行而不是撑宽整块
+                按钮组在手机上各占一半宽度，点在拇指最容易够到的位置。
+              */}
+              <Card className="p-5 sm:p-6 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-lg sm:text-xl font-semibold break-words text-slate-900 dark:text-white">
                       {selectedKB.name}
                     </h2>
-                    <p className="mt-1 text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 break-words text-slate-500 dark:text-slate-400">
                       {selectedKB.description}
                     </p>
-                    <div className="flex items-center gap-6 mt-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 text-sm">
                       <div className="flex items-center gap-2 text-slate-500">
-                        <Layers className="w-4 h-4" />
+                        <Layers className="w-4 h-4 shrink-0" />
                         {selectedKB.document_count} 个文档
                       </div>
                       <div className="flex items-center gap-2 text-slate-500">
-                        <FileText className="w-4 h-4" />
+                        <FileText className="w-4 h-4 shrink-0" />
                         {selectedKB.chunk_count} 个知识块
                       </div>
                       <div className="flex items-center gap-2 text-slate-500">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4 shrink-0" />
                         更新于 {new Date(selectedKB.updated_at).toLocaleDateString('zh-CN')}
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="flex-1 sm:flex-none"
                       leftIcon={<Settings className="w-4 h-4" />}
                     >
                       设置
                     </Button>
                     <Button
                       size="sm"
+                      className="flex-1 sm:flex-none"
                       leftIcon={<Upload className="w-4 h-4" />}
                       onClick={() => setShowUploadModal(true)}
                     >
@@ -358,6 +424,59 @@ export default function KnowledgePage() {
                     </Button>
                   </div>
                 </div>
+              </Card>
+
+              {/* 语义检索：后端 /search 一直存在但前端从未调用过 */}
+              <Card className="p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={semanticQuery}
+                    onChange={(e) => setSemanticQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSemanticSearch()
+                    }}
+                    placeholder={`在「${selectedKB.name}」里检索内容…`}
+                    className="flex-1 px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-400 transition-colors"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSemanticSearch}
+                    disabled={searching || !semanticQuery.trim()}
+                    leftIcon={searching ? undefined : <Search className="w-4 h-4" />}
+                  >
+                    {searching ? '检索中' : '检索'}
+                  </Button>
+                </div>
+
+                {searchError && (
+                  <p className="mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs text-red-600 dark:text-red-400">
+                    {searchError}
+                  </p>
+                )}
+
+                {searchResults.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {searchResults.map((r, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700"
+                      >
+                        <p className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words">
+                          {r.content}
+                        </p>
+                        <p className="mt-1.5 text-xs text-slate-400 flex items-center gap-2">
+                          <span className="truncate">{r.filename}</span>
+                          <span>· 相关度 {(r.score * 100).toFixed(0)}%</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {searchResults.length === 0 && searchedOnce && !searchError && (
+                  <p className="mt-3 text-xs text-slate-400">没有找到相关内容</p>
+                )}
               </Card>
 
               {/* Documents */}
@@ -428,7 +547,10 @@ export default function KnowledgePage() {
                 </div>
               ) : (
                 <Card className="overflow-hidden">
-                  <table className="w-full">
+                  {/* 同上：表格在手机上必然超宽，必须能横向滚而不是被 overflow-hidden
+                      裁掉。默认视图是卡片，这里是用户手动切到列表时的退路。 */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
                     <thead className="bg-slate-50 dark:bg-slate-800/50">
                       <tr>
                         <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -505,6 +627,7 @@ export default function KnowledgePage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </Card>
               )}
             </>
@@ -515,7 +638,8 @@ export default function KnowledgePage() {
                 选择一个知识库
               </h3>
               <p className="text-slate-500 dark:text-slate-400">
-                从左侧列表选择一个知识库来查看和管理文档
+                {/* 不写「左侧」：手机上两栏是上下堆叠的，说「左侧」会指错方向 */}
+                从列表中选择一个知识库来查看和管理文档
               </p>
             </Card>
           )}
@@ -572,7 +696,7 @@ export default function KnowledgePage() {
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
               uploading
                 ? 'border-slate-300 bg-slate-50'
-                : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 dark:hover:border-indigo-600'
+                : 'border-slate-300 dark:border-slate-600 hover:border-brand-400 dark:hover:border-brand-600'
             }`}
           >
             <input
@@ -587,13 +711,13 @@ export default function KnowledgePage() {
             <label htmlFor="file-upload" className="cursor-pointer">
               {uploading ? (
                 <>
-                  <Loader2 className="w-12 h-12 text-indigo-500 mx-auto mb-4 animate-spin" />
+                  <Loader2 className="w-12 h-12 text-brand-500 mx-auto mb-4 animate-spin" />
                   <p className="text-slate-600 dark:text-slate-400">
                     上传中... {uploadProgress}%
                   </p>
                   <div className="w-full bg-slate-200 rounded-full h-2 mt-4 max-w-xs mx-auto">
                     <div
-                      className="bg-indigo-500 h-2 rounded-full transition-all"
+                      className="bg-brand-500 h-2 rounded-full transition-all"
                       style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
@@ -602,7 +726,7 @@ export default function KnowledgePage() {
                 <>
                   <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600 dark:text-slate-400 mb-2">
-                    拖拽文件到此处，或<span className="text-indigo-600">点击上传</span>
+                    拖拽文件到此处，或<span className="text-brand-600">点击上传</span>
                   </p>
                   <p className="text-sm text-slate-400">
                     支持 PDF, DOC, DOCX, TXT, MD, CSV（最大 50MB）
@@ -611,6 +735,16 @@ export default function KnowledgePage() {
               )}
             </label>
           </div>
+
+          {/* 上传失败原因：必须让用户看到，否则只会觉得「点了没反应」 */}
+          {uploadMessage && (
+            <div className="px-4 py-3 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900">
+              <p className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">部分文件未上传</p>
+              <p className="text-xs text-red-600/80 dark:text-red-400/80 whitespace-pre-wrap break-words">
+                {uploadMessage}
+              </p>
+            </div>
+          )}
 
           <div className="text-sm text-slate-500 dark:text-slate-400">
             <p className="font-medium mb-2">上传提示：</p>

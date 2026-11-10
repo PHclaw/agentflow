@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- 这里用 GIF 而不是 SVG：GitHub 会把 SVG 交给 camo 代理做净化，脚本一定被剥掉、SMIL/CSS 动画也不保证执行，GIF 则无条件播放。可编辑源文件是同目录的 assets/banner.svg，GIF 由 scripts/build-banner-gif.py 逐帧渲染合成；静态回退仍是 assets/banner.png -->
+<!-- 用 GIF 而非 SVG：GitHub 会净化 SVG 并剥离脚本与动画，GIF 无条件播放。演示素材位于 assets/ -->
 <img src="assets/banner.gif" alt="AgentFlow — 零代码 AI Agent 平台" width="100%">
 
 <br>
@@ -8,7 +8,7 @@
 [![Stars](https://img.shields.io/github/stars/PHclaw/agentflow?style=flat-square&logo=github&label=Stars&color=6366F1)](https://github.com/PHclaw/agentflow/stargazers)
 [![Forks](https://img.shields.io/github/forks/PHclaw/agentflow?style=flat-square&label=Forks&color=00D9C0)](https://github.com/PHclaw/agentflow/forks)
 [![Issues](https://img.shields.io/github/issues/PHclaw/agentflow?style=flat-square&label=Issues&color=F59E0B)](https://github.com/PHclaw/agentflow/issues)
-[![License](https://img.shields.io/badge/License-GPL--2.0-FF6B6B?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache--2.0-blue?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/PHclaw/agentflow/pulls)
 
 [![CI](https://img.shields.io/github/actions/workflow/status/PHclaw/agentflow/ci.yml?style=flat-square&label=CI)](.github/workflows/ci.yml)
@@ -33,7 +33,7 @@
 
 <br>
 
-[功能演示](#-功能演示) · [快速开始](#-快速开始) · [核心特性](#-核心特性) · [内置技能](#-内置技能) · [文档](#-文档) · [常见问题](docs/FAQ.md)
+[功能演示](#-功能演示) · [快速开始](#-快速开始) · [核心特性](#-核心特性) · [技能扩展](#-技能扩展) · [文档](#-文档) · [常见问题](docs/FAQ.md)
 
 [English](README.en.md) · [中文](README.md)
 
@@ -44,7 +44,7 @@
 ## 📖 目录
 
 - [功能演示](#-功能演示)　·　[界面一览](#️-界面一览)
-- [核心特性](#-核心特性)　·　[内置技能](#-内置技能)
+- [核心特性](#-核心特性)　·　[技能扩展](#-技能扩展)
 - [快速开始](#-快速开始)　·　[关键配置](#️-关键配置)
 - [技术架构](#️-技术架构)　·　[项目结构](#-项目结构)
 - [与 Dify / Coze 的差异](#️-与-dify--coze-的差异)
@@ -130,7 +130,7 @@ Agent 执行时实时显示「正在调用工具」，同屏只保留当前这�
 </tr>
 <tr>
 <td width="50%"><img src="assets/screens/08-templates.png" alt="模板市场"><br><sub><b>模板市场</b> — 按分类挑，一键套用成 Agent</sub></td>
-<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — 23 个预置技能，开箱即用</sub></td>
+<td width="50%"><img src="assets/screens/09-skills.png" alt="Skill 广场"><br><sub><b>Skill 广场</b> — 技能扩展与安装入口</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="assets/screens/10-knowledge.png" alt="知识库"><br><sub><b>知识库</b> — 上传、分块、语义检索</sub></td>
@@ -145,7 +145,7 @@ Agent 执行时实时显示「正在调用工具」，同屏只保留当前这�
 - **🎨 拖拽式工作流编辑** — ReactFlow 画布，触发器 / LLM / 知识库 / 工具 / 条件分支 / 回复 六类节点自由组合，改完即生效
 - **🤖 多模型热切换** — 在「设置 → 模型配置」里填端点与模型名即可，支持任意 **OpenAI 兼容**端点（含本地 Ollama），**改完不用重启**
 - **📚 知识库 RAG** — 上传文档自动分块入库，向量检索召回结果带相关度；向量模型与对话模型**分开配置**
-- **🧩 Skill 广场** — 23 个预置技能（Excel / PPT / PDF / 学术检索 / 会议纪要 / 统计分析等），管理员可在后台增删
+- **🧩 Skill 广场** — 以「目录 + `SKILL.md`」形式扩展技能，管理员可在后台增删；社区技能按需安装（见 [skills/README.md](skills/README.md)）
 - **📎 产物交付** — Agent 生成的文件回传为可下载附件；**图片类产物在对话里直接内联渲染**，不用先下载再看
 - **🧰 模板市场** — 客服 / 销售 / HR / 财务等场景模板，一键套用即成为可用的 Agent
 - **👤 用户体系** — JWT 认证、邮箱验证码注册、套餐额度、管理后台白名单，数据完全自托管
@@ -236,6 +236,8 @@ cd frontend && npm install && npm run dev
 
 ## 🏗️ 技术架构
 
+![AgentFlow 系统框架](assets/architecture.svg)
+
 ```
    React 18 + ReactFlow  ──►  FastAPI  ──►  SQLite（默认）
         前端 :5173 / :3000      后端 :8001      └ 可切 PostgreSQL + pgvector
@@ -273,8 +275,8 @@ agentflow/
 │       ├── components/ # UI 组件库、布局、工作流节点
 │       ├── stores/     # Zustand
 │       └── services/   # API 客户端
-├── skills/             # 技能定义（每个技能一个目录，含 SKILL.md 与脚本）
-├── scripts/            # 开发脚本 + UI 录屏/诊断（ui-record.mjs 可自动出演示素材）
+├── skills/             # 技能目录（仓库内仅含说明文件，技能按需安装）
+├── static/             # 运行时产物挂载点（头像 / 生成文件）
 ├── docs/               # 文档
 ├── assets/             # README 用的 banner / 截图 / GIF / 视频
 ├── config/             # 模型校验用的静态配置
@@ -284,9 +286,9 @@ agentflow/
 
 ---
 
-## 🧩 内置技能
+## 🧩 技能扩展
 
-技能广场开箱即用，管理员可在后台增删（直接写 `skills/` 目录）：
+> **本仓库不随附第三方技能。** 社区技能的许可证各不相同（Apache-2.0 / MIT / 无许可声明 / 保留所有权利），不能整体按 Apache-2.0 再分发，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`skills/` 仅保留空目录作为运行时挂载点，服务启动不依赖任何技能：目录为空时广场返回空列表，其余功能不受影响。按需安装时，把带 `SKILL.md` 的技能目录放进 `skills/`（保留其原始 LICENSE）即可。下表为可选社区技能示例，并非预置内容：
 
 | 技能 | 做什么 |
 |:--|:--|
@@ -302,20 +304,23 @@ agentflow/
 | **统计分析助手** | 假设检验、样本量、置信区间，输出决策建议 |
 | **图表可视化** | 按数据特征智能选型并生成图表 |
 
-每个技能就是一个带 `SKILL.md` 的目录，照格式加一个文件夹即可扩展自己的技能。
+自制技能没有上述限制，按 `SKILL.md` 格式加一个文件夹即可扩展。可选的 HTML-PPT 链路还会读取 `skills/html-ppt-skill-main/assets` 等资源，未安装时调用对应功能会报文件缺失，属预期行为。
 
 ---
 
 ## ⚖️ 与 Dify / Coze 的差异
 
-|  | AgentFlow | Dify | Coze |
-|:--|:--:|:--:|:--:|
-| 部署形态 | 自托管优先，**默认 SQLite 单机可跑** | 自托管 / 云 | 仅云 |
-| 数据归属 | 全部在你自己的库里 | 自托管时自主 | 在平台侧 |
-| 协议 | **GPL-2.0** | 开源（附加条款） | 闭源 |
-| 多模型热切换 | 界面里改，**不用重启** | 需改配置 | 平台绑定 |
-| Skill 扩展 | 加一个带 `SKILL.md` 的目录 | 插件市场 | 插件市场 |
-| 产物附件回传 | ✅ 文件下载 + **图片内联预览** | 部分 | 部分 |
+|  | AgentFlow | Dify | Coze | WorkBuddy | Codex |
+|:--|:--:|:--:|:--:|:--:|:--:|
+| 定位 | 零代码 Agent 编排平台 | LLM 应用开发平台 | 对话 Bot 搭建平台 | 桌面办公智能体工作台 | 终端编程 Agent |
+| 部署形态 | 自托管优先，**默认 SQLite 单机可跑** | 自托管 / 云 | 仅云 | 桌面客户端，安装即用 | 本地 CLI + 云端沙箱 |
+| 数据归属 | 全部在你自己的库里 | 自托管时自主 | 在平台侧 | 本地执行，企业版统一管控 | 代码在本地，云端任务在沙箱 |
+| 协议 | **Apache-2.0** | 开源（附加条款） | 闭源 | 闭源商业产品 | 开源（CLI，Apache-2.0） |
+| 多模型热切换 | 界面里改，**不用重启** | 需改配置 | 平台绑定 | 混元为主，支持多模型混合接入 | OpenAI 系为主，可配端点 |
+| Skill 扩展 | 加一个带 `SKILL.md` 的目录 | 插件市场 | 插件市场 | 内置技能 + 办公连接器 | MCP + 配置文件 |
+| 产物交付 | ✅ 文件下载 + **图片内联预览** | 部分 | 部分 | 直接生成报告 / PPT / 表格 | 代码改动与命令执行结果 |
+
+> WorkBuddy 与 Codex 分属桌面办公智能体、终端编程 Agent 品类，和前三者「可视化 Agent 编排平台」不是同一形态；列在此处用于说明定位差异，不作同类竞品优劣比较。
 
 完整对比见 **[与 Dify / Coze 的差异](docs/COMPARISON.md)**。
 
@@ -357,31 +362,31 @@ agentflow/
 Issue → Fork → Branch → Develop → Test → PR → Review → Merge
 
 - 提交前本地跑一遍 CI 的两件事：`cd backend && ruff check app/ && python -m pytest tests/ -v`、`cd frontend && npx tsc --noEmit && npm run build`
-- 新增技能：在 `skills/` 下按现有目录结构加一个带 `SKILL.md` 的文件夹
+- 完整流程见 [CONTRIBUTING.md](CONTRIBUTING.md)；安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告
 
 ---
 
 ## ⚠️ 免责声明
 
-> **重要提醒：本项目仅供学习、学术研究和教育目的使用**
+> 本项目按 **Apache-2.0** 提供，允许包括商业用途在内的使用、修改与再分发；除许可证条款外不附加任何用途限制。
 
-**合规性声明：**
+**使用与合规：**
 
-- 本项目中的所有代码、工具和功能均仅供学习、学术研究和教育目的使用
-- 严禁将本项目用于任何商业用途或盈利性活动
-- 严禁将本项目用于任何违法、违规或侵犯他人权益的行为
+- 仓库不含任何 API Key、邮箱授权码或用户数据，部署者需自行配置 `.env` 并妥善保管
+- 使用者应自行评估项目的适用性与风险，并遵守所在地区的法律法规
+- 使用爬虫、文档解析、数据分析等功能时，须自行遵守目标网站的 `robots.txt`、服务条款、数据保护法规及第三方内容授权
 
 **爬虫功能免责：**
 
-- 项目中的爬虫功能仅用于技术学习和研究目的
+- 项目中的爬虫功能由使用者自行判断适用场景，并自行承担相应责任
 - 使用者必须遵守目标网站的 robots.txt 协议和使用条款
 - 使用者必须遵守相关法律法规，不得进行恶意爬取或数据滥用
 - 因使用爬虫功能产生的任何法律后果由使用者自行承担
 
 **数据使用免责：**
 
-- 项目涉及的数据分析功能仅供学术研究使用
-- 严禁将分析结果用于商业决策或盈利目的
+- 项目涉及的数据分析功能由使用者自行判断其适用性与合规义务
+- 因使用本项目产生的法律后果由使用者自行承担
 - 使用者应确保所分析数据的合法性和合规性
 
 **技术免责：**
@@ -396,13 +401,13 @@ Issue → Fork → Branch → Develop → Test → PR → Review → Merge
 - 使用者应确保其使用行为符合当地法律法规要求
 - 因违反法律法规使用本项目而产生的任何后果由使用者自行承担
 
-请在使用本项目前仔细阅读并理解上述免责声明。使用本项目即表示您已同意并接受上述所有条款。
+漏洞报告方式见 [SECURITY.md](SECURITY.md)，请勿公开提交。
 
 ---
 
 ## 📄 许可证
 
-本项目采用 **GPL-2.0** 许可证。详细信息请参阅 [LICENSE](LICENSE) 文件。
+本项目采用 **Apache License 2.0**，全文见 [LICENSE](LICENSE)。第三方技能与素材不随本仓库分发，其许可状态与归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ---
 

@@ -12,10 +12,20 @@ interface CardProps {
 const paddingStyles = {
   none: '',
   sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  md: 'p-5',
+  lg: 'p-6',
 }
 
+/**
+ * 卡片：细描边 + 无阴影。层级由描边建立，避免「浮起来」的观感。
+ *
+ * 旧版是 `rounded-2xl ... shadow-sm`，hover 时还升级到 `shadow-md` 并位移。
+ * 密集排布的卡片一旦带阴影，相邻卡片的阴影会互相干扰，看起来发脏。
+ * 这里只靠 1px 描边区分，hover 时把描边加深就够了。
+ *
+ * 另外补上了 `dark:` 变体 —— 旧版整个 Card 一个都没有，深色模式全靠
+ * index.css 里的兜底规则顶着，那只是安全网，不是设计。
+ */
 export function Card({
   children,
   className,
@@ -26,9 +36,9 @@ export function Card({
   return (
     <div
       className={cn(
-        'bg-white rounded-2xl border border-slate-200 shadow-sm',
+        'bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800',
         paddingStyles[padding],
-        hover && 'transition-all duration-200 hover:shadow-md hover:border-slate-300',
+        hover && 'card-hover cursor-pointer',
         className
       )}
       style={style}
@@ -58,7 +68,7 @@ interface CardTitleProps {
 
 export function CardTitle({ children, className }: CardTitleProps) {
   return (
-    <h3 className={cn('text-lg font-semibold text-slate-900', className)}>
+    <h3 className={cn('text-[15px] font-semibold text-slate-900 dark:text-slate-100', className)}>
       {children}
     </h3>
   )
@@ -71,4 +81,17 @@ interface CardContentProps {
 
 export function CardContent({ children, className }: CardContentProps) {
   return <div className={className}>{children}</div>
+}
+
+interface CardDescriptionProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export function CardDescription({ children, className }: CardDescriptionProps) {
+  return (
+    <p className={cn('text-[13px] text-slate-500 dark:text-slate-400', className)}>
+      {children}
+    </p>
+  )
 }

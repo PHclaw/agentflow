@@ -28,6 +28,78 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 
 ---
 
+## 邮件与注册验证码
+
+注册默认要求邮箱验证码（`REQUIRE_EMAIL_CODE=true`）。用标准库 `smtplib` 发信，
+**不需要额外安装依赖**。
+
+### 配置 SMTP
+
+```env
+MAIL_ENABLED=true
+MAIL_HOST=smtp.qq.com     # 或 smtp.163.com / 企业邮箱
+MAIL_PORT=465             # 465 用 SSL；587 改 MAIL_USE_SSL=false 走 STARTTLS
+MAIL_USER=you@qq.com
+MAIL_PASSWORD=            # 邮箱「授权码」，不是登录密码
+MAIL_FROM=                # 留空则用 MAIL_USER
+MAIL_FROM_NAME=AgentFlow
+MAIL_USE_SSL=true
+```
+
+> **授权码怎么拿**
+> QQ 邮箱：设置 → 账户 → 开启 SMTP 服务 → 生成授权码
+> 163 邮箱：设置 → POP3/SMTP/IMAP → 开启 → 新增授权密码
+>
+> 注意：国内云主机直连 **25 端口基本被封**，请用 465/587。发信标题也别写得像营销邮件，
+> 否则容易进垃圾箱。
+
+### 本地开发不配 SMTP
+
+`MAIL_ENABLED=false` 时邮件**不会真的发出**，验证码以 WARNING 级别打印到后端日志：
+
+```
+WARNING | app.services.mailer | [MAIL_ENABLED=false] 邮件未发送（仅记录内容）
+  To: you@example.com
+  Subject: 【AgentFlow】注册验证码
+你的注册验证码是：123456
+```
+
+### 验证码策略
+
+| 变量 | 默认 | 说明 |
+|:--|:--|:--|
+| `CODE_TTL_SECONDS` | 300 | 有效期（秒） |
+| `CODE_LENGTH` | 6 | 位数 |
+| `CODE_RESEND_INTERVAL` | 60 | 同一邮箱重发冷却（秒） |
+| `CODE_HOURLY_LIMIT` | 5 | 同一邮箱每小时上限 |
+| `CODE_MAX_ATTEMPTS` | 5 | 单个码最多试错次数，超过即作废 |
+| `SEND_CODE_IP_LIMIT` | 10 | 每 IP 每窗口的发码次数 |
+| `SEND_CODE_IP_WINDOW` | 3600 | IP 限流窗口（秒） |
+
+> 公司/学校共用出口 IP 时，`SEND_CODE_IP_LIMIT` 容易误伤，可按需放宽。
+> `REQUIRE_EMAIL_CODE=false` 会关闭注册校验，**仅建议用于自动化测试与内网演示**。
+
+### 验证码存储：务必注意多 worker
+
+验证码优先存 **Redis**，连不上时退回**进程内存**。内存模式在 `uvicorn --workers N`
+（N > 1）下**必然失效**——发码落在 worker A、校验落在 B，用户永远提示「验证码已过期」。
+启动时会打印告警：
+
+```
+⚠️ 验证码当前使用内存存储：uvicorn 若开启多个 worker，发码与校验可能落在不同进程，导致校验永远失败。
+```
+
+**多 worker / 多实例部署必须配好 `REDIS_URL`。**
+
+### 接口
+
+| 方法 | 路径 | 说明 |
+|:--|:--|:--|
+| POST | `/api/v1/auth/send-code` | 发送注册验证码 |
+| POST | `/api/v1/auth/register` | 注册（需带 `code` 字段） |
+
+---
+
 ## 大模型 API 配置（支持热切换）
 
 在 **设置 → 模型配置** 里可以自行填写 API Key 与端点，**不用改 .env、也不用重启服务**。

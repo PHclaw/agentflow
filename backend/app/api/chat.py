@@ -9,12 +9,27 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
 from typing import Optional, List
+import asyncio
 import json
 
 from ..core.database import get_db
 from ..models.agent import Agent, ChatSession
+from ..models.subscription import Subscription
+from ..services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+)
 from ..services.integrated_runtime import IntegratedAgentRuntime
+from ..services.llm import LLMNotConfiguredError, humanize_llm_error
+from ..services.agent_turn import (
+    agent_has_workflow,
+    append_turn,
+    load_or_create_session,
+    run_workflow_turn,
+)
 from .auth import get_current_user_id
+from .deps import current_subscription
 
 router = APIRouter()
 
@@ -23,12 +38,16 @@ class ChatRequest(BaseModel):
     message: str
     session_id: Optional[str] = None
     stream: bool = False
+    #: 「新建对话」：强制另起一段会话，不再复用最近一次
+    new_session: bool = False
 
 
 class ChatResponse(BaseModel):
     response: str
     session_id: str
     stats: Optional[dict] = None
+    #: 工作区新生成的产物，供前端渲染成可下载附件
+    files: List[dict] = []
 
 
 class MultiAgentRequest(BaseModel):
@@ -43,12 +62,78 @@ class FeedbackRequest(BaseModel):
     comment: Optional[str] = None
 
 
+def _session_title(messages: Optional[list], limit: int = 40) -> str:
+    """取该会话的第一条用户消息作为标题。
+
+    列表里只有时间戳很难分辨是哪次对话；空会话（刚建还没说话）
+    返回空串，由前端显示「（空对话）」。
+    """
+    for msg in messages or []:
+        if msg.get("role") != "user":
+            continue
+        text = " ".join(str(msg.get("content") or "").split())
+        return text[:limit] + ("…" if len(text) > limit else "")
+    return ""
+
+
+# 注意：/sessions 与 /multi-agent 都必须放在 /{agent_id} 之前，否则会被匹配成 agent_id
+@router.get("/sessions")
+async def list_all_sessions(
+    limit: int = 50,
+    offset: int = 0,
+    agent_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
+    """该用户的全部对话记录（跨 Agent），按最近更新排序。
+
+    此前只有 /{agent_id}/sessions 这个按Agent 的接口，前端也没有任何入口，
+    于是历史对话完全看不到 —— 这里补上跨 Agent 的列表。
+    """
+    stmt = select(ChatSession).where(ChatSession.user_id == user_id)
+    if agent_id:
+        stmt = stmt.where(ChatSession.agent_id == agent_id)
+    stmt = stmt.order_by(ChatSession.updated_at.desc())
+
+    rows = (await db.execute(stmt)).scalars().all()
+
+    # 空会话（一条消息都没有）在「对话记录」里没有任何信息量，
+    # 只会随着每次「新建对话」不断堆积，把真正的对话挤下去，故不返回。
+    # 过滤放在分页之前，否则每页会少于 limit 条。
+    rows = [s for s in rows if s.messages]
+    total = len(rows)
+    page = rows[offset: offset + limit]
+
+    agent_ids = {s.agent_id for s in page}
+    names: dict = {}
+    if agent_ids:
+        name_rows = await db.execute(select(Agent.id, Agent.name).where(Agent.id.in_(agent_ids)))
+        names = {aid: name for aid, name in name_rows.all()}
+
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "agent_id": s.agent_id,
+                "agent_name": names.get(s.agent_id, "（已删除的 Agent）"),
+                "title": _session_title(s.messages),
+                "message_count": len(s.messages),
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+            }
+            for s in page
+        ],
+        "total": total,
+    }
+
+
 # 注意：/multi-agent 必须放在 /{agent_id} 之前，否则会被匹配为 agent_id
 @router.post("/multi-agent")
 async def multi_agent_chat(
     data: MultiAgentRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
     多 Agent 协作
@@ -57,6 +142,9 @@ async def multi_agent_chat(
     """
     if not data.agent_ids:
         raise HTTPException(status_code=400, detail="agent_ids is required")
+
+    # 多 Agent 一次要调多个模型，开销比单轮对话大得多，更要先卡额度
+    await check_quota(db, sub, Resource.MESSAGES)
 
     try:
         # 使用第一个 agent 作为主运行时
@@ -74,6 +162,9 @@ async def multi_agent_chat(
             session_id=data.session_id,
         )
 
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
         return {
             "results": results,
             "session_id": runtime.session.id if runtime.session else None,
@@ -85,22 +176,96 @@ async def multi_agent_chat(
         raise HTTPException(status_code=500, detail=f"Multi-agent error: {str(e)}")
 
 
+async def _run_workflow_chat(
+    agent: Agent,
+    data: ChatRequest,
+    db: AsyncSession,
+    user_id: str,
+    sub: Subscription,
+):
+    """工作流模式的对话：执行画布上的编排，把结果作为回复返回。"""
+    if data.stream:
+        async def generate_sse():
+            try:
+                session = await load_or_create_session(db, agent.id, user_id, data.session_id, data.new_session)
+                yield f"data: {json.dumps({'type': 'session', 'session_id': session.id})}\n\n"
+
+                turn = await run_workflow_turn(agent, data.message, db)
+
+                append_turn(session, data.message, turn.content, turn.files)
+                agent.message_count = (agent.message_count or 0) + 1
+                # 跑完再计数：这一轮模型已经真的花过钱了
+                await consume_quota(db, sub, Resource.MESSAGES)
+                await db.commit()
+
+                # 工作流是一口气执行完的，这里分片下发以保留流式观感
+                for i in range(0, len(turn.content), 24):
+                    chunk = turn.content[i:i + 24]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                # files 必须带上：智能体节点生成的工作区产物要能作为附件下载，
+                # 否则用户只会看到「已生成 xxx.md」却找不到文件
+                yield f"data: {json.dumps({'type': 'done', 'content': turn.content, 'session_id': session.id, 'files': turn.files}, ensure_ascii=False)}\n\n"
+
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'error': humanize_llm_error(e)}, ensure_ascii=False)}\n\n"
+
+        return StreamingResponse(
+            generate_sse(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    try:
+        session = await load_or_create_session(db, agent.id, user_id, data.session_id, data.new_session)
+        turn = await run_workflow_turn(agent, data.message, db)
+
+        append_turn(session, data.message, turn.content, turn.files)
+        agent.message_count = (agent.message_count or 0) + 1
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
+        return ChatResponse(
+            response=turn.content,
+            session_id=session.id,
+            files=turn.files,
+            stats={"engine": "workflow", "failed_nodes": turn.failed_nodes},
+        )
+    except LLMNotConfiguredError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
+
+
 @router.post("/{agent_id}", response_model=ChatResponse)
 async def chat(
     agent_id: str,
     data: ChatRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
-    与 Agent 对话（整合版）
+    与 Agent 对话
 
-    使用 IntegratedAgentRuntime，自动：
-    - 追踪对话
-    - 使用提示词模板
-    - 解析输出
-    - 管理记忆
+    执行体按「该 Agent 是否配置了工作流」分流：
+    - 配置了工作流 -> 按画布编排执行（见 services/agent_turn）
+    - 未配置       -> 维持原有 IntegratedAgentRuntime 链路
+
+    未配置工作流的 Agent 行为完全不变。
     """
+    agent = await db.get(Agent, agent_id)
+    if not agent or agent.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    # 先卡额度再跑模型。反过来做的话，模型调用是真金白银，
+    # 等它跑完再拒绝，钱已经花了，用户还会白看到一次回复。
+    await check_quota(db, sub, Resource.MESSAGES)
+
+    if agent_has_workflow(agent):
+        return await _run_workflow_chat(agent, data, db, user_id, sub)
+
     # 流式对话
     if data.stream:
         async def generate_sse():
@@ -158,13 +323,17 @@ async def chat(
 
                 # 更新统计
                 runtime.agent.message_count = (runtime.agent.message_count or 0) + 1
+                # 流式路径的模型调用发生在响应返回之后，用量只能在这里累加。
+                # 放在 try 内而非 finally：LLM 报错时走 except 分支，不该计费。
+                await consume_quota(db, sub, Resource.MESSAGES)
                 await db.commit()
 
                 # 发送完成
                 yield f"data: {json.dumps({'type': 'done', 'content': full_response, 'session_id': runtime.session.id})}\n\n"
 
             except Exception as e:
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                # 界面会原样展示这个字符串，必须翻译成用户能行动的中文提示
+                yield f"data: {json.dumps({'type': 'error', 'error': humanize_llm_error(e)}, ensure_ascii=False)}\n\n"
 
         return StreamingResponse(
             generate_sse(),
@@ -190,6 +359,9 @@ async def chat(
 
         stats = await runtime.get_stats()
 
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
         return ChatResponse(
             response=response,
             session_id=runtime.session.id,
@@ -198,8 +370,11 @@ async def chat(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except LLMNotConfiguredError as e:
+        # 属于配置缺失而非服务故障，用 503 让前端能区分并提供引导
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
 
 
 @router.post("/{agent_id}/with-tools", response_model=ChatResponse)
@@ -207,13 +382,17 @@ async def chat_with_tools(
     agent_id: str,
     data: ChatRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
     带工具调用的对话
 
     使用 agent-tool-registry 管理工具
     """
+    # 工具调用往往要跑好几轮模型，比普通对话更贵，先卡额度
+    await check_quota(db, sub, Resource.MESSAGES)
+
     try:
         runtime = IntegratedAgentRuntime(
             agent_id=agent_id,
@@ -230,6 +409,9 @@ async def chat_with_tools(
 
         stats = await runtime.get_stats()
 
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
         return ChatResponse(
             response=response,
             session_id=runtime.session.id,
@@ -238,8 +420,11 @@ async def chat_with_tools(
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except LLMNotConfiguredError as e:
+        # 属于配置缺失而非服务故障，用 503 让前端能区分并提供引导
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=humanize_llm_error(e))
 
 
 @router.get("/{agent_id}/history")
@@ -335,6 +520,8 @@ async def list_sessions(
             {
                 "id": s.id,
                 "agent_id": s.agent_id,
+                "agent_name": agent.name,
+                "title": _session_title(s.messages),
                 "message_count": len(s.messages) if s.messages else 0,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
                 "updated_at": s.updated_at.isoformat() if s.updated_at else None,

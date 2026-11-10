@@ -1,0 +1,53 @@
+# docker build 的上下文排除清单（backend / celery-worker 的 context 是仓库根）。
+#
+# **这份文件不是可有可无的**：backend/Dockerfile 里的 `COPY backend/ /app/`
+# 会把构建上下文里匹配到的所有东西原样拷进镜像。没有它，构建出来的镜像会
+# 包含 646MB 的虚拟环境、含密码哈希的开发数据库、以及真实密钥的 .env ——
+# 既撑爆体积，也等于把生产数据打包发布。
+#
+# 注意 .env 的写法：只能精确列出文件名，不能用 `.env.*` 通配 ——
+# 那会把 `.env.example`（要随包发布、给部署者当模板）一并排除掉。
+
+# ---- 版本控制 ----
+.git
+.github
+
+# ---- Python ----
+backend/.venv
+venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+htmlcov
+
+# ---- Node（前端构建上下文另有 frontend/.dockerignore）----
+frontend/node_modules
+frontend/dist
+
+# ---- 环境与密钥：绝不进镜像 ----
+**/.env
+**/.env.local
+**/.env.production
+**/.env.staging
+**/*.pem
+**/*.key
+
+# ---- 数据库与用户数据：绝不进镜像 ----
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+backend/uploads
+uploads
+static/generated
+
+# ---- 日志 ----
+**/*.log
+
+# ---- 与运行无关的开发产物 ----
+recordings
+promo_images
+screenshots
+docs

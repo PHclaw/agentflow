@@ -50,3 +50,27 @@ frontend/dist/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# 录屏产物（二进制，不入库）
+recordings/
+
+# 示例脚本的产出（PPT 等，可随时重新生成）
+# 注意：examples/generate_ai_ppt.py 本身要入库，只排除生成物
+examples/output/
+
+# 类型检查 / 检查器缓存
+*.tsbuildinfo
+.ruff_cache/
+
+# 覆盖率报告
+coverage.xml
+
+# 临时与备份文件
+*.tmp
+*.bak
+*~
+_readme_preview.html
+.gstack/
+
+# 第三方技能不随本仓库分发（见 THIRD_PARTY_NOTICES.md）
+skills/*/

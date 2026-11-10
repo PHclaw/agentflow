@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Logo } from '../layout/Logo'
 import { Github, Twitter, Linkedin, Youtube, Mail, MapPin, Phone } from 'lucide-react'
+import { GITHUB_REPO_URL } from '../../lib/links'
 
 const footerLinks = {
   product: {
@@ -15,6 +16,7 @@ const footerLinks = {
   resources: {
     title: '资源',
     links: [
+      { label: 'GitHub 仓库', href: GITHUB_REPO_URL },
       { label: '开发文档', href: '#' },
       { label: 'API 文档', href: '#' },
       { label: '视频教程', href: '#' },
@@ -42,7 +44,7 @@ const footerLinks = {
 }
 
 const socialLinks = [
-  { icon: Github, href: '#', label: 'GitHub' },
+  { icon: Github, href: GITHUB_REPO_URL, label: 'GitHub' },
   { icon: Twitter, href: '#', label: 'Twitter' },
   { icon: Linkedin, href: '#', label: 'LinkedIn' },
   { icon: Youtube, href: '#', label: 'YouTube' },
@@ -52,7 +54,7 @@ export function Footer() {
   return (
     <footer className="relative bg-slate-900 text-slate-300">
       {/* Gradient top border */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-brand-500 to-transparent" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Main footer */}
@@ -61,22 +63,31 @@ export function Footer() {
             {/* Brand column */}
             <div className="col-span-2">
               <Link to="/" className="inline-flex items-center gap-3 mb-6">
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2 rounded-xl">
+                <div className="bg-gradient-to-br from-brand-500 to-brand-600 p-2 rounded-xl">
                   <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                   </svg>
                 </div>
-                <span className="text-xl font-bold text-white">AgentFlow</span>
+                <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">
+                  AgentFlow
+                </span>
               </Link>
               <p className="text-slate-400 text-sm leading-relaxed mb-6 max-w-sm">
-                让每个企业都能拥有专属 AI Agent，无需代码，拖拽式构建，5 分钟快速上线。
+                搭建企业自己的 AI 助手：拖拽式编排，内置行业模板，支持私有化部署。
               </p>
               
               {/* Contact info */}
               <div className="space-y-3 text-sm">
+                {/* 做成 mailto：这里本来是纯文本，用户想联系还得自己复制粘贴。
+                    地址与帮助中心的 SUPPORT_EMAIL 保持一致。 */}
                 <div className="flex items-center gap-2 text-slate-400">
                   <Mail className="w-4 h-4" />
-                  <span>contact@agentflow.ai</span>
+                  <a
+                    href="mailto:168465420@qq.com?subject=%E4%BA%A7%E5%93%81%E5%92%A8%E8%AF%A2"
+                    className="hover:text-white transition-colors"
+                  >
+                    168465420@qq.com
+                  </a>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Phone className="w-4 h-4" />
@@ -94,6 +105,9 @@ export function Footer() {
                   <a
                     key={i}
                     href={social.href}
+                    {...(social.href.startsWith('http')
+                      ? { target: '_blank', rel: 'noopener noreferrer' }
+                      : {})}
                     className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-all hover:scale-110"
                     aria-label={social.label}
                   >
@@ -112,6 +126,9 @@ export function Footer() {
                     <li key={j}>
                       <a
                         href={link.href}
+                        {...(link.href.startsWith('http')
+                          ? { target: '_blank', rel: 'noopener noreferrer' }
+                          : {})}
                         className="text-sm text-slate-400 hover:text-white transition-colors"
                       >
                         {link.label}
@@ -128,7 +145,7 @@ export function Footer() {
         <div className="py-6 border-t border-slate-800">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-slate-500">
-              © 2024 AgentFlow. 保留所有权利。
+              © 2026 AgentFlow. 保留所有权利。
             </p>
             <div className="flex items-center gap-6 text-sm text-slate-500">
               <span className="flex items-center gap-2">

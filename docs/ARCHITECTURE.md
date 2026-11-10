@@ -112,7 +112,9 @@ agentflow/
 ├── examples/                   # 独立示例（可脱离平台单独运行）
 │   └── generate_ai_ppt.py      # 用代码生成一份结构完整的 PPT
 ├── assets/                     # README 配图与演示素材
-│   ├── banner.svg              # 顶部横幅
+│   ├── banner.svg              # 顶部横幅（可编辑源文件）
+│   ├── banner.gif              # 顶部横幅动图，由 scripts/build-banner-gif.py 生成
+│   ├── banner.png              # 顶部横幅静态回退
 │   ├── screens/                # 界面截图
 │   ├── gifs/                   # 功能演示动图
 │   ├── videos/                 # 完整演示录屏

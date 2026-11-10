@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Input, Textarea, Select } from '../components/ui/Input'
@@ -7,7 +7,7 @@ import { Tabs, TabPanel } from '../components/ui/Tabs'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
-import { api, models as modelsApi } from '../services/api'
+import { api, llmModels, templates as templatesApi } from '../services/api'
 import { useToastStore } from '../stores'
 import type { Agent, WorkflowDefinition } from '../types'
 import {
@@ -38,9 +38,12 @@ const tabs = [
 
 export default function AgentCreatePage() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { addToast } = useToastStore()
   const isEditing = !!id
+  /** 模板市场带过来的模板 id（/agents/new?template=xxx） */
+  const templateId = searchParams.get('template')
 
   const [activeTab, setActiveTab] = useState('basic')
   const [loading, setLoading] = useState(false)
@@ -50,7 +53,8 @@ export default function AgentCreatePage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    model: 'gpt-4o-mini',
+    // 空 = 跟随生效配置的模型
+    model: '',
     prompt: '',
     knowledgeBaseId: '',
   })
@@ -58,24 +62,33 @@ export default function AgentCreatePage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [showKBSelector, setShowKBSelector] = useState(false)
 
+  /**
+   * 待保存的工作流定义。
+   *
+   * 编辑已有 Agent 时不下发该字段（见 handleSubmit 注释），
+   * 新建时若来自模板，则用模板自带的工作流。
+   */
+  const [workflowDefinition, setWorkflowDefinition] = useState<WorkflowDefinition | null>(null)
+
   // 加载模型列表
   useEffect(() => {
     const fetchModels = async () => {
       setModelsLoading(true)
       setModelsError(null)
       try {
-        const res = await modelsApi.list()
-        const data = res.data || res
-        if (Array.isArray(data) && data.length > 0) {
-          const options = data.map((m: any) => ({
-            value: m.id || m.model_id,
-            label: m.name || m.display_name || m.id,
+        const res = await llmModels.list()
+        const payload = (res as any)?.data ?? res
+        const list = payload.models || []
+        if (list.length > 0) {
+          // 字段名是 label 不是 name —— 后端 /llm-configs/models 返回的就是 label
+          setModelOptions(list.map((m: any) => ({
+            value: m.id,
+            label: m.is_effective ? `${m.label}（当前生效）` : m.label,
             provider: m.provider,
-            tier: m.tier,
-          }))
-          setModelOptions(options)
+            tier: m.source,
+          })))
         } else {
-          setModelsError('未获取到模型列表')
+          setModelsError('尚未配置可用模型，请先在「模型配置」中添加')
         }
       } catch (error: any) {
         setModelsError(error.message || '加载模型列表失败')
@@ -106,16 +119,37 @@ export default function AgentCreatePage() {
     }
   }, [id])
 
+  // 从模板市场进入：套用模板的名称、描述与工作流定义
+  useEffect(() => {
+    if (!templateId || isEditing) return
+    templatesApi
+      .get(templateId)
+      .then((tpl: any) => {
+        setFormData((prev) => ({
+          ...prev,
+          name: prev.name || tpl.name || '',
+          description: prev.description || tpl.description || '',
+        }))
+        setWorkflowDefinition(tpl.workflow_definition ?? null)
+        addToast({
+          type: 'info',
+          message: `已套用模板「${tpl.name}」，保存后即可使用其中编排`,
+        })
+      })
+      .catch(() => addToast({ type: 'error', message: '模板加载失败' }))
+  }, [templateId, isEditing])
+
   const fetchAgent = async (agentId: string) => {
     try {
       const agent = await api.get(`/agents/${agentId}`)
       setFormData({
         name: agent.name,
         description: agent.description || '',
-        model: agent.model_config?.model || 'gpt-4o-mini',
-        prompt: '',
+        model: agent.model_config?.model || '',
+        prompt: agent.system_prompt || '',
         knowledgeBaseId: agent.knowledge_base_id || '',
       })
+      setWorkflowDefinition(agent.workflow_definition ?? null)
     } catch (error) {
       addToast({ type: 'error', message: '加载 Agent 失败' })
     }
@@ -129,14 +163,9 @@ export default function AgentCreatePage() {
 
     setLoading(true)
     try {
-      const data = {
+      const data: Record<string, unknown> = {
         name: formData.name,
         description: formData.description,
-        workflow_definition: {
-          nodes: [],
-          edges: [],
-          entry: 'start',
-        },
         llm_config: {
           provider: 'openai',
           model: formData.model,
@@ -144,6 +173,16 @@ export default function AgentCreatePage() {
           max_tokens: 2000,
         },
         knowledge_base_id: formData.knowledgeBaseId || undefined,
+        system_prompt: formData.prompt || undefined,
+      }
+
+      // 编辑时不下发 workflow_definition：
+      // 这里原先硬编码 {nodes: [], edges: [], entry: 'start'}，
+      // 结果只要用表单编辑一次 Agent，工作流编辑器里配好的内容就被清空了。
+      // 后端对 None 的字段会跳过，所以不发即为「保持不变」。
+      if (!isEditing) {
+        data.workflow_definition =
+          workflowDefinition || { nodes: [], edges: [], entry: 'start' }
       }
 
       if (isEditing && id) {
@@ -282,7 +321,7 @@ export default function AgentCreatePage() {
                     variant="outline"
                     size="sm"
                     leftIcon={<Zap className="w-4 h-4" />}
-                    onClick={() => window.open(`/workflow/${id || 'new'}`, '_blank')}
+                    onClick={() => navigate(`/workflow/${id || 'new'}`)}
                   >
                     打开工作流编辑器
                   </Button>
@@ -361,7 +400,7 @@ export default function AgentCreatePage() {
                           }}
                           className={`w-full p-3 rounded-xl text-left transition-colors ${
                             formData.knowledgeBaseId === kb.id
-                              ? 'bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-200'
+                              ? 'bg-brand-50 dark:bg-brand-900/30 border border-brand-200'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent'
                           }`}
                         >
@@ -371,7 +410,7 @@ export default function AgentCreatePage() {
                               <p className="font-medium text-slate-900 dark:text-white">{kb.name}</p>
                               <p className="text-xs text-slate-500">{kb.document_count} 个文档</p>
                             </div>
-                            {formData.knowledgeBaseId === kb.id && <Check className="w-5 h-5 text-indigo-500" />}
+                            {formData.knowledgeBaseId === kb.id && <Check className="w-5 h-5 text-brand-500" />}
                           </div>
                         </button>
                       ))
@@ -392,7 +431,7 @@ export default function AgentCreatePage() {
             <CardContent>
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
                     <Bot className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -400,7 +439,7 @@ export default function AgentCreatePage() {
                       {formData.name || '未命名 Agent'}
                     </h4>
                     <p className="text-sm text-slate-500">
-                      {formData.model || 'gpt-4o-mini'}
+                      {formData.model || '跟随生效配置'}
                     </p>
                   </div>
                 </div>
@@ -442,7 +481,7 @@ export default function AgentCreatePage() {
       >
         <div className="space-y-4">
           <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center">
               <Bot className="w-6 h-6 text-white" />
             </div>
             <div>

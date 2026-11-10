@@ -44,12 +44,10 @@ class Subscription(Base):
     
     @property
     def is_pro(self) -> bool:
+        """是否属于付费档（pro / team）。
+
+        只用来表达「是不是付费用户」。**不要拿它推导额度** —— 它对 pro 与
+        team 都返回真，二分会让团队版拿到专业版的额度。
+        额度统一走 ``services.entitlement.limits_for()``。
+        """
         return self.plan in [PlanType.PRO.value, PlanType.TEAM.value] and self.status == "active"
-    
-    def can_create_agent(self, settings) -> bool:
-        limit = settings.PRO_AGENTS if self.is_pro else settings.FREE_AGENTS
-        return self.agents_used < limit
-    
-    def can_send_message(self, settings) -> bool:
-        limit = settings.PRO_MESSAGES if self.is_pro else settings.FREE_MESSAGES
-        return self.messages_used < limit

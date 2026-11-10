@@ -16,10 +16,22 @@ logger = get_logger("model")
 
 
 def resolve_credentials() -> tuple[str | None, str | None]:
-    """统一读取服务端 .env 中的 API Key / Base URL（不允许用户自选）。
+    """统一读取模型凭证（Base URL / API Key）。
 
-    优先 CHATZOC_*，否则回退 DASHSCOPE_API_KEY / MODEL_BASE_URL。
+    优先级：
+    1. 「大模型 API 配置」中当前生效的配置（由 app.services.llm_config 维护的
+       热加载快照，改配置后下一条请求即生效）
+    2. 回退到 .env：CHATZOC_* ，否则 DASHSCOPE_API_KEY / MODEL_BASE_URL
+
+    这是全项目唯一的凭证出口，热拔插能力依赖这里读取内存快照。
+    快照未加载时（例如非 HTTP 场景的首次调用）自然回退 .env。
     """
+    from app.services.llm_config import get_active
+
+    active = get_active()
+    if active is not None and (active.api_key or active.base_url):
+        return (active.api_key or None), (active.base_url or None)
+
     settings = get_settings()
     api_key: str | None = (
         settings.chatzoc_api_key
