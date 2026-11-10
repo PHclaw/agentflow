@@ -16,6 +16,7 @@ from ..core.database import get_db
 from ..core.config import settings
 from ..core.rate_limiter import get_limiter
 from ..models.user import User
+from ..core.default_agent import build_default_agent
 from ..services.entitlement import new_free_subscription
 from ..services.password_policy import validate_password
 from ..services.roles import apply_configured_role
@@ -231,7 +232,10 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
     # can_create_agent() 一直是死代码，根因就在这里。
     # flush 而不是 commit：要先拿到自增 id 才能填 Subscription.user_id。
     await db.flush()
-    db.add(new_free_subscription(user.id))
+    # 新账号自带一个可用 Agent：注册完点「对话」就能直接聊，而不是先被引去创建。
+    # 它占掉免费版的 1 个名额（FREE_AGENTS=1），所以 agents_used 一并置 1。
+    db.add(build_default_agent(user.external_id))
+    db.add(new_free_subscription(user.id, agents_used=1))
     # 注册的邮箱也过一遍管理员白名单：新环境里管理员往往就是第一个注册的账号
     apply_configured_role(user)
     await db.commit()
