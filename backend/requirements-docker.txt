@@ -135,7 +135,7 @@ opentelemetry-exporter-otlp-proto-common==1.45.1
 opentelemetry-exporter-otlp-proto-grpc==1.45.1
 opentelemetry-proto==1.45.1
 opentelemetry-sdk==1.45.1
-opentelemetry-semantic-conventions==0.66b1
+opentelemetry-semantic-conventions==0.66b2
 orjson==3.13.0
 ormsgpack==1.12.2
 overrides==7.7.0
