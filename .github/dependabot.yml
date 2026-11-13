@@ -1,0 +1,74 @@
+version: 2
+
+# 依赖更新：每周自动提 PR，避免"依赖停在两年前"的观感与安全问题。
+# 分组（groups）是为了不让一次更新炸出十几个 PR。
+updates:
+  # ---------- 后端 ----------
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - backend
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      # 补丁与小版本一起进，减少 PR 噪音
+      backend-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+      # 大版本单独一个 PR，方便单独评估破坏性变更
+      backend-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
+
+  # ---------- 前端 ----------
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - frontend
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      frontend-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+          - minor
+      # React / Vite / ReactFlow 这类核心包升级要单独看
+      frontend-major:
+        patterns:
+          - "*"
+        update-types:
+          - major
+
+  # ---------- GitHub Actions ----------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: "chore(ci)"

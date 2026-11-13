@@ -1,0 +1,32 @@
+# GitHub Pages（Jekyll）配置：把 docs/ 下的 Markdown 直接渲染成文档站
+#
+# 关键点：现有文档都是「纯 Markdown、无 front matter」，Jekyll 默认会当成
+# 静态文件原样输出（点开是下载 .md）。所以启用 optional-front-matter，
+# 让没有 front matter 的文件也参与渲染；relative-links 负责把
+# `[配置](CONFIGURATION.md)` 这类相对链接改写成 `.html`。
+
+title: AgentFlow 文档
+description: 零代码 AI Agent 平台 —— 配置、架构、部署、API 与常见问题
+
+theme: minima
+
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-relative-links
+  - jekyll-titles-from-headings
+
+relative_links:
+  enabled: true
+  collections: false
+
+# 从标题生成页面标题（这些文档首行都是 `# 标题`）
+titles_from_headings:
+  enabled: true
+  strip_title: false
+
+show_excerpts: false
+header_pages:
+  - index.md
+
+exclude:
+  - README.md
