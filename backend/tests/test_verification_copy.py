@@ -265,8 +265,14 @@ class TestEmailBrandMark:
         assert vc.LOGO_NAVY in html
         assert vc.LOGO_CYAN in html
         assert ">agent</span>" in html and ">flow</span>" in html
-        # 字标本身承担品牌名，不能再叠一个品牌名，否则显示成「agentflow AgentFlow」
-        assert html.count("AgentFlow") <= 2, "页头不应同时出现字标和品牌名"
+
+        # 字标本身承担品牌名，页头里不能再叠一次，否则显示成「agentflow AgentFlow」。
+        # 这里直接校验页头片段而不是整页计数：页面标题与页脚本来就会出现品牌名，
+        # 而它们是否出现取决于 settings.MAIL_FROM_NAME —— 本地有 .env、CI 没有，
+        # 用整页计数会在 CI 上误报（曾经就是这样挂的）。
+        lockup = vc._logo_lockup("AgentFlow")
+        assert ">agent</span>" in lockup and ">flow</span>" in lockup
+        assert "AgentFlow" not in lockup, "页头不应同时出现字标和品牌名"
 
     def test_uses_static_mark_when_public_base_url_set(self, monkeypatch):
         """配了 PUBLIC_BASE_URL 就自动引随包发布的标识 PNG。"""
