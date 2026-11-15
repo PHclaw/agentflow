@@ -50,6 +50,9 @@ redis==8.1.0
 pydantic==2.14.0
 pydantic-settings==2.15.0
 python-dotenv==1.2.4
+psutil>=5.9            # app/services/monitoring.py: 进程与内存指标
+pyyaml>=6.0            # app/services/skill/store.py: 技能清单解析
+lxml>=5.0              # app/services/skill/ppt_office.py: PPT 模板解析
 
 # File Processing
 python-docx==1.2.0
