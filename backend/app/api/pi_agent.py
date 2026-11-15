@@ -277,7 +277,11 @@ def resolve_workspace_file(workspace: Path, file_path: str) -> Path:
     单独抽出便于直接对路径穿越场景做单元测试。
     """
     workspace = Path(workspace).resolve()
-    target = (workspace / file_path).resolve()
+    # 统一分隔符：Windows 客户端可能传 `..\secret.txt`。在 POSIX 上反斜杠不是
+    # 路径分隔符，不转换就会被当成普通文件名，于是越权尝试变成"文件不存在"（404），
+    # 掩盖了真实意图。转换后再解析，越界一律 403。
+    normalized = file_path.replace("\\", "/")
+    target = (workspace / normalized).resolve()
 
     if workspace != target and workspace not in target.parents:
         raise HTTPException(403, "禁止访问工作区之外的文件")
