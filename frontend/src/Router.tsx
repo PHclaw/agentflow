@@ -20,6 +20,9 @@ import TemplateMarket from './pages/TemplateMarket'
 import ConversationListPage from './pages/ConversationListPage'
 import SkillPlazaPage from './pages/SkillPlazaPage'
 import SkillChatPage from './pages/SkillChatPage'
+import AdminPage from './pages/AdminPage'
+import AdminSkillsPage from './pages/AdminSkillsPage'
+import { AdminRoute } from './components/auth/AdminRoute'
 
 // Pages wrapper components
 function LandingPage() {
@@ -79,6 +82,10 @@ export default function Router() {
         <Route path="/skills" element={<ProtectedDashboard><SkillPlazaPage /></ProtectedDashboard>} />
         <Route path="/settings" element={<ProtectedDashboard><SettingsPage /></ProtectedDashboard>} />
         <Route path="/help" element={<ProtectedDashboard><HelpPage /></ProtectedDashboard>} />
+
+        {/* 管理后台：AdminRoute 在外层，非管理员连页面都不会挂载 */}
+        <Route path="/admin" element={<ProtectedDashboard><AdminRoute><AdminPage /></AdminRoute></ProtectedDashboard>} />
+        <Route path="/admin/skills" element={<ProtectedDashboard><AdminRoute><AdminSkillsPage /></AdminRoute></ProtectedDashboard>} />
 
         {/* 详情类页面：都嵌在侧边栏右侧的内容区里，不再整页接管 */}
         <Route path="/skills/:id" element={<ProtectedDashboard><SkillChatPage /></ProtectedDashboard>} />

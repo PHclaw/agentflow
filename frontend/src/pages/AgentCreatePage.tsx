@@ -7,7 +7,7 @@ import { Tabs, TabPanel } from '../components/ui/Tabs'
 import { Breadcrumb } from '../components/ui/Breadcrumb'
 import { Modal } from '../components/ui/Modal'
 import { Badge } from '../components/ui/Badge'
-import { api, models as modelsApi, templates as templatesApi } from '../services/api'
+import { api, llmModels, templates as templatesApi } from '../services/api'
 import { useToastStore } from '../stores'
 import type { Agent, WorkflowDefinition } from '../types'
 import {
@@ -53,7 +53,8 @@ export default function AgentCreatePage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    model: 'gpt-4o-mini',
+    // 空 = 跟随生效配置的模型
+    model: '',
     prompt: '',
     knowledgeBaseId: '',
   })
@@ -75,18 +76,19 @@ export default function AgentCreatePage() {
       setModelsLoading(true)
       setModelsError(null)
       try {
-        const res = await modelsApi.list()
-        const data = res.data || res
-        if (Array.isArray(data) && data.length > 0) {
-          const options = data.map((m: any) => ({
-            value: m.id || m.model_id,
-            label: m.name || m.display_name || m.id,
+        const res = await llmModels.list()
+        const payload = (res as any)?.data ?? res
+        const list = payload.models || []
+        if (list.length > 0) {
+          // 字段名是 label 不是 name —— 后端 /llm-configs/models 返回的就是 label
+          setModelOptions(list.map((m: any) => ({
+            value: m.id,
+            label: m.is_effective ? `${m.label}（当前生效）` : m.label,
             provider: m.provider,
-            tier: m.tier,
-          }))
-          setModelOptions(options)
+            tier: m.source,
+          })))
         } else {
-          setModelsError('未获取到模型列表')
+          setModelsError('尚未配置可用模型，请先在「模型配置」中添加')
         }
       } catch (error: any) {
         setModelsError(error.message || '加载模型列表失败')
@@ -143,7 +145,7 @@ export default function AgentCreatePage() {
       setFormData({
         name: agent.name,
         description: agent.description || '',
-        model: agent.model_config?.model || 'gpt-4o-mini',
+        model: agent.model_config?.model || '',
         prompt: agent.system_prompt || '',
         knowledgeBaseId: agent.knowledge_base_id || '',
       })
@@ -437,7 +439,7 @@ export default function AgentCreatePage() {
                       {formData.name || '未命名 Agent'}
                     </h4>
                     <p className="text-sm text-slate-500">
-                      {formData.model || 'gpt-4o-mini'}
+                      {formData.model || '跟随生效配置'}
                     </p>
                   </div>
                 </div>

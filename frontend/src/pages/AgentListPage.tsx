@@ -266,7 +266,12 @@ export default function AgentListPage() {
         </div>
       ) : (
         <Card className="overflow-hidden">
-          <table className="w-full">
+          {/* 表格在手机上必然超出宽度（四列加 px-6 内边距）。外层必须能横向
+              滚：卡片上的 overflow-hidden 会把超出的部分直接裁掉，被裁的那几列
+              在手机上就永远点不到。默认视图是卡片，但用户手动切到列表时这条
+              就是唯一的退路。 */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
             <thead className="bg-slate-50 dark:bg-slate-800/50">
               <tr>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -351,6 +356,7 @@ export default function AgentListPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </Card>
       )}
 

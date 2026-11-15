@@ -76,9 +76,16 @@ export function Footer() {
               
               {/* Contact info */}
               <div className="space-y-3 text-sm">
+                {/* 做成 mailto：这里本来是纯文本，用户想联系还得自己复制粘贴。
+                    地址与帮助中心的 SUPPORT_EMAIL 保持一致。 */}
                 <div className="flex items-center gap-2 text-slate-400">
                   <Mail className="w-4 h-4" />
-                  <span>contact@agentflow.ai</span>
+                  <a
+                    href="mailto:168465420@qq.com?subject=%E4%BA%A7%E5%93%81%E5%92%A8%E8%AF%A2"
+                    className="hover:text-white transition-colors"
+                  >
+                    168465420@qq.com
+                  </a>
                 </div>
                 <div className="flex items-center gap-2 text-slate-400">
                   <Phone className="w-4 h-4" />

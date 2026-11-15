@@ -1,2 +1,2 @@
-export { WorkflowEditor } from './WorkflowEditor'
 export * from './nodes'
+export { useWorkflowHistory } from './useWorkflowHistory'

@@ -1,17 +1,23 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// 后端地址。默认 8001；8001 被别的服务占用时用环境变量改：
+//   VITE_PROXY_TARGET=http://127.0.0.1:8002 npm run dev
+const API_TARGET = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8001'
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        // 用 127.0.0.1 而不是 localhost：Windows 上 localhost 会先解析到 IPv6 的 ::1，
+        // 而后端默认只监听 IPv4，代理就会连不通（表现为接口 500）
+        target: API_TARGET,
         changeOrigin: true,
       },
       '/static': {
-        target: 'http://localhost:8001',
+        target: API_TARGET,
         changeOrigin: true,
       },
     },

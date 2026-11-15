@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { Card } from '../ui/Card'
+import { Reveal } from './Reveal'
 import {
   MousePointer2,
   Package,
@@ -73,7 +74,7 @@ export function FeaturesSection() {
     <section id="features" ref={sectionRef} className="py-24 lg:py-32 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-white to-slate-50" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-brand-100/50 to-transparent rounded-full blur-3xl" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-brand-100/50 to-transparent rounded-full blur-3xl animate-breathe motion-reduce:animate-none" />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
@@ -90,8 +91,9 @@ export function FeaturesSection() {
           </p>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+        {/* Features Grid。Reveal 直接当网格容器用（className 透传），
+            多包一层会把网格的子元素关系打断 */}
+        <Reveal stagger className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {features.map((feature, index) => (
             <Card
               key={feature.title}
@@ -120,48 +122,49 @@ export function FeaturesSection() {
               <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
             </Card>
           ))}
-        </div>
+        </Reveal>
 
-        {/* Highlight feature */}
+        {/* Highlight feature
+
+            原来是一整块 brand 渐变 + 两团 blur-3xl 光斑 + 白色大字。
+            那套做法的问题不是"太花"，而是**它把整页唯一强调色用光了** ——
+            一屏里其它地方（按钮、链接、图标）就再没有强调色可用了。
+
+            2.0.2 改成中性卡片：靠小号大写标签 + 字号层级来突出，
+            强调色留给真正需要点击的东西。文案和布局结构保持不变。 */}
         <div className="mt-16">
-          <Card className="relative overflow-hidden bg-gradient-to-r from-brand-600 via-brand-600 to-brand-600 border-0">
-            {/* Animated background */}
-            <div className="absolute inset-0 opacity-20">
-              <div className="absolute top-0 left-1/4 w-64 h-64 bg-white rounded-full blur-3xl animate-pulse" />
-              <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-brand-300 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-            </div>
-
-            <div className="relative flex flex-col lg:flex-row items-center justify-between gap-8 p-8 lg:p-12">
+          <Card className="p-6 lg:p-8">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
               {/* Left content */}
               <div className="text-center lg:text-left">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-sm font-medium mb-4">
-                  <Layers className="w-4 h-4" />
+                <div className="inline-flex items-center gap-1.5 text-2xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+                  <Layers className="w-3.5 h-3.5" />
                   新功能
                 </div>
-                <h3 className="text-2xl lg:text-3xl font-bold text-white mb-3">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                   多 Agent 协作模式
                 </h3>
-                <p className="text-brand-100 max-w-lg">
+                <p className="text-[13px] text-slate-500 dark:text-slate-400 max-w-lg leading-relaxed">
                   让多个 Agent 分别处理不同环节，再用条件节点串成完整流程，
                   适合环节较多、需要分工的场景。
                 </p>
               </div>
 
               {/* Right - Visual：用字母标代替表情，避免卡通感 */}
-              <div className="flex items-center gap-4">
-                <div className="flex -space-x-3">
+              <div className="flex items-center gap-4 shrink-0">
+                <div className="flex -space-x-1.5">
                   {['客', '售', '据'].map((label, i) => (
                     <div
                       key={i}
-                      className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-base font-semibold text-white border-2 border-white/50"
+                      className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-sm font-semibold text-slate-600 dark:text-slate-300"
                     >
                       {label}
                     </div>
                   ))}
                 </div>
-                <div className="text-white">
-                  <div className="text-2xl font-bold">+10</div>
-                  <div className="text-sm text-brand-200">协作 Agent</div>
+                <div>
+                  <div className="text-lg font-semibold text-slate-900 dark:text-white">+10</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">协作 Agent</div>
                 </div>
               </div>
             </div>

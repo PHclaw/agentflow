@@ -23,6 +23,7 @@ import {
   FolderOpen,
 } from 'lucide-react'
 import { api, knowledge } from '../services/api'
+import { downloadBlob } from '../lib/download'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -238,12 +239,7 @@ export default function KnowledgePage() {
     if (!selectedKB) return
     try {
       const blob = await knowledge.downloadDocument(selectedKB.id, doc.id)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = doc.name
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadBlob(blob, doc.name)
     } catch (error: any) {
       alert(error?.message || '下载失败')
     }
@@ -279,9 +275,17 @@ export default function KnowledgePage() {
         </Button>
       </div>
 
-      <div className="flex gap-6">
+      {/*
+        手机上改成上下堆叠。
+
+        原来是 `flex gap-6` + 左栏写死 `w-80`（320px）：在 375px 的手机上，
+        左栏自己就 320px，加上 gap 和页面内边距直接超出屏幕 —— 右侧的文档区
+        被挤成一条缝，而且整页产生横向滚动。改成 flex-col 后两栏各占满宽度，
+        `lg:` 以上才恢复左右并排。
+      */}
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Left sidebar - Knowledge Bases */}
-        <div className="w-80 flex-shrink-0">
+        <div className="w-full lg:w-80 lg:flex-shrink-0">
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-slate-900 dark:text-white">
@@ -358,40 +362,57 @@ export default function KnowledgePage() {
           {selectedKB ? (
             <>
               {/* KB Header */}
-              <Card className="p-6 mb-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {/*
+                知识库头部。
+
+                原来这一行是 `flex items-start justify-between`，**没有 flex-wrap，
+                左块也没有 min-w-0** —— 于是「设置 / 上传文档」两个按钮被挤出卡片
+                甚至屏幕外。原因是 flex 子项默认 `min-width: auto`，左块的最小宽度
+                就是它内容（标题 + 描述 + 三个统计项，统计项那行还是 `gap-6` 不换行）
+                的宽度，压根压不下去；按钮组只能被顶出去。
+
+                三处一起改才成立：
+                - 外层改成手机竖排 / 桌面横排（`flex-col sm:flex-row`）
+                - 左块加 `min-w-0`，允许它收缩到比内容窄，标题与描述 `break-words`
+                - 统计行改成 `flex-wrap`，窄屏上分两行而不是撑宽整块
+                按钮组在手机上各占一半宽度，点在拇指最容易够到的位置。
+              */}
+              <Card className="p-5 sm:p-6 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="min-w-0">
+                    <h2 className="text-lg sm:text-xl font-semibold break-words text-slate-900 dark:text-white">
                       {selectedKB.name}
                     </h2>
-                    <p className="mt-1 text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 break-words text-slate-500 dark:text-slate-400">
                       {selectedKB.description}
                     </p>
-                    <div className="flex items-center gap-6 mt-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 mt-4 text-sm">
                       <div className="flex items-center gap-2 text-slate-500">
-                        <Layers className="w-4 h-4" />
+                        <Layers className="w-4 h-4 shrink-0" />
                         {selectedKB.document_count} 个文档
                       </div>
                       <div className="flex items-center gap-2 text-slate-500">
-                        <FileText className="w-4 h-4" />
+                        <FileText className="w-4 h-4 shrink-0" />
                         {selectedKB.chunk_count} 个知识块
                       </div>
                       <div className="flex items-center gap-2 text-slate-500">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4 shrink-0" />
                         更新于 {new Date(selectedKB.updated_at).toLocaleDateString('zh-CN')}
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 shrink-0">
                     <Button
                       variant="outline"
                       size="sm"
+                      className="flex-1 sm:flex-none"
                       leftIcon={<Settings className="w-4 h-4" />}
                     >
                       设置
                     </Button>
                     <Button
                       size="sm"
+                      className="flex-1 sm:flex-none"
                       leftIcon={<Upload className="w-4 h-4" />}
                       onClick={() => setShowUploadModal(true)}
                     >
@@ -522,7 +543,10 @@ export default function KnowledgePage() {
                 </div>
               ) : (
                 <Card className="overflow-hidden">
-                  <table className="w-full">
+                  {/* 同上：表格在手机上必然超宽，必须能横向滚而不是被 overflow-hidden
+                      裁掉。默认视图是卡片，这里是用户手动切到列表时的退路。 */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
                     <thead className="bg-slate-50 dark:bg-slate-800/50">
                       <tr>
                         <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400">
@@ -599,6 +623,7 @@ export default function KnowledgePage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </Card>
               )}
             </>
@@ -609,7 +634,8 @@ export default function KnowledgePage() {
                 选择一个知识库
               </h3>
               <p className="text-slate-500 dark:text-slate-400">
-                从左侧列表选择一个知识库来查看和管理文档
+                {/* 不写「左侧」：手机上两栏是上下堆叠的，说「左侧」会指错方向 */}
+                从列表中选择一个知识库来查看和管理文档
               </p>
             </Card>
           )}

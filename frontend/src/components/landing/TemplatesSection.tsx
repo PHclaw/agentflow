@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Card } from '../ui/Card'
+import { Reveal } from './Reveal'
 import { Button } from '../ui/Button'
 import { ArrowRight, Check, MessageSquare, Star, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -24,11 +25,42 @@ export function TemplatesSection() {
   }, [])
 
   if (loading) {
+    /*
+      骨架屏，而不是「加载中...」一行字。
+      这里要等一次接口，而卡片网格是有确定形状的 —— 先把形状占住，
+      数据到位时页面就不会整段往下跳。格数和列数跟真卡片对齐（6 张、
+      sm 两列 / lg 三列），切换的瞬间位置不挪。写法与定价区块的骨架保持一致。
+    */
     return (
       <section id="templates" className="py-24 lg:py-32 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-slate-400 text-lg">加载中...</p>
+
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-16">
+            <div className="mx-auto h-8 w-28 animate-pulse rounded-full bg-slate-100" />
+            <div className="mx-auto mt-6 h-11 w-64 animate-pulse rounded-lg bg-slate-100" />
+            <div className="mx-auto mt-4 h-5 w-80 max-w-full animate-pulse rounded bg-slate-100" />
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <Card key={i}>
+                <div className="animate-pulse p-6">
+                  <div className="mb-4 flex items-start justify-between">
+                    <div className="h-12 w-12 rounded-2xl bg-slate-200" />
+                    <div className="h-5 w-12 rounded bg-slate-100" />
+                  </div>
+                  <div className="mb-2 h-6 w-32 rounded bg-slate-200" />
+                  <div className="mb-4 h-4 w-full rounded bg-slate-100" />
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-5/6 rounded bg-slate-100" />
+                    <div className="h-3.5 w-4/6 rounded bg-slate-100" />
+                    <div className="h-3.5 w-3/6 rounded bg-slate-100" />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
     )
@@ -38,8 +70,12 @@ export function TemplatesSection() {
     <section id="templates" className="py-24 lg:py-32 relative overflow-hidden">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-white" />
-      <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2" />
-      <div className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2" />
+      <div className="absolute top-1/2 left-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2 animate-breathe motion-reduce:animate-none" />
+      {/* 错开半个周期：两团同步呼吸会看出是同一个节拍，错开之后才像各自浮动 */}
+      <div
+        className="absolute top-1/2 right-0 w-[600px] h-[600px] bg-brand-100/30 rounded-full blur-3xl -translate-y-1/2 animate-breathe motion-reduce:animate-none"
+        style={{ animationDelay: '-12s' }}
+      />
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
@@ -56,8 +92,8 @@ export function TemplatesSection() {
           </p>
         </div>
 
-        {/* Templates Grid */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Templates Grid。Reveal 直接当网格容器（className 透传） */}
+        <Reveal stagger className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {templateList.map((t, i) => (
             <Card
               key={t.id || t.name}
@@ -121,7 +157,7 @@ export function TemplatesSection() {
               </div>
             </Card>
           ))}
-        </div>
+        </Reveal>
 
         {/* CTA */}
         <div className="text-center mt-12">

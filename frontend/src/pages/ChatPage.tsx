@@ -32,6 +32,7 @@ import {
   type UploadedFile,
 } from '../services/api'
 import { Markdown } from '../components/ui/Markdown'
+import { downloadBlob } from '../lib/download'
 import { useToastStore } from '../stores'
 import { Modal } from '../components/ui/Modal'
 
@@ -103,6 +104,54 @@ function formatBytes(size: number): string {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+/** 图片类产物：内联渲染，省得用户只看到一个文件名 */
+const IMAGE_ARTIFACT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i
+const isImageArtifact = (file: PiArtifact) => IMAGE_ARTIFACT.test(file.name)
+
+/**
+ * 产物图片预览。
+ *
+ * 工作区文件的 URL 需要带 Bearer 头，`<img src>` 直接用会 401，
+ * 所以先取成 blob 再转成 object URL；卸载时回收，避免内存泄漏。
+ * 取不到就静默失败，只保留下载入口。
+ */
+function ArtifactImage({ file, agentId }: { file: PiArtifact; agentId?: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    let objectUrl: string | null = null
+    ;(async () => {
+      try {
+        const blob = file.url
+          ? await api.getBlob(file.url)
+          : agentId
+            ? await pi.downloadArtifact(agentId, file.path)
+            : null
+        if (!blob) return
+        if (!alive) return
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      } catch {
+        /* 预览失败不影响下载 */
+      }
+    })()
+    return () => {
+      alive = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file.url, file.path, agentId])
+
+  if (!src) return null
+  return (
+    <img
+      src={src}
+      alt={file.name}
+      className="w-full max-h-[420px] object-contain rounded-xl border border-slate-200 dark:border-slate-700 bg-white"
+    />
+  )
 }
 
 export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
@@ -210,7 +259,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         id: data.id,
         name: data.name,
         description: data.description || '',
-        model: data.model || 'gpt-4o-mini',
+        model: data.model || '',
       })
       const nodes = data.workflow_definition?.nodes ?? []
       setHasWorkflow(nodes.length > 0)
@@ -269,12 +318,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
       const blob = file.url
         ? await api.getBlob(file.url)
         : await pi.downloadArtifact(id!, file.path)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.name
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadBlob(blob, file.name)
     } catch (error: any) {
       alert(error?.message || '下载失败')
     }
@@ -544,12 +588,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   const handleDownloadUploaded = async (file: UploadedFile) => {
     try {
       const blob = await pi.downloadWorkspaceFile(id!, file.name)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.name
-      a.click()
-      URL.revokeObjectURL(url)
+      await downloadBlob(blob, file.name)
     } catch (error: any) {
       alert(error?.message || '下载失败')
     }
@@ -805,6 +844,9 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
 
   const renderArtifacts = (files: PiArtifact[]) => (
     <div className="mt-3 space-y-2">
+      {files.filter(isImageArtifact).map((file) => (
+        <ArtifactImage key={'preview-' + file.path} file={file} agentId={id} />
+      ))}
       {files.map((file) => (
         <button
           key={file.path}
@@ -883,7 +925,13 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
   // ---------------------------------------------------------------- 页面
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-slate-950">
+    /*
+      h-full 而不是 h-screen。
+      本页渲染在带移动顶栏和底部导航的 AppLayout 里，h-screen（= 整个视口高）
+      会比可用空间高出正好「顶栏 + 底栏」，底部输入框被切在屏幕外。
+      h-full 取的是 main 的内容框高度，也就是「视口 - 顶栏 - 底栏预留」。
+    */
+    <div className="h-full flex flex-col bg-white dark:bg-slate-950">
       {/* 顶栏：保持极简，仅保留导航与必要控制 */}
       <header className="flex-shrink-0 px-4 py-3">
         <div className="flex items-center justify-between max-w-3xl mx-auto">
@@ -954,16 +1002,13 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">模型</label>
-                <select
-                  value={settings.model}
-                  onChange={(e) => setSettings({ ...settings, model: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
-                >
-                  <option value="gpt-4o-mini">GPT-4o Mini</option>
-                  <option value="gpt-4o">GPT-4o</option>
-                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                  <option value="deepseek-chat">DeepSeek V3</option>
-                </select>
+                {/* 只读展示，不做选择器。
+                    ChatRequest 里没有 model 字段，选中的值从来不会发给后端 ——
+                    之前这里是个纯装饰的下拉框，看着能调模型，实际改了没用。
+                    要按会话切模型需要先在后端开这个口子。 */}
+                <div className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm text-slate-600 dark:text-slate-300">
+                  {agent?.model || '跟随「模型配置」中当前生效的模型'}
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-500 mb-1">
@@ -1034,7 +1079,7 @@ export function ChatSession({ id, skillId, onSwitchAgent }: ChatSessionProps) {
         /* 空状态：大字标题 + 居中输入区 */
         <main className="flex-1 flex flex-col items-center justify-center px-6 pb-16 overflow-y-auto">
           <div className="w-full max-w-2xl text-center mb-8">
-            <h1 className="text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-4">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-slate-900 dark:text-white mb-4 break-words">
               {agent?.name || 'AI Agent'}
             </h1>
             <p className="text-slate-500 dark:text-slate-400">

@@ -85,7 +85,8 @@ export default function SkillChatPage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white dark:bg-slate-950">
+    /* h-full 而不是 h-screen：见 ChatPage 的说明，h-screen 会被顶栏和底部导航切掉 */
+    <div className="h-full flex flex-col bg-white dark:bg-slate-950">
       <header className="flex-shrink-0 px-4 py-3">
         <div className="flex items-center gap-2 max-w-2xl mx-auto">
           <button
@@ -108,7 +109,7 @@ export default function SkillChatPage() {
             <div className="w-12 h-12 mx-auto mb-5 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white dark:text-slate-900" />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-white mb-3 break-words">
               {skill?.name || '技能'}
             </h1>
             <p className="text-slate-500 dark:text-slate-400">

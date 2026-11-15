@@ -4,6 +4,7 @@ import remarkBreaks from 'remark-breaks'
 import rehypeRaw from 'rehype-raw'
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import { cn } from '../../lib/utils'
+import { assetUrl } from '../../services/api'
 
 /**
  * 渲染模型回复中的 Markdown 与 HTML。
@@ -113,8 +114,14 @@ const components: Components = {
       {children}
     </a>
   ),
+  // 回复里的图片可能是后端相对路径（/static/...）：App 里需补上后端域名
   img: ({ src, alt }) => (
-    <img src={src} alt={alt ?? ''} className="my-3 max-w-full rounded-lg" loading="lazy" />
+    <img
+      src={assetUrl(typeof src === 'string' ? src : undefined)}
+      alt={alt ?? ''}
+      className="my-3 max-w-full rounded-lg"
+      loading="lazy"
+    />
   ),
   hr: () => <hr className="my-5 border-slate-200 dark:border-slate-700" />,
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,

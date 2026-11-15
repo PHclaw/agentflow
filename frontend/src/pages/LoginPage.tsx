@@ -26,7 +26,10 @@ export default function LoginPage() {
       if (response.user) {
         setUser(response.user)
       }
-      navigate('/skills')
+      // 登录后进控制台 —— 侧边栏和底部导航的第一项都是它，那是产品的"家"。
+      // 原先这里写死 /skills，从落地页注册/登录进来会直接落到技能广场，
+      // 和"首页"不一致，看着像跳错了地方。
+      navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || '登录失败，请检查邮箱和密码')
     } finally {
