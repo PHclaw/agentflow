@@ -52,6 +52,9 @@ jobs:
         with:
           node-version: "18"
           cache: npm
+          # 锁文件在 frontend/ 下，不指定路径时 setup-node 会去仓库根找，
+          # 报 "Dependencies lock file is not found" 并直接失败
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci

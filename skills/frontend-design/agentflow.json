@@ -1,0 +1,25 @@
+{
+  "id": "frontend-design",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "前端界面设计",
+  "description": "从零做出**有审美主张**的 Web 界面，避开 AI 生成的通用紫色渐变套路。带排版、配色、组件规范与响应式指引。",
+  "specialty": "界面设计",
+  "routerBlurb": "做真实产品页面而非演示稿时用；强调风格一致性。",
+  "tags": [
+    "前端",
+    "UI",
+    "设计",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "前端",
+    "UI",
+    "界面",
+    "落地页",
+    "网页设计",
+    "landing"
+  ],
+  "authorName": "Anthropic 官方"
+}

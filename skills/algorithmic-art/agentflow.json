@@ -1,0 +1,25 @@
+{
+  "id": "algorithmic-art",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "算法生成艺术",
+  "description": "用 p5.js / Canvas 生成参数化艺术：分形、噪声场、粒子系统。支持交互调参与动图导出。",
+  "specialty": "创意编程",
+  "routerBlurb": "做视觉艺术作品、动态图案时用。",
+  "tags": [
+    "艺术",
+    "生成艺术",
+    "p5.js",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "生成艺术",
+    "算法艺术",
+    "分形",
+    "粒子",
+    "p5",
+    "creative coding"
+  ],
+  "authorName": "Anthropic 官方"
+}

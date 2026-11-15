@@ -1,0 +1,25 @@
+{
+  "id": "canvas-design",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "海报与视觉设计",
+  "description": "单张静态视觉物料的排版：封面、海报、社交缩略图、Banner。处理字体层级、留白、视觉重心。",
+  "specialty": "视觉设计",
+  "routerBlurb": "单张图片物料（不用翻页的），比 PPT 更合适。",
+  "tags": [
+    "海报",
+    "视觉",
+    "排版",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "海报",
+    "封面",
+    "banner",
+    "缩略图",
+    "社交图",
+    "视觉物料"
+  ],
+  "authorName": "Anthropic 官方"
+}

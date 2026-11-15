@@ -1,0 +1,25 @@
+{
+  "id": "skill-creator",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "技能创建器",
+  "description": "创建新技能、迭代改进已有技能、跑评测对比效果。涵盖 SKILL.md 结构、资源组织、渐进式披露模式与打包发布流程。想沉淀一段工作流成可复用能力时优先用。",
+  "specialty": "元技能",
+  "routerBlurb": "把一段经验/流程沉淀成标准 SKILL.md 的技能脚手架。",
+  "tags": [
+    "技能开发",
+    "元技能",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "创建技能",
+    "写技能",
+    "SKILL",
+    "skill",
+    "技能优化",
+    "打包技能",
+    "元技能"
+  ],
+  "authorName": "Anthropic 官方"
+}
