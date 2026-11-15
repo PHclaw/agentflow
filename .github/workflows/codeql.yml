@@ -1,0 +1,47 @@
+name: CodeQL
+
+# 静态安全扫描：每次推主分支、每个 PR、以及每周一次定时扫描。
+# 结果在仓库 Security → Code scanning 里，能挡住常见的注入、路径穿越、
+# 不安全的反序列化等问题 —— 对「要装进企业内网」的项目是加分项。
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    - cron: "0 2 * * 1" # 每周一 02:00 UTC
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # 只在手动触发时才跑全量查询，平时用默认集，控制时长
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
