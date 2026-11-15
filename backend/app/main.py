@@ -16,8 +16,11 @@ from app.core.database import init_db, get_async_session_factory
 from app.core.logging import setup_logging, logger
 from app.core.monitoring import router as monitoring_router
 from app.core.websocket import router as websocket_router
+from app.services.entitlement import HTTP_QUOTA_EXCEEDED, QuotaExceeded
 from app.api import auth, users, agents, templates, chat, billing, skills
+from app.api import admin as admin_api
 from app.api import llm_configs, pi_agent as pi_agent_api
+from app.api import connectors
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.api.agent_routes import router as agent_routes_router
@@ -50,6 +53,21 @@ async def lifespan(app: FastAPI):
             "LLM config loaded: alias=%s source=%s",
             active.alias if active else "-",
             active.source if active else "none",
+        )
+
+    # 注册验证码：把「邮件没配」和「验证码落在哪个后端」在启动时就写清楚，
+    # 否则要等到用户注册失败才发现
+    from app.services import verification
+    await verification.log_store_backend()
+    if not settings.REQUIRE_EMAIL_CODE:
+        logger.warning(
+            "⚠️  REQUIRE_EMAIL_CODE=false：注册不校验邮箱验证码。"
+            "仅建议用于自动化测试与内网演示。"
+        )
+    elif not settings.MAIL_ENABLED:
+        logger.warning(
+            "⚠️  MAIL_ENABLED=false：注册需要验证码，但邮件不会真的发出，"
+            "验证码只打印在后端日志里（[MAIL_ENABLED=false] 开头）。"
         )
 
     yield
@@ -85,7 +103,10 @@ async def refresh_llm_config(request: Request, call_next):
     try:
         from app.services import llm_config
 
-        if llm_config.is_stale():
+        # 中间件跑在依赖解析之前，只能自己开连接 —— 测试期间必须停掉，
+        # 否则它查的是**真实库**，会把真实配置写进全局快照，
+        # 让所有断言「生效配置」的用例失真。
+        if llm_config.middleware_refresh_enabled() and llm_config.is_stale():
             async with get_async_session_factory()() as db:
                 await llm_config.ensure_fresh(db)
     except Exception:  # noqa: BLE001 - 刷新失败不应阻断请求（会继续用旧快照）
@@ -142,6 +163,8 @@ app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])
 app.include_router(pi_agent_api.router, prefix="/api/v1/pi", tags=["PiAgent 引擎"])
 app.include_router(llm_configs.router, prefix="/api/v1/llm-configs", tags=["大模型 API 配置"])
+app.include_router(connectors.router, prefix="/api/v1/connectors", tags=["外部数据连接器"])
+app.include_router(admin_api.router, prefix="/api/v1/admin", tags=["管理后台"])
 
 # Skill 工具产出（Excel/PDF/PPT 等）
 _static_root = static_root()
@@ -197,6 +220,17 @@ async def global_exception_handler(request: Request, exc: Exception):
             "message": str(exc) if settings.DEBUG else "An error occurred",
             "path": request.url.path
         }
+    )
+
+
+# 配额超限处理
+# 单独注册而不是让 QuotaExceeded 落到全局 Exception 处理器里变成 500：
+# 前端要靠 402 + error code 区分「该升级了」和「服务挂了」，弹不同的引导。
+@app.exception_handler(QuotaExceeded)
+async def quota_exceeded_handler(request: Request, exc: QuotaExceeded):
+    return JSONResponse(
+        status_code=HTTP_QUOTA_EXCEEDED,
+        content={**exc.to_payload(), "path": request.url.path},
     )
 
 

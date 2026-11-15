@@ -83,6 +83,27 @@ _SKIP_DIR_NAMES = {"skills", "node_modules", "__pycache__", ".git"}
 # 单次最多回传的产物数量
 _MAX_ARTIFACTS = 50
 
+# 附件扩展名白名单。不在名单内的新增文件会当过程垃圾处理：
+# 既不回传给用户，stream 结束后也会被 prune_unknown_new_files 直接删。
+#
+# 为什么需要白名单而不是黑名单：pptx / docx / xlsx 本质是 zip，技能脚本 unzip
+# 它们时会在子目录里展开一堆 .xml / .rels 的内部件（实测一个 cc5a66ba
+# 工作区有 77 个文件，.xml+.rels 就占 71）—— 黑名单写不完，白名单一径砍掉。
+_ARTIFACT_EXT_ALLOWLIST = frozenset({
+    # 文档
+    ".pptx", ".docx", ".xlsx", ".pdf",
+    # 图片
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg",
+    # 数据
+    ".csv", ".tsv", ".json",
+    # 文本
+    ".md", ".txt",
+    # 网页（HTML 产物）
+    ".html", ".htm",
+    # 打包
+    ".zip",
+})
+
 # 模型读到提示词文件后常先输出「我将读取该文件」，这类过程叙述既暴露内部机制
 # 又无信息量，需要连同该句一起丢弃。
 _NARRATION_PATTERNS = [
@@ -223,9 +244,16 @@ def strip_leading_narration(text: str) -> str:
 def is_usable_artifact(path: str | Path) -> bool:
     """判断工作区新增文件是否为有价值的产物。
 
-    过滤两类噪音：curl 保存的网页快照（t*.html / p*.html）和空文件。
+    三层过滤：
+    1. **扩展名不在白名单内** → 过程垃圾（pptx unzip 后的 .xml/.rels，或
+       临时 .py/.bin）。
+    2. curl 保存的短名 html 快照（t*.html / p*.html）。
+    3. 空文件 / 带 bing-ads “schemas.live.com” 等搜索页痕迹的垃圾 html。
     """
     path = Path(path)
+    ext = path.suffix.lower()
+    if ext and ext not in _ARTIFACT_EXT_ALLOWLIST:
+        return False
     name = path.name.lower()
     if name.endswith(".html") and len(name) <= 8 and name[0] in "tp":
         return False
@@ -381,15 +409,19 @@ def _should_skip_dir(root: str) -> bool:
 
 
 def snapshot_workspace(workspace: str | Path) -> set[str]:
-    """记录工作区中现有文件，用于事后识别新增产物。"""
+    """记录工作区中现有文件，用于事后识别新增产物。
+
+    **包括点开头的隐藏文件** —— 否则 pptx unzip 里的 ``_rels/.rels`` 会既不在
+    before 快照、也不在 kept 集合里，而 prune 会把它归到“新增”里删掉 —— 但
+    历史上已存在、用户自己上传过 ``.gitignore`` 或 ``.env`` 的工作区不该
+    被误删，因此快照里就把它们列上，prune 碰到它们时会命中 before_set 跳过。
+    """
     workspace = str(workspace)
     snapshot: set[str] = set()
     for root, _dirs, files in os.walk(workspace):
         if _should_skip_dir(root):
             continue
         for name in files:
-            if name.startswith("."):
-                continue
             snapshot.add(os.path.join(root, name))
     return snapshot
 
@@ -427,6 +459,57 @@ def collect_new_files(workspace: str | Path, before: Iterable[str], *, agent_id:
                 return results
 
     return results
+
+
+def prune_unknown_new_files(
+    workspace: str | Path,
+    before: Iterable[str],
+    kept_paths: Iterable[str],
+) -> int:
+    """删掉本次 stream 新产生、但没作为附件回传的文件（过程垃圾）。
+
+    与 :func:`collect_new_files` 配合使用：前者拉白名单内的产物，后者拿“已保留”
+    集合 + “运行前快照”把剩下的删掉。三层保护：
+
+    - **运行前就在** → ``before_set`` 命中，不动（用户上传的原始资料 / 上一次的产物）
+    - **已作为附件回传** → ``kept_abs`` 命中，不动
+    - **新且不在 白名单** → 删
+
+    ``os.walk(topdown=False)`` 先下后上，递进删完后顺手提空目录（unzip pptx 时创建的
+    ``ppt/slides/_rels/`` 那套骨架结构）。失败不抛异常，返回删除数供日志。
+    """
+    workspace = Path(workspace)
+    before_set = set(before)
+    kept_abs = {(workspace / p).resolve() for p in kept_paths}
+    removed = 0
+
+    for root, dirs, files in os.walk(workspace, topdown=False):
+        if _should_skip_dir(root):
+            continue
+        for name in files:
+            path = Path(root) / name
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            if str(resolved) in before_set or resolved in kept_abs:
+                continue
+            try:
+                path.unlink(missing_ok=True)
+                removed += 1
+            except OSError:
+                # 可能被子进程句柄扣住，交给 TTL 兵底
+                pass
+        # 子目录删空后顺手提掉，避免 zip 骨架目录堆积
+        for d in dirs:
+            dp = Path(root) / d
+            try:
+                if dp.exists() and not any(dp.iterdir()):
+                    dp.rmdir()
+            except OSError:
+                pass
+
+    return removed
 
 
 # --------------------------------------------------------------------------
@@ -696,6 +779,19 @@ class PiAgentRunner:
             new_files = collect_new_files(workspace, files_before, agent_id=agent_id)
             if new_files:
                 yield {"type": "log", "content": f"生成了 {len(new_files)} 个文件"}
+
+            # 中间产物自动清理：本次新增、又没作为附件回传的 → 过程垃圾，直接删。
+            # 失败不阻断主流程（已 commit 的 DB 回不来）；残留交给 TTL。
+            try:
+                removed = prune_unknown_new_files(
+                    workspace,
+                    files_before,
+                    {f["path"] for f in new_files},
+                )
+                if removed:
+                    logger.debug("工作区 %s 清理 %d 个过程文件", workspace, removed)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("工作区清理异常 %s: %s", workspace, exc)
 
             final_text = strip_leading_narration(parser.text).strip()
 

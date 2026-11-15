@@ -24,8 +24,15 @@ class TestSkillsAPI:
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        assert len(data) == 8
+        # 刻意**不写死数量**：广场读的是磁盘上的 skills/，平台每加一个预置
+        # 技能（或管理员导入一个包）都会让硬编码的期望值过期 —— 导入
+        # ppt-master 时就撞过一次，测试挂了但功能是好的。
+        # 这里守两件真正会坏的事：
+        #   1. 筛选没把预置技能也筛掉（authorId 一旦写错就整个广场为空）
+        #   2. 返回项的形状还对
+        assert data, "广场为空 —— curated 过滤把预置技能也筛掉了"
         assert all(item.get("id") for item in data)
+        assert {"academic-search", "meeting-minutes"} <= {i["id"] for i in data}
 
     @pytest.mark.asyncio
     async def test_get_skill_rejects_invalid_slug(

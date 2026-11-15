@@ -107,6 +107,139 @@ def make_state(context=None, node_outputs=None) -> WorkflowState:
     return state
 
 
+class TestLLMNodeModelResolution:
+    """节点模型名的来源。
+
+    盯的是一个真实故障：预置模板把 ``model: "gpt-4"`` 钉死在节点上，
+    而模型名只是会被原样发给「当前生效配置的端点」的字符串 ——
+    本地 Ollama / DeepSeek 用户执行时直接吃到
+    ``model 'gpt-4' not found``（HTTP 404）。
+    """
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_effective_config_model(self, monkeypatch):
+        """未指定模型时用生效配置的模型，而不是写死 gpt-4o-mini。"""
+        used = {}
+
+        async def fake_chat(self, messages, temperature=0.7, **kw):
+            used["model"] = self.model
+            return "ok"
+
+        monkeypatch.setattr(wr.LLMService, "chat", fake_chat)
+        monkeypatch.setattr(wr, "_effective_model_name", lambda: "glm4:latest")
+
+        state = WorkflowState(workflow_id="t", context={"user_message": "hi"})
+        result = await LLMNode("l1", {}).execute(state)
+
+        assert result.status == NodeStatus.SUCCESS
+        assert used["model"] == "glm4:latest"
+
+    @pytest.mark.asyncio
+    async def test_explicit_model_is_respected(self, monkeypatch):
+        """显式指定的模型仍然生效 —— 别为了修 bug 把选择能力也一并砍掉。"""
+        used = {}
+
+        async def fake_chat(self, messages, temperature=0.7, **kw):
+            used["model"] = self.model
+            return "ok"
+
+        monkeypatch.setattr(wr.LLMService, "chat", fake_chat)
+        monkeypatch.setattr(wr, "_effective_model_name", lambda: "glm4:latest")
+
+        state = WorkflowState(workflow_id="t", context={"user_message": "hi"})
+        await LLMNode("l1", {"model": "qwen2.5:7b"}).execute(state)
+
+        assert used["model"] == "qwen2.5:7b"
+
+    def test_effective_model_name_uses_active_config(self, monkeypatch):
+        from app.services.llm_config import ActiveConfig
+
+        fake = ActiveConfig(
+            id="x", alias="ollama", provider="ollama",
+            base_url="http://localhost:11434/v1", api_key="",
+            model="glm4:latest", temperature=0.7, max_tokens=2048,
+            source="database",
+        )
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: fake)
+
+        assert wr._effective_model_name() == "glm4:latest"
+
+    def test_effective_model_name_falls_back_to_env(self, monkeypatch):
+        """取不到生效配置时退回 .env 默认值，不能因此让节点直接失败。"""
+        from app.core.config import settings
+
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: None)
+
+        assert wr._effective_model_name() == settings.OPENAI_MODEL
+
+
+class TestSeedTemplatesHaveNoPinnedModel:
+    """预置模板不得钉死模型名。
+
+    模板是所有用户共用的，而端点由每个用户自己配 —— 钉一个型号等于替所有人
+    指定了模型。留空即「跟随生效配置」。
+    """
+
+    def test_no_template_pins_a_model(self):
+        from app.core.seed import DEFAULT_TEMPLATES
+
+        offenders = []
+        for tpl in DEFAULT_TEMPLATES:
+            for node in (tpl.get("workflow_definition") or {}).get("nodes") or []:
+                cfg = node.get("config") or {}
+                if cfg.get("model"):
+                    offenders.append(f"{tpl['name']}/{node.get('id')}")
+                # data 是编辑器的写法，一并检查
+                data = node.get("data") or {}
+                if data.get("model"):
+                    offenders.append(f"{tpl['name']}/{node.get('id')}(data)")
+
+        assert not offenders, (
+            "模板里仍有写死的模型名，会让非 OpenAI 端点的用户执行失败：" + ", ".join(offenders)
+        )
+
+
+class TestStripModelsMigration:
+    """数据迁移里的清洗函数。"""
+
+    def _strip(self, payload):
+        import importlib.util
+        import pathlib
+
+        path = pathlib.Path(__file__).resolve().parents[1] / "migrations" / "versions"
+        target = next(p for p in path.glob("*_strip_hardcoded_models.py"))
+        spec = importlib.util.spec_from_file_location("_mig", target)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod._strip_models(payload)
+
+    def test_strips_config_and_data_shapes(self):
+        payload = {
+            "nodes": [
+                {"id": "a", "type": "llm", "config": {"model": "gpt-4", "prompt": "x"}},
+                {"id": "b", "type": "llm", "data": {"model": "gpt-4o-mini"}},
+                {"id": "c", "type": "llm", "config": {"prompt": "y"}},
+            ]
+        }
+
+        out = self._strip(payload)
+
+        assert out is not None
+        assert out["nodes"][0]["config"] == {"prompt": "x"}
+        assert out["nodes"][1]["data"] == {}
+        assert out["nodes"][2]["config"] == {"prompt": "y"}
+        # 节点本身必须原样保留，迁移不能动结构
+        assert [n["id"] for n in out["nodes"]] == ["a", "b", "c"]
+
+    def test_returns_none_when_nothing_to_do(self):
+        """没改动时返回 None —— 迁移靠它决定要不要写库。"""
+        payload = {"nodes": [{"id": "a", "type": "llm", "config": {"prompt": "x"}}]}
+
+        assert self._strip(payload) is None
+        assert self._strip({"nodes": []}) is None
+        assert self._strip("not a dict") is None
+
+
 class TestBaseNode:
     """节点基类的数据存取"""
 

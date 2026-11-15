@@ -32,7 +32,9 @@ langchain-core==0.1.20
 langchain-openai==0.0.5
 langchain-community==0.0.17
 langchain-text-splitters==0.0.1
-langchain-pg==0.0.1
+# 注意：这里原先有一行 `langchain-pg==0.0.1`，该包在 PyPI 上不存在，
+# 会让 `pip install -r requirements.txt` 直接失败（CI 就是这么红的）。
+# 代码里也没有任何地方 import 它，已移除。
 faiss-cpu==1.7.4
 
 # 向量库：langchain_community.vectorstores.Chroma 在运行时依赖 chromadb。

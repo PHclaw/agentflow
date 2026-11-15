@@ -3,7 +3,7 @@
 
 注意：实现已不依赖 LangGraph，为自研执行器（拓扑排序 + 分支选择）。
 """
-from typing import Dict, List, Any, Optional
+from typing import Awaitable, Callable, Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -14,6 +14,20 @@ from .llm import LLMService
 from .knowledge import KnowledgeService
 from ..core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
+
+
+def _effective_model_name() -> str:
+    """当前生效配置里的模型名；没有配置时退回 .env 的默认模型。
+
+    解析逻辑收敛在 ``llm_config.effective_model_name``，这里只负责决定
+    兜底成什么 —— 别再在别处重写一遍，那种重写正是这次 404 的来源。
+    """
+    try:
+        from .llm_config import effective_model_name
+
+        return effective_model_name(settings.OPENAI_MODEL)
+    except Exception:  # noqa: BLE001 - 取不到就用默认值，不能因此让节点直接失败
+        return settings.OPENAI_MODEL
 
 
 # --------------------------------------------------------------------------
@@ -174,13 +188,19 @@ class NodeResult:
 @dataclass
 class WorkflowState:
     """工作流状态"""
+
     workflow_id: str
     nodes: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     edges: List[Dict[str, str]] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)  # 全局上下文
+    context: Dict[str, Any] = field(default_factory=dict)  # 全局上下文（数据）
     node_outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # 节点输出缓存
     execution_history: List[NodeResult] = field(default_factory=list)
     current_node: Optional[str] = None
+    #: 运行时管线（数据库会话等）。**不要放进 context** ——
+    #: /workflow/execute 会把 context 原样返回，里面塞了 AsyncSession 就会
+    #: 序列化失败、整个接口 500（'AsyncEngine' object is not iterable）。
+    #: internal 不出现在任何对外响应里。
+    internal: Dict[str, Any] = field(default_factory=dict)
 
 
 class BaseNode:
@@ -294,8 +314,11 @@ class LLMNode(BaseNode):
             if not input_text:
                 input_text = state.context.get("user_message", "")
             
-            # 获取配置
-            model = self.config.get("model", "gpt-4o-mini")
+            # 获取配置。
+            # 模型名缺省时回退到**当前生效配置的模型**，而不是写死 gpt-4o-mini：
+            # 凭证与端点都取自生效配置，把一个 gpt-4o-mini 发给本地 Ollama
+            # 只会得到「模型不存在」。
+            model = self.config.get("model") or _effective_model_name()
             temperature = float(self.config.get("temperature", 0.7))
             prompt_template = self.config.get("prompt", "")
             system_prompt = self.config.get("system_prompt", "")
@@ -312,8 +335,10 @@ class LLMNode(BaseNode):
             else:
                 messages.append({"role": "user", "content": input_text})
             
-            # 调用 LLM - 传入 model 到构造函数
-            llm = LLMService(model=model) if model != "gpt-4o-mini" else LLMService()
+            # 调用 LLM。始终显式传 model —— 此前写成
+            # 「model != 'gpt-4o-mini' 才传」，等于用户恰好选了 gpt-4o-mini 时
+            # 反而被忽略、改用 .env 里的 OPENAI_MODEL。
+            llm = LLMService(model=model)
             response = await llm.chat(messages, temperature=temperature)
             
             # 设置输出
@@ -374,7 +399,7 @@ class KnowledgeNode(BaseNode):
                 return result
             
             # 执行 RAG 搜索
-            db = state.context.get("db_session")
+            db = state.internal.get("db_session")
             if not db:
                 result.status = NodeStatus.FAILED
                 result.error = "数据库会话不可用"
@@ -545,6 +570,7 @@ class ToolNode(BaseNode):
             "formatter": self._tool_formatter,
             "text_process": self._tool_text_process,
             "date_time": self._tool_datetime,
+            "erp_read": self._tool_erp_read,
         }
         
         if tool_name in tools:
@@ -615,6 +641,65 @@ class ToolNode(BaseNode):
         format_str = params.get("format", "%Y-%m-%d %H:%M:%S")
         return datetime.now().strftime(format_str)
 
+    async def _tool_erp_read(self, params: Dict, input_data: Any, state: WorkflowState) -> str:
+        """只读外部数据源（ERP）连接器。
+
+        入参（节点 config 或 params 均可，config 为底、params 覆盖）：
+        - connector_id：ERPConnectorConfig.id（必填）
+        - resource：表名，须在连接器白名单内（必填）
+        - filters：等值过滤 {列: 值}；columns：选取列；limit：行数上限
+
+        归属校验以 state.context["caller_id"] 为准（工作流入口注入）；
+        读到的行已由连接器层脱敏，直接以 JSON 字符串作为节点输出，
+        下游智能体节点会自动把它当作 message 喂给 PiAgent。
+        """
+        def pick(key: str, default: Any = None) -> Any:
+            # params 优先，其次节点 config
+            if key in params and params[key] not in (None, ""):
+                return params[key]
+            return self.config.get(key, default)
+
+        conn_id = str(pick("connector_id") or "").strip()
+        resource = str(pick("resource") or "").strip()
+        if not conn_id or not resource:
+            return json.dumps({"ok": False, "error": "erp_read 需要 connector_id 与 resource"}, ensure_ascii=False)
+
+        db = state.internal.get("db_session")
+        if not db:
+            return json.dumps({"ok": False, "error": "数据库会话不可用"}, ensure_ascii=False)
+
+        caller_id = str(state.context.get("caller_id") or "").strip()
+        if not caller_id:
+            return json.dumps({"ok": False, "error": "缺少调用者身份，无法校验连接器归属"}, ensure_ascii=False)
+
+        try:
+            from app.models.erp_connector import ERPConnectorConfig
+            from app.services import connectors
+
+            cfg = await db.get(ERPConnectorConfig, conn_id)
+            if not cfg or cfg.owner_id != caller_id:
+                # 不存在与不属于本人一律报不存在，不泄露他人配置
+                return json.dumps({"ok": False, "error": f"连接器不存在或无权访问：{conn_id}"}, ensure_ascii=False)
+
+            filters = pick("filters", {}) or {}
+            columns = pick("columns", []) or []
+            limit = pick("limit")
+            if not isinstance(filters, dict):
+                filters = {}
+            if not isinstance(columns, list):
+                columns = [str(columns)]
+
+            rows = await connectors.erp.read(
+                cfg, resource=resource, filters=filters, columns=columns,
+                limit=int(limit) if limit else None,
+            )
+            return json.dumps({"ok": True, "resource": resource, "count": len(rows), "rows": rows}, ensure_ascii=False)
+        except connectors.erp.ConnectorError as exc:
+            # 白名单/参数/超时等可读错误：不抛栈，结构化回传
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        except Exception as exc:  # noqa: BLE001 - 工具节点不得因外部异常中断整个工作流
+            return json.dumps({"ok": False, "error": f"读取失败：{type(exc).__name__}: {exc}"}, ensure_ascii=False)
+
 
 class ResponseNode(BaseNode):
     """响应节点 - 回复用户"""
@@ -682,7 +767,7 @@ class AgentNode(BaseNode):
                 )
                 return result
 
-            db = state.context.get("db_session")
+            db = state.internal.get("db_session")
             if not db:
                 result.status = NodeStatus.FAILED
                 result.error = "数据库会话不可用"
@@ -837,8 +922,18 @@ class WorkflowRuntime:
         workflow_def: Dict,
         input_data: Dict,
         db_session: AsyncSession,
+        on_event: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> WorkflowState:
-        """执行工作流"""
+        """执行工作流。
+
+        on_event：可选的进度回调，每个节点**真正**开始和结束时各触发一次。
+
+        在此之前 /execute/stream 是等工作流整体跑完，再回头遍历
+        execution_history 把结果一次性吐出去 —— 那是"分批传输"而不是流式，
+        编辑器在整个执行期间收不到任何事件，节点上的执行态动画没有东西可放
+        （前端那段 `status === 'running'` 因此一直是死代码）。
+        有了这个回调，事件才是随着执行发出来的，进度也就真的对得上。
+        """
         # 三种历史写法先归一，避免模板/旧数据一执行就全是未知节点
         workflow_def = normalize_workflow_definition(workflow_def)
 
@@ -851,7 +946,7 @@ class WorkflowRuntime:
             edges=workflow_def.get("edges", []),
             context=input_data,
         )
-        state.context["db_session"] = db_session
+        state.internal["db_session"] = db_session
         
         # 拓扑排序获取执行顺序
         execution_order = self.get_execution_order(
@@ -876,6 +971,15 @@ class WorkflowRuntime:
             # 设置当前节点
             state.current_node = node_id
             
+            # 先报"开始"再执行。顺序反了的话事件会晚于实际耗时发出，
+            # 前端那根进度条就跑在了真实执行的前面
+            if on_event:
+                await on_event({
+                    "type": "node_start",
+                    "node_id": node_id,
+                    "node_type": node_type,
+                })
+
             # 执行节点
             result = await node.execute(state)
             result.execution_time = (
@@ -885,6 +989,16 @@ class WorkflowRuntime:
             
             state.execution_history.append(result)
             executed.add(node_id)
+
+            if on_event:
+                await on_event({
+                    "type": "node_complete",
+                    "node_id": node_id,
+                    "status": result.status.value,
+                    "outputs": state.node_outputs.get(node_id, {}),
+                    "execution_time": result.execution_time,
+                    "error": result.error,
+                })
             
             # 如果节点失败且是关键节点，停止执行
             if result.status == NodeStatus.FAILED:
@@ -925,7 +1039,7 @@ class WorkflowRuntime:
             edges=workflow_def.get("edges", []),
             context=input_data,
         )
-        state.context["db_session"] = db_session
+        state.internal["db_session"] = db_session
         
         node_def = state.nodes.get(node_id, {})
         node_type = node_def.get("type", "")

@@ -2,6 +2,7 @@
 Agent CRUD API — 数据库版本
 """
 import re
+import shutil
 from pathlib import Path
 from typing import Optional, List, Union
 
@@ -14,10 +15,21 @@ from sqlalchemy import select
 from ..core.database import get_db
 from ..core.paths import pi_agent_workspace
 from ..models.agent import Agent
+from ..models.subscription import Subscription
+from ..services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+    release as release_quota,
+)
 from ..services.workflow_runtime import normalize_workflow_definition
 from .auth import get_current_user_id
+from .deps import current_subscription
 
 router = APIRouter()
+
+from app.logging_setup import get_logger
+logger = get_logger("api.agents")
 
 
 class WorkflowNode(BaseModel):
@@ -66,7 +78,10 @@ class WorkflowDefinition(BaseModel):
 class ModelConfig(BaseModel):
     """模型配置"""
     provider: str = "openai"
-    model: str = "gpt-4o-mini"
+    # 留空 = 跟随「大模型 API 配置」里当前生效的模型。
+    # 写死 gpt-4o-mini 的话，用户的生效端点是本地 Ollama / DeepSeek 时，
+    # 这个名字会被原样发过去并换来一句「model not found」。
+    model: str = ""
     temperature: float = 0.7
     max_tokens: int = 2000
 
@@ -120,7 +135,7 @@ def _agent_to_dict(agent: Agent) -> dict:
         "id": agent.id,
         "name": agent.name,
         "description": agent.description or "",
-        "model": mc.get("model", "gpt-4o-mini"),
+        "model": mc.get("model", ""),
         "status": "active" if agent.is_active else "inactive",
         "message_count": agent.message_count or 0,
         "is_active": agent.is_active,
@@ -142,8 +157,13 @@ async def create_agent(
     data: AgentCreate,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """创建 Agent"""
+    # 先校验再落库。反过来做的话，超额的那条已经写进库，
+    # 还得靠回滚收尾，而且用户会在列表里看到它闪一下。
+    await check_quota(db, sub, Resource.AGENTS)
+
     agent = Agent(
         user_id=user_id,
         name=data.name,
@@ -152,13 +172,16 @@ async def create_agent(
         model_config=(
             data.llm_config.model_dump()
             if data.llm_config
-            else {"provider": "openai", "model": "gpt-4o-mini", "temperature": 0.7}
+            # 不给 llm_config 时留空模型名，交给运行时的生效配置兜底
+            else {"provider": "openai", "model": "", "temperature": 0.7}
         ),
         knowledge_base_id=data.knowledge_base_id,
         settings=({"system_prompt": data.system_prompt} if data.system_prompt else {}),
         is_active=True,
     )
     db.add(agent)
+    await db.flush()
+    await consume_quota(db, sub, Resource.AGENTS)
     await db.commit()
     await db.refresh(agent)
     return _agent_to_dict(agent)
@@ -347,6 +370,7 @@ async def delete_agent(
     agent_id: str,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """删除 Agent"""
     agent = await db.get(Agent, agent_id)
@@ -354,5 +378,21 @@ async def delete_agent(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     await db.delete(agent)
+    # 删除必须释放名额。agents_used 记的是「当前存量」而非历史累计，
+    # 否则用户删掉 Agent 后依然无法新建，会以为是产品出了 bug。
+    await release_quota(db, sub, Resource.AGENTS)
     await db.commit()
+
+    # 工作区与 Agent 同生命期：不在这里 rmtree 就会变成孤儿目录 ——
+    # uploads/pi_workspace/ 下会累积一堆 files=0 的空子目录（已实测到 5 个），
+    # 以及 AI 产物 / 用户曾上传的附件永久占地。
+    #
+    # ignore_errors=True：Windows 上 pi CLI 子进程可能还扣着句柄；这时宁可
+    # 删 DB 不回滚（已 commit），把残留交给下一次 TTL 任务兵底。
+    try:
+        shutil.rmtree(pi_agent_workspace(agent_id), ignore_errors=True)
+    except OSError as exc:  # noqa: BLE001
+        # 不阻断接口：用户关心的是 Agent 从列表里消失，工作区回收是异步的。
+        logger.warning("删除 Agent %s 后清理工作区失败: %s", agent_id, exc)
+
     return {"message": "Deleted successfully"}

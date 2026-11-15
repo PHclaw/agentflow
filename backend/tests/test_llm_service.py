@@ -11,6 +11,7 @@
 """
 import pytest
 
+from app.core.config import settings
 from app.services import llm as llm_module
 from app.services.llm import (
     LLMNotConfiguredError,
@@ -18,6 +19,104 @@ from app.services.llm import (
     humanize_llm_error,
     is_retryable_error,
 )
+
+
+def _active(**over):
+    """构造一个「来自数据库的生效配置」。"""
+    from app.services.llm_config import ActiveConfig
+
+    base = dict(
+        id="cfg-1", alias="本地-ollama", provider="ollama",
+        base_url="http://localhost:11434/v1", api_key="",
+        model="glm4:latest", temperature=0.7, max_tokens=2048,
+        source="database",
+    )
+    base.update(over)
+    return ActiveConfig(**base)
+
+
+class TestModelFollowsActiveConfig:
+    """模型名必须跟凭证一起走生效配置。
+
+    这是「model 'gpt-4o-mini' not found」那类 404 的最根本来源：
+    ``_active_credentials()`` 只取 key/base_url，**丢掉了 model 字段**，
+    于是生效配置指向本地 Ollama 的 glm4:latest 时，发出去的仍然是
+    ``settings.OPENAI_MODEL``（gpt-4o-mini）。
+    """
+
+    def test_uses_model_from_active_config(self, monkeypatch):
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: _active())
+
+        assert LLMService().model == "glm4:latest"
+
+    def test_credentials_come_from_same_config(self, monkeypatch):
+        """模型与凭证必须来自同一份配置，不能各走各的。"""
+        monkeypatch.setattr(
+            "app.services.llm_config.get_active",
+            lambda: _active(api_key="sk-local", base_url="http://localhost:11434/v1"),
+        )
+
+        svc = LLMService()
+
+        assert svc.model == "glm4:latest"
+        assert svc._active_credentials() == ("sk-local", "http://localhost:11434/v1")
+
+    def test_env_snapshot_model_is_not_trusted(self, monkeypatch):
+        """source 不是 database 的快照没有真实模型名，不该被采信。
+
+        否则一个 .env 回退快照里的占位模型名会盖掉 settings 的真实默认值。
+        """
+        monkeypatch.setattr(
+            "app.services.llm_config.get_active",
+            lambda: _active(id=None, source="env", model="placeholder-model"),
+        )
+
+        assert LLMService().model == settings.OPENAI_MODEL
+
+    def test_explicit_model_still_wins(self, monkeypatch):
+        """显式指定的模型优先 —— 别为了修 bug 把选择能力砍掉。"""
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: _active())
+
+        assert LLMService(model="qwen2.5:7b").model == "qwen2.5:7b"
+
+    def test_falls_back_to_env_when_no_active_config(self, monkeypatch):
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: None)
+
+        assert LLMService().model == settings.OPENAI_MODEL
+
+    def test_active_config_without_model_falls_back(self, monkeypatch):
+        """生效配置存在但没填模型名时，退回 .env 默认值而不是发空串。"""
+        monkeypatch.setattr(
+            "app.services.llm_config.get_active", lambda: _active(model="")
+        )
+
+        assert LLMService().model == settings.OPENAI_MODEL
+
+
+class TestEffectiveModelNameHelper:
+    """``llm_config.effective_model_name`` —— 模型解析的唯一权威出口。"""
+
+    def test_prefers_database_config(self, monkeypatch):
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: _active())
+
+        from app.services.llm_config import effective_model_name
+
+        assert effective_model_name() == "glm4:latest"
+
+    def test_uses_fallback_when_absent(self, monkeypatch):
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: None)
+
+        from app.services.llm_config import effective_model_name
+
+        assert effective_model_name("fallback-model") == "fallback-model"
+
+    def test_returns_empty_string_by_default(self, monkeypatch):
+        """取不到时返回空串 —— 空串是「未指定」，各调用点自己决定兜底。"""
+        monkeypatch.setattr("app.services.llm_config.get_active", lambda: None)
+
+        from app.services.llm_config import effective_model_name
+
+        assert effective_model_name() == ""
 
 
 class TestDefaultModel:

@@ -25,11 +25,18 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user_id
+from app.api.deps import current_subscription
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.paths import pi_agent_workspace, pi_skills_root, pi_workspace_root
 from app.models.agent import Agent
+from app.models.subscription import Subscription
 from app.services.agent_turn import append_turn, load_or_create_session
+from app.services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+)
 from app.services.pi_agent import AgentContext, build_agent_context, pi_agent_runner
 
 router = APIRouter(
@@ -118,10 +125,17 @@ async def pi_run(
     data: PiChatRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ) -> dict[str, Any]:
     """非流式执行，返回最终文本与产物列表。"""
     _ensure_enabled()
     ctx = await _load_agent_context(db, agent_id, user_id)
+
+    # 配额必须卡在这一层。pi 是「没有工作流的 Agent」的默认引擎，
+    # 前端 effectiveEngine = hasWorkflow ? 'builtin' : engine，
+    # 只在 /chat/* 上拦额度等于把主链路放过去了。
+    # 放在 load_or_create_session 之前：超额就别再建一个空会话。
+    await check_quota(db, sub, Resource.MESSAGES)
 
     # 会话：指定则校验归属后复用，不传则取最近一次，都没有就新建。
     # pi 的会话键直接用会话 id —— 它稳定存在库里，页面刷新后仍能续上下文
@@ -138,9 +152,13 @@ async def pi_run(
     )
 
     if not result["success"]:
+        # 外部进程失败不扣额度：用户没拿到回复，不该消耗次数
         return {"success": False, "error": result["error"], "content": "", "files": []}
 
     await _persist_turn(db, session, data.message, result["content"], result["files"])
+
+    await consume_quota(db, sub, Resource.MESSAGES)
+    await db.commit()
 
     return {
         "success": True,
@@ -157,6 +175,7 @@ async def pi_stream(
     data: PiChatRequest,
     db: AsyncSession = Depends(get_db),
     user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ) -> StreamingResponse:
     """流式对话（SSE）。
 
@@ -165,6 +184,10 @@ async def pi_stream(
     """
     _ensure_enabled()
     ctx = await _load_agent_context(db, agent_id, user_id)
+
+    # 与 /run 同理。放在这里而不是 generator 内部：这样才能以一个正常的
+    # 402 响应拒掉请求，前端能直接读到 error code；进了 SSE 就只能当事件发。
+    await check_quota(db, sub, Resource.MESSAGES)
 
     # 与非流式一致：会话 id 既是历史主键，也是 pi 的会话键
     session = await load_or_create_session(db, ctx.id, user_id, data.session_id, data.new_session)
@@ -192,6 +215,9 @@ async def pi_stream(
 
             if final_text:
                 await _persist_turn(db, session, data.message, final_text, final_files)
+                # 用量累加在落库之后：中途异常、没产出回复的那一轮不计费
+                await consume_quota(db, sub, Resource.MESSAGES)
+                await db.commit()
         except Exception as exc:  # noqa: BLE001 - 保证流以 error 事件收尾
             payload = {"type": "error", "content": f"执行失败：{exc}"}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"

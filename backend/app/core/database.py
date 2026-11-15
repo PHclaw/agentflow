@@ -2,6 +2,9 @@
 数据库 - PostgreSQL + SQLite 备用方案
 """
 import os
+from pathlib import Path
+
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
 from sqlalchemy.pool import StaticPool
@@ -20,6 +23,37 @@ _engine = None
 _async_session = None
 
 
+def _resolve_sqlite_url(db_url: str) -> str:
+    """定出 SQLite 的连接串。
+
+    **必须尊重 ``DATABASE_URL`` 里的路径。** 早先这里无条件用模块位置推算
+    ``<backend>/agentflow.db``，把连接串里的路径整个丢掉 —— 后果是
+    ``DATABASE_URL=sqlite+aiosqlite:////data/agentflow.db`` 在容器里形同虚设：
+
+      * alembic 迁移按 ``settings.DATABASE_URL`` 写 ``/data/agentflow.db``；
+      * 应用自己读写 ``/app/agentflow.db``；
+      * 于是**存在两个库**，迁移看起来成功、功能一切正常，直到容器重建
+        （`docker compose down` 或重新 build）—— 用户、Agent、对话记录全没了，
+        而日志里没有任何异常可循。
+
+    只有「没配连接串」时才退回原先那个按模块位置推算的路径，保持本地开发的
+    零配置行为不变。
+    """
+    if "sqlite" in db_url:
+        return db_url
+
+    backend_dir = Path(__file__).resolve().parents[2]
+    return f"sqlite+aiosqlite:///{backend_dir / 'agentflow.db'}"
+
+
+def _ensure_sqlite_parent(sqlite_url: str) -> None:
+    """建好 SQLite 文件所在目录，否则首次连接会因目录不存在而失败。"""
+    database = make_url(sqlite_url).database
+    if not database or database == ":memory:":
+        return
+    Path(database).expanduser().parent.mkdir(parents=True, exist_ok=True)
+
+
 def _init_engine():
     """初始化数据库引擎"""
     global _engine, USE_MEMORY_MODE
@@ -32,16 +66,17 @@ def _init_engine():
     # 检查是否使用 SQLite（备用方案）
     if "sqlite" in db_url or not db_url:
         USE_MEMORY_MODE = False
-        db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "agentflow.db")
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        sqlite_url = f"sqlite+aiosqlite:///{db_path}"
+        sqlite_url = _resolve_sqlite_url(db_url)
+        _ensure_sqlite_parent(sqlite_url)
         _engine = create_async_engine(
             sqlite_url,
             echo=settings.DEBUG,
             poolclass=StaticPool,
             connect_args={"check_same_thread": False}
         )
-        print(f"Using SQLite database: {db_path}")
+        # 打印引擎**真实**的 URL，而不是我们以为的那个 —— 上面那个 bug 能藏
+        # 那么久，正是因为日志打的是推算值，与实际情况无从对照。
+        print(f"Using SQLite database: {_engine.url.database}")
         return _engine
     
     # 尝试使用 PostgreSQL
@@ -120,7 +155,13 @@ async def init_db():
             except Exception:
                 pass  # pgvector 可能不可用
         
-        mode = "Memory (NOT persistent)" if USE_MEMORY_MODE else "File-based (persistent)"
+        # 把实际路径打出来。只说 "File-based (persistent)" 是不够的 ——
+        # 曾经应用写 /app/agentflow.db、迁移写 /data/agentflow.db，两边都
+        # 打着一句「已持久化」，而真正该持久化的那个文件从头到尾没人碰过。
+        if USE_MEMORY_MODE:
+            mode = "Memory (NOT persistent)"
+        else:
+            mode = f"File-based (persistent) -> {engine.url.database}"
         print(f"Database initialized: {mode}")
 
         # 种子数据

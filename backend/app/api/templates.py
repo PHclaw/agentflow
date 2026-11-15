@@ -5,32 +5,21 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.models.agent import WorkflowTemplate
+from app.services.llm_config import SUPPORTED_MODELS
 
 router = APIRouter()
 
 
 # ===== 模型列表 API（必须在 /{template_id} 之前注册）=====
 
-SUPPORTED_MODELS = [
-    # OpenAI
-    {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "tier": "pro"},
-    {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "tier": "free"},
-    {"id": "gpt-4.1", "name": "GPT-4.1", "provider": "openai", "tier": "pro"},
-    {"id": "gpt-4.1-mini", "name": "GPT-4.1 Mini", "provider": "openai", "tier": "free"},
-    {"id": "o3", "name": "o3", "provider": "openai", "tier": "pro"},
-    {"id": "o4-mini", "name": "o4-mini", "provider": "openai", "tier": "pro"},
-    # Anthropic
-    {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic", "tier": "pro"},
-    {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "tier": "free"},
-    # DeepSeek
-    {"id": "deepseek-chat", "name": "DeepSeek V3", "provider": "deepseek", "tier": "free"},
-    {"id": "deepseek-reasoner", "name": "DeepSeek R1", "provider": "deepseek", "tier": "pro"},
-]
-
 
 @router.get("/models/list")
 async def list_models():
-    """获取支持的模型列表"""
+    """获取支持的模型列表。
+
+    这是**静态内置目录**，不反映用户实际配置了哪些模型。
+    需要「能用的模型」请用 ``GET /api/v1/llm-configs/models``。
+    """
     return {"models": SUPPORTED_MODELS}
 
 

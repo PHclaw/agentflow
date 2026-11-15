@@ -14,6 +14,7 @@ from app.api.auth import get_current_user_id
 from ..core.config import settings
 from ..models.user import User
 from ..models.subscription import Subscription, PlanType
+from ..services.entitlement import Resource, ensure_subscription, limits_for
 
 router = APIRouter()
 
@@ -23,30 +24,49 @@ if settings.STRIPE_SECRET_KEY:
 
 
 # 定价计划
+# 额度一律从 settings 取，不在这里写死：前端 SettingsPage 曾经把免费版写成
+# 「3 个 Agent / 1000 条消息」，和配置里的 1 / 100 对不上，用户看到的额度
+# 和实际能用的不是一回事。单一数据源才能避免这类三方不一致。
 PLANS = {
     "free": {
         "name": "Free",
         "price": 0,
-        "agents": 1,
-        "messages": 100,
-        "features": ["1个Agent", "100条消息/月", "基础模板"]
+        "agents": settings.FREE_AGENTS,
+        "messages": settings.FREE_MESSAGES,
+        "features": [
+            f"{settings.FREE_AGENTS}个Agent",
+            f"{settings.FREE_MESSAGES}条消息/月",
+            "基础模板",
+        ],
     },
     "pro": {
         "name": "Pro",
         "price": 29,
         "price_id": settings.STRIPE_PRICE_PRO,
-        "agents": 5,
-        "messages": 5000,
-        "features": ["5个Agent", "5000条消息/月", "高级模板", "知识库", "优先支持"]
+        "agents": settings.PRO_AGENTS,
+        "messages": settings.PRO_MESSAGES,
+        "features": [
+            f"{settings.PRO_AGENTS}个Agent",
+            f"{settings.PRO_MESSAGES}条消息/月",
+            "高级模板",
+            "知识库",
+            "优先支持",
+        ],
     },
     "team": {
         "name": "Team",
         "price": 99,
         "price_id": settings.STRIPE_PRICE_TEAM,
-        "agents": 20,
-        "messages": 50000,
-        "features": ["20个Agent", "50000条消息/月", "全部功能", "团队协作", "专属客服"]
-    }
+        "agents": settings.TEAM_AGENTS,
+        "messages": settings.TEAM_MESSAGES,
+        "features": [
+            f"{settings.TEAM_AGENTS}个Agent",
+            f"{settings.TEAM_MESSAGES}条消息/月",
+            "全部功能",
+            "团队协作",
+            "专属客服",
+        ],
+    },
 }
 
 
@@ -328,29 +348,20 @@ async def get_subscription(
     """获取当前订阅状态"""
     from sqlalchemy import select
     
-    # 获取用户订阅
-    result = await db.execute(
-        select(Subscription).join(User).where(User.external_id == user_id)
-    )
-    subscription = result.scalar_one_or_none()
-    
-    if not subscription:
-        # 返回免费计划
-        return {
-            "plan": "free",
-            "status": "active",
-            "agents_used": 0,
-            "messages_used": 0,
-            "agents_limit": settings.FREE_AGENTS,
-            "messages_limit": settings.FREE_MESSAGES
-        }
-    
+    # 获取用户订阅。走 ensure_subscription 而不是「没有就返回一份假数据」：
+    # 历史用户没有订阅记录，返回全 0 会让前端把超额用户显示成「刚注册」。
+    subscription = await ensure_subscription(db, user_id)
+
+    # 上限必须取自与实际判定同一处。此前这里自己用 is_pro 二分，
+    # 与 entitlement 里的逻辑各写一份，团队版会看到专业版的上限。
+    limits = limits_for(subscription)
+
     return {
         "plan": subscription.plan,
         "status": subscription.status,
-        "agents_used": subscription.agents_used,
-        "messages_used": subscription.messages_used,
-        "agents_limit": settings.PRO_AGENTS if subscription.is_pro else settings.FREE_AGENTS,
-        "messages_limit": settings.PRO_MESSAGES if subscription.is_pro else settings.FREE_MESSAGES,
+        "agents_used": subscription.agents_used or 0,
+        "messages_used": subscription.messages_used or 0,
+        "agents_limit": limits[Resource.AGENTS],
+        "messages_limit": limits[Resource.MESSAGES],
         "current_period_end": subscription.current_period_end.isoformat() if subscription.current_period_end else None
     }

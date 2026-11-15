@@ -78,6 +78,11 @@ def build_workflow_for_agent(agent: Agent) -> Dict[str, Any]:
 
     节点自己没配模型 / 知识库时用 Agent 上的配置兜底，否则从 Agent 进入对话时
     会出现：LLM 节点用默认模型、知识节点直接报「未配置知识库 ID」。
+
+    ``if model`` 这个守卫是**关键**，别删：``model_config.model`` 为空串表示
+    「跟随生效配置的模型」，此时必须让 LLMNode 自己去解析。曾经这里注入的是
+    硬编码的 ``gpt-4o-mini``，于是它把节点里刚清干净的模型名又填了回去，
+    用户的本地端点上照样报 ``model 'gpt-4o-mini' not found``。
     """
     definition = normalize_workflow_definition(agent.workflow_definition)
 

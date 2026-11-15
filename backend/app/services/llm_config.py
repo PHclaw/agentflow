@@ -74,6 +74,29 @@ PROVIDER_PRESETS: dict[str, dict[str, Any]] = {
 ALLOWED_PROVIDERS = tuple(PROVIDER_PRESETS.keys())
 
 
+#: 内置模型目录。
+#:
+#: 只作为「没有任何数据库配置时」的候选 —— 里面全是 OpenAI / Anthropic 的
+#: 型号名，如果生效端点是本地 Ollama，选中它们只会得到「模型不存在」。
+#: 放在这里而不是 API 层：模型目录被 /templates/models/list 与
+#: /llm-configs/models 两处共用，放 API 层会变成 API 模块互相 import。
+SUPPORTED_MODELS: list[dict[str, Any]] = [
+    # OpenAI
+    {"id": "gpt-4o", "name": "GPT-4o", "provider": "openai", "tier": "pro"},
+    {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai", "tier": "free"},
+    {"id": "gpt-4.1", "name": "GPT-4.1", "provider": "openai", "tier": "pro"},
+    {"id": "gpt-4.1-mini", "name": "GPT-4.1 Mini", "provider": "openai", "tier": "free"},
+    {"id": "o3", "name": "o3", "provider": "openai", "tier": "pro"},
+    {"id": "o4-mini", "name": "o4-mini", "provider": "openai", "tier": "pro"},
+    # Anthropic
+    {"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "provider": "anthropic", "tier": "pro"},
+    {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic", "tier": "free"},
+    # DeepSeek
+    {"id": "deepseek-chat", "name": "DeepSeek V3", "provider": "deepseek", "tier": "free"},
+    {"id": "deepseek-reasoner", "name": "DeepSeek R1", "provider": "deepseek", "tier": "pro"},
+]
+
+
 class ConfigValidationError(ValueError):
     """字段校验失败，携带出错的字段名便于前端定位。"""
 
@@ -111,6 +134,27 @@ _SNAPSHOT: ActiveConfig | None = None
 _SNAPSHOT_LOADED_AT: float = 0.0
 _SNAPSHOT_MARKER: str | None = None
 
+#: 中间件是否允许用**真实数据库**刷新快照。见 ``use_test_db_for_tests``。
+_MIDDLEWARE_REFRESH = True
+
+
+def use_test_db_for_tests() -> None:
+    """测试期间禁用「用真实数据库刷新快照」。
+
+    ``main.refresh_llm_config`` 中间件跑在依赖解析之前，绕开了 ``get_db``
+    的测试覆盖、直接开真实连接查库 —— 它会把**真实库**里的配置写进全局
+    快照。于是断言「生效配置是哪个」的用例会拿到真实库那条配置，
+    而测试库里刚建的那条永远拿不到 ``is_effective`` 标记。
+
+    与 ``verification.use_memory_for_tests`` 同一套路。
+    """
+    global _MIDDLEWARE_REFRESH
+    _MIDDLEWARE_REFRESH = False
+
+
+def middleware_refresh_enabled() -> bool:
+    return _MIDDLEWARE_REFRESH
+
 
 def _env_fallback() -> ActiveConfig | None:
     """数据库没有可用配置时回退到 .env（保持既有部署行为）。"""
@@ -138,6 +182,25 @@ def get_active() -> ActiveConfig | None:
     """同步读取快照；未加载过时返回 None（由调用方回退 .env）。"""
     with _SNAPSHOT_LOCK:
         return _SNAPSHOT
+
+
+def effective_model_name(fallback: str = "") -> str:
+    """当前生效的模型名 —— 模型解析的唯一权威出口。
+
+    只有来自数据库的生效配置才算数；``.env`` 快照那种没有真实模型名的
+    回退交给 ``fallback``（通常是 ``settings.OPENAI_MODEL``）。
+
+    取不到时返回空串。空串是「未指定」的语义，各调用点可以决定自己的兜底
+    —— 工作流节点要的是「再兜底一层」，统计接口要的是「别拿空串当键」。
+
+    这条逻辑原先散在各处，其中 ``LLMService`` 干脆丢掉了生效配置里的
+    model 字段，只取凭证，结果就是用户把端点指向本地 Ollama 之后
+    仍然发出 ``gpt-4o-mini``。
+    """
+    active = get_active()
+    if active is not None and active.source == "database" and active.model:
+        return active.model
+    return fallback
 
 
 def _set_snapshot(config: ActiveConfig | None, marker: str | None) -> bool:

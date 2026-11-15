@@ -13,6 +13,7 @@ import json
 
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.services import llm_config as svc
@@ -495,6 +496,135 @@ class TestProvidersCatalog:
         assert openai_entry["base_url"].startswith("http")
         # 来自 config/models.json 的建议模型
         assert any(m["name"] == "gpt-4o-mini" for m in openai_entry["models"])
+
+
+class TestSelectableModels:
+    """``GET /llm-configs/models`` —— 工作流等处的模型下拉数据源。
+
+    盯的是这个真实问题：工作流的模型下拉此前读的是 /templates/models/list
+    那份**静态内置目录**（全是 OpenAI / Anthropic 型号名），用户自己配的
+    本地模型（如 ollama 的 glm4:latest）根本选不到；而默认值 gpt-4o-mini
+    发到 Ollama 端点上只会得到「模型不存在」。
+    """
+
+    @pytest.fixture(autouse=True)
+    async def _clean_configs(self, async_db: AsyncSession):
+        """每个用例前清空配置表。
+
+        测试库是文件型 SQLite，``create_all`` 不会清数据；而「生效项」判定
+        看的正是「库里有哪条配置」。不清就会串味：上一个用例留下的配置会让
+        「无配置时回退到内置目录」这条断言失真。
+        """
+        from sqlalchemy import delete
+
+        from app.models.llm_config import LLMProviderConfig
+
+        await async_db.execute(delete(LLMProviderConfig))
+        await async_db.commit()
+        svc.invalidate()
+        yield
+
+    @pytest.mark.asyncio
+    async def test_returns_user_configured_models(
+        self, async_db: AsyncSession, async_client, auth_headers
+    ):
+        # 首个配置会自动成为默认项，因此这里只需建一个
+        await make_config(
+            async_db, alias="本地-ollama", provider="ollama",
+            base_url="http://localhost:11434/v1", model="glm4:latest", api_key="",
+        )
+
+        resp = await async_client.get(f"{API}/models", headers=auth_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+
+        assert [m["id"] for m in body["models"]] == ["glm4:latest"]
+        assert body["models"][0]["source"] == "config"
+        assert body["models"][0]["provider"] == "ollama"
+        assert body["models"][0]["is_effective"] is True
+
+    @pytest.mark.asyncio
+    async def test_effective_model_is_listed_first(
+        self, async_db: AsyncSession, async_client, auth_headers
+    ):
+        """生效项排最前 —— 用户最可能选的就是它。"""
+        # 名字故意用 zzz / aaa 之外的组合：纯字母序与「生效优先」结果一致时，
+        # 用例就守不住「按 is_effective 排序」这条规则了。
+        await make_config(async_db, alias="备用", model="aaa-becomes-default")
+        main = await make_config(
+            async_db, alias="主用", provider="ollama",
+            base_url="http://localhost:11434/v1", model="zzz-becomes-effective",
+            api_key="",
+        )
+        await svc.set_default(async_db, main)
+
+        body = (await async_client.get(
+            f"{API}/models", headers=auth_headers
+        )).json()
+
+        assert body["models"][0]["id"] == "zzz-becomes-effective"
+        assert body["models"][0]["is_effective"] is True
+        # 生效项排在字母序更靠前的那个之前 —— 证明排的是 is_effective
+        assert body["models"][1]["id"] == "aaa-becomes-default"
+
+    @pytest.mark.asyncio
+    async def test_does_not_include_builtin_catalog_when_configured(
+        self, async_db: AsyncSession, async_client, auth_headers
+    ):
+        """有数据库配置时不能混入内置目录。
+
+        内置目录里全是 OpenAI / Anthropic 的型号名，生效端点是本地 Ollama 时
+        选中它们只会报「模型不存在」。宁可少给，也不给选了必然失败的选项。
+        """
+        await make_config(
+            async_db, alias="本地", provider="ollama",
+            base_url="http://localhost:11434/v1", model="qwen2.5:7b", api_key="",
+        )
+
+        body = (await async_client.get(
+            f"{API}/models", headers=auth_headers
+        )).json()
+
+        assert [m["id"] for m in body["models"]] == ["qwen2.5:7b"]
+        assert "gpt-4o" not in [m["id"] for m in body["models"]]
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_catalog_without_configs(
+        self, async_client, auth_headers
+    ):
+        """没有任何配置时才退回内置目录 —— 此时走 .env 回退，
+        内置目录里的型号名才是有效的候选。
+        """
+        body = (await async_client.get(
+            f"{API}/models", headers=auth_headers
+        )).json()
+
+        # 没有数据库配置时 source 是 "env"（回退 .env）或 "none"（连 .env 也没有），
+        # 关键是不该是 "database"
+        assert body["effective"]["source"] != "database"
+        ids = [m["id"] for m in body["models"]]
+        assert "gpt-4o-mini" in ids
+        assert all(m["source"] == "catalog" for m in body["models"])
+        # 全部来自内置目录 —— 此时目录里的型号名才是有效的候选
+        assert all(m["config_id"] is None for m in body["models"])
+
+    @pytest.mark.asyncio
+    async def test_dedupes_same_model_across_configs(
+        self, async_db: AsyncSession, async_client, auth_headers
+    ):
+        await make_config(async_db, alias="A", model="same-model")
+        await make_config(async_db, alias="B", model="same-model")
+
+        body = (await async_client.get(
+            f"{API}/models", headers=auth_headers
+        )).json()
+
+        assert [m["id"] for m in body["models"]] == ["same-model"]
+
+    @pytest.mark.asyncio
+    async def test_requires_authentication(self, async_client):
+        resp = await async_client.get(f"{API}/models")
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,7 @@ from app.api.auth import get_current_user_id
 from app.core.database import get_db
 from app.models.llm_config import LLMProviderConfig
 from app.services import llm_config as svc
+from app.services.llm_config import SUPPORTED_MODELS
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
 
@@ -126,6 +127,70 @@ async def list_providers() -> dict[str, Any]:
     return {
         "providers": svc.providers_catalog(),
         "protocol_note": "当前仅支持 OpenAI 兼容协议端点（OpenAI / DeepSeek / Ollama / 百炼 / vLLM / OneAPI 等）",
+    }
+
+
+@router.get("/models")
+async def list_selectable_models(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """可选的模型列表，供工作流等处的模型下拉使用。
+
+    顺序即优先级，**生效项排最前** —— 用户最可能选的就是它。
+
+    为什么有数据库配置时不混入内置目录：模型凭证与端点都取自「当前生效的
+    配置」，节点里的模型名只是发给该端点的一个字符串。生效端点是本地 Ollama
+    时，内置目录里的 ``gpt-4o`` 发过去只会得到「模型不存在」。
+    宁可不列，也不给一个选了必然报错的选项。
+    """
+    active = await svc.ensure_fresh(db)
+    configs = await svc.list_configs(db)
+
+    models: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for config in configs:
+        if not config.model or config.model in seen:
+            continue
+        seen.add(config.model)
+        models.append({
+            "id": config.model,
+            "label": config.model,
+            "provider": config.provider,
+            "alias": config.alias,
+            "config_id": config.id,
+            "source": "config",
+            "is_effective": bool(active) and config.id == active.id,
+        })
+
+    if not configs:
+        # 没有任何数据库配置 → 走 .env 回退，此时内置目录才是有效的候选
+        for item in SUPPORTED_MODELS:
+            if item["id"] in seen:
+                continue
+            seen.add(item["id"])
+            models.append({
+                "id": item["id"],
+                "label": item["name"],
+                "provider": item["provider"],
+                "alias": None,
+                "config_id": None,
+                "source": "catalog",
+                "is_effective": False,
+            })
+
+    models.sort(key=lambda m: (not m["is_effective"], m["label"]))
+
+    return {
+        "models": models,
+        "effective": {
+            "model": active.model if active else None,
+            "alias": active.alias if active else None,
+            "provider": active.provider if active else None,
+            "source": active.source if active else "none",
+        },
+        "note": (
+            "模型凭证与端点取自「当前生效的配置」，节点里选的模型名会发往该端点。"
+            "要换端点请到「设置 → 模型配置」切换生效项。"
+        ),
     }
 
 

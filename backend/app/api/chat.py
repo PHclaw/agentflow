@@ -14,6 +14,12 @@ import json
 
 from ..core.database import get_db
 from ..models.agent import Agent, ChatSession
+from ..models.subscription import Subscription
+from ..services.entitlement import (
+    Resource,
+    check as check_quota,
+    consume as consume_quota,
+)
 from ..services.integrated_runtime import IntegratedAgentRuntime
 from ..services.llm import LLMNotConfiguredError, humanize_llm_error
 from ..services.agent_turn import (
@@ -23,6 +29,7 @@ from ..services.agent_turn import (
     run_workflow_turn,
 )
 from .auth import get_current_user_id
+from .deps import current_subscription
 
 router = APIRouter()
 
@@ -125,7 +132,8 @@ async def list_all_sessions(
 async def multi_agent_chat(
     data: MultiAgentRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
     多 Agent 协作
@@ -134,6 +142,9 @@ async def multi_agent_chat(
     """
     if not data.agent_ids:
         raise HTTPException(status_code=400, detail="agent_ids is required")
+
+    # 多 Agent 一次要调多个模型，开销比单轮对话大得多，更要先卡额度
+    await check_quota(db, sub, Resource.MESSAGES)
 
     try:
         # 使用第一个 agent 作为主运行时
@@ -151,6 +162,9 @@ async def multi_agent_chat(
             session_id=data.session_id,
         )
 
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
         return {
             "results": results,
             "session_id": runtime.session.id if runtime.session else None,
@@ -167,6 +181,7 @@ async def _run_workflow_chat(
     data: ChatRequest,
     db: AsyncSession,
     user_id: str,
+    sub: Subscription,
 ):
     """工作流模式的对话：执行画布上的编排，把结果作为回复返回。"""
     if data.stream:
@@ -179,6 +194,8 @@ async def _run_workflow_chat(
 
                 append_turn(session, data.message, turn.content, turn.files)
                 agent.message_count = (agent.message_count or 0) + 1
+                # 跑完再计数：这一轮模型已经真的花过钱了
+                await consume_quota(db, sub, Resource.MESSAGES)
                 await db.commit()
 
                 # 工作流是一口气执行完的，这里分片下发以保留流式观感
@@ -206,6 +223,7 @@ async def _run_workflow_chat(
 
         append_turn(session, data.message, turn.content, turn.files)
         agent.message_count = (agent.message_count or 0) + 1
+        await consume_quota(db, sub, Resource.MESSAGES)
         await db.commit()
 
         return ChatResponse(
@@ -225,7 +243,8 @@ async def chat(
     agent_id: str,
     data: ChatRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
     与 Agent 对话
@@ -240,8 +259,12 @@ async def chat(
     if not agent or agent.user_id != user_id:
         raise HTTPException(status_code=404, detail="Agent not found")
 
+    # 先卡额度再跑模型。反过来做的话，模型调用是真金白银，
+    # 等它跑完再拒绝，钱已经花了，用户还会白看到一次回复。
+    await check_quota(db, sub, Resource.MESSAGES)
+
     if agent_has_workflow(agent):
-        return await _run_workflow_chat(agent, data, db, user_id)
+        return await _run_workflow_chat(agent, data, db, user_id, sub)
 
     # 流式对话
     if data.stream:
@@ -300,6 +323,9 @@ async def chat(
 
                 # 更新统计
                 runtime.agent.message_count = (runtime.agent.message_count or 0) + 1
+                # 流式路径的模型调用发生在响应返回之后，用量只能在这里累加。
+                # 放在 try 内而非 finally：LLM 报错时走 except 分支，不该计费。
+                await consume_quota(db, sub, Resource.MESSAGES)
                 await db.commit()
 
                 # 发送完成
@@ -333,6 +359,9 @@ async def chat(
 
         stats = await runtime.get_stats()
 
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
+
         return ChatResponse(
             response=response,
             session_id=runtime.session.id,
@@ -353,13 +382,17 @@ async def chat_with_tools(
     agent_id: str,
     data: ChatRequest,
     db: AsyncSession = Depends(get_db),
-    user_id: str = Depends(get_current_user_id)
+    user_id: str = Depends(get_current_user_id),
+    sub: Subscription = Depends(current_subscription),
 ):
     """
     带工具调用的对话
 
     使用 agent-tool-registry 管理工具
     """
+    # 工具调用往往要跑好几轮模型，比普通对话更贵，先卡额度
+    await check_quota(db, sub, Resource.MESSAGES)
+
     try:
         runtime = IntegratedAgentRuntime(
             agent_id=agent_id,
@@ -375,6 +408,9 @@ async def chat_with_tools(
         )
 
         stats = await runtime.get_stats()
+
+        await consume_quota(db, sub, Resource.MESSAGES)
+        await db.commit()
 
         return ChatResponse(
             response=response,

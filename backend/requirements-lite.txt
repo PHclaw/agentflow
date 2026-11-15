@@ -31,6 +31,15 @@ aiosqlite
 pydantic
 pydantic-settings
 python-dotenv
+# 技能 frontmatter 的 YAML 兜底。第三方技能（Claude Code 生态）普遍用 YAML，
+# 缺了这个，导进来的技能一律加载不出来 —— 而且是「技能凭空消失」那种失败。
+PyYAML
+
+# Database / Migration
+alembic
+
+# Vector store（知识库 RAG 链路）
+chromadb
 
 # Auth
 python-jose[cryptography]

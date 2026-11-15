@@ -73,7 +73,11 @@ class LLMService:
     
     def __init__(self, provider: str = "openai", model: str = None):
         self.provider = provider
-        self.model = model or self._get_default_model(provider)
+        # 未显式指定时，模型名也要跟凭证一起走生效配置 ——
+        # 只取 key/base_url 而丢掉 model 的话，生效配置指向本地 Ollama 的
+        # glm4:latest 时，发出去的还是 settings.OPENAI_MODEL（gpt-4o-mini），
+        # 端点直接回「model not found」。
+        self.model = model or self._active_model() or self._get_default_model(provider)
         self._client = None
     
     def _get_default_model(self, provider: str) -> str:
@@ -83,6 +87,16 @@ class LLMService:
             "deepseek": "deepseek-chat",
         }
         return defaults.get(provider, "gpt-4o-mini")
+
+    def _active_model(self) -> str | None:
+        """「大模型 API 配置」中当前生效的模型名。
+
+        与 ``_active_credentials`` 同源：只有来自数据库的配置才算数，
+        .env 快照那种没有真实模型名的回退交给 ``_get_default_model``。
+        """
+        from app.services.llm_config import effective_model_name
+
+        return effective_model_name() or None
     
     def _active_credentials(self) -> tuple[str | None, str | None]:
         """取「大模型 API 配置」中当前生效的凭证（仅 OpenAI 兼容协议适用）。
