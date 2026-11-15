@@ -21,7 +21,11 @@ from app.schemas import (
 from app.services import skill_service
 from app.services.entitlement import (
     Resource,
+)
+from app.services.entitlement import (
     check as check_quota,
+)
+from app.services.entitlement import (
     consume as consume_quota,
 )
 from app.services.skill import resolve_skills

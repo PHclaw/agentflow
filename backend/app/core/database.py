@@ -1,19 +1,19 @@
 """
 数据库 - PostgreSQL + SQLite 备用方案
 """
-import os
 from pathlib import Path
 
-from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from .config import settings
-from .seed import seed_templates
-from .base import Base
 # 显式导入全部模型，确保 create_all 能建出所有表（含后续新增的表）
 import app.models  # noqa: F401
+
+from .base import Base
+from .config import settings
+from .seed import seed_templates
 
 # 数据库状态
 USE_MEMORY_MODE = False

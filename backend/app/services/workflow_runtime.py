@@ -3,17 +3,18 @@
 
 注意：实现已不依赖 LangGraph，为自研执行器（拓扑排序 + 分支选择）。
 """
-from typing import Awaitable, Callable, Dict, List, Any, Optional
-from dataclasses import dataclass, field
-from enum import Enum
 import json
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from .llm import LLMService
-from .knowledge import KnowledgeService
-from ..core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..core.config import settings
+from .knowledge import KnowledgeService
+from .llm import LLMService
 
 
 def _effective_model_name() -> str:

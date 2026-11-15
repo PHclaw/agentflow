@@ -1,10 +1,11 @@
 """
 Agent 模型
 """
-from sqlalchemy import Column, String, Text, DateTime, Boolean, Integer, JSON, ForeignKey
-from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
 import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 from app.core.base import Base
 

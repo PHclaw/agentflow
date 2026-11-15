@@ -1,15 +1,14 @@
 ﻿"""统计分析 Skill：意图路由 + 白名单脚本执行。"""
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from app.core.paths import skills_root
 from app.logging_setup import get_logger
-from app.core.paths import generated_root, skills_root
 
 logger = get_logger("stat")
 

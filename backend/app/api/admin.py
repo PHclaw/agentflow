@@ -33,9 +33,9 @@ from ..models.agent import Agent, ChatSession, KnowledgeBase
 from ..models.document import Document
 from ..models.subscription import PlanType, Subscription
 from ..models.user import User, UserRole
+from ..services import skill_package
 from ..services.entitlement import new_free_subscription
 from ..services.skill import store as skill_store
-from ..services import skill_package
 from .billing import PLANS
 from .chat import _session_title
 from .deps import require_admin

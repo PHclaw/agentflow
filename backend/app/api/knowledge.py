@@ -1,15 +1,19 @@
 """
 知识库 API - 文档管理和向量搜索
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, Depends
+import json
+import logging
+import uuid
+from pathlib import Path
+from typing import Dict, List, Optional
+
+import aiofiles
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import List, Optional, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
-import json
-import aiofiles
-from pathlib import Path
+
+from app.api.auth import get_current_user_id
 
 from ..core.config import settings
 from ..core.database import get_db
@@ -17,9 +21,6 @@ from ..core.paths import uploads_root
 from ..models.agent import KnowledgeBase
 from ..models.document import Document, DocumentChunk
 from ..services.knowledge import EmbeddingNotConfiguredError, KnowledgeService
-from app.api.auth import get_current_user_id
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ async def list_knowledge_bases(
     user_id: str = Depends(get_current_user_id),
 ):
     """列出当前用户的知识库"""
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
     stmt = (
         select(KnowledgeBase)
         .where(KnowledgeBase.user_id == user_id)
@@ -327,6 +328,7 @@ async def extract_text(content: bytes, file_type: str, filename: str) -> str:
     if file_type == "pdf":
         try:
             import io
+
             from pypdf import PdfReader
         except ImportError as exc:  # pragma: no cover - 依赖缺失
             raise ValueError(f"PDF 解析依赖缺失：{exc}") from exc
@@ -356,6 +358,7 @@ async def extract_text(content: bytes, file_type: str, filename: str) -> str:
     if file_type == "docx":
         try:
             import io
+
             from docx import Document as DocxDocument
         except ImportError as exc:  # pragma: no cover - 依赖缺失
             raise ValueError(f"Word 解析依赖缺失：{exc}") from exc

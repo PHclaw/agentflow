@@ -178,7 +178,6 @@ class OpenAICompatibleAdapter(ModelAdapter):
             "max_tokens": max_tokens,
             "stream": False,
         }
-        settings = get_settings()
         started = time.perf_counter()
         async with _httpx_client() as client:
             resp = await client.post(
@@ -232,7 +231,6 @@ class OpenAICompatibleAdapter(ModelAdapter):
             "max_tokens": max_tokens,
             "stream": True,
         }
-        settings = get_settings()
         usage_tin = 0
         usage_tout = 0
         async with _httpx_client() as client:

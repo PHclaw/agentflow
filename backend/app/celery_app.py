@@ -40,8 +40,9 @@ def cleanup_expired_sessions():
     from datetime import datetime, timedelta, timezone
 
     async def _cleanup():
-        from app.core.database import get_async_session_factory
         from sqlalchemy import delete
+
+        from app.core.database import get_async_session_factory
         from app.models.agent import ChatSession
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=30)
@@ -70,8 +71,9 @@ def generate_daily_report():
     from datetime import datetime, timedelta, timezone
 
     async def _report():
+        from sqlalchemy import func, select
+
         from app.core.database import get_async_session_factory
-        from sqlalchemy import select, func
         from app.models.agent import Agent, ChatSession
         from app.models.user import User
 
@@ -111,9 +113,10 @@ def process_document_upload(file_path: str, kb_id: str):
     import asyncio
 
     async def _process():
+        from pathlib import Path
+
         from app.core.database import get_async_session_factory
         from app.services.knowledge import KnowledgeService
-        from pathlib import Path
 
         factory = get_async_session_factory()
         path = Path(file_path)

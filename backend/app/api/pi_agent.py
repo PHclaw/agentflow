@@ -14,12 +14,10 @@ from __future__ import annotations
 
 import json
 import os
-import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +32,11 @@ from app.models.subscription import Subscription
 from app.services.agent_turn import append_turn, load_or_create_session
 from app.services.entitlement import (
     Resource,
+)
+from app.services.entitlement import (
     check as check_quota,
+)
+from app.services.entitlement import (
     consume as consume_quota,
 )
 from app.services.pi_agent import AgentContext, build_agent_context, pi_agent_runner

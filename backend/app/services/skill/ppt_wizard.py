@@ -7,13 +7,13 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from app.core.paths import generated_root
 from app.services.skill.ppt_html import (
     DEFAULT_PREVIEWS,
     render_deck_html,
     resolve_theme,
     write_html,
 )
-from app.core.paths import generated_root
 
 WIZARD_DIR = generated_root() / "ppt-wizard"
 GENERATED_DIR = generated_root()

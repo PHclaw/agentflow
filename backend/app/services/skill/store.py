@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from app.services.prompt_utils import extract_variables
 from app.logging_setup import get_logger
+from app.services.prompt_utils import extract_variables
 
 logger = get_logger("skillstore")
 

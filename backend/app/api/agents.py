@@ -4,13 +4,13 @@ Agent CRUD API — 数据库版本
 import re
 import shutil
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
 from ..core.paths import pi_agent_workspace
@@ -18,8 +18,14 @@ from ..models.agent import Agent
 from ..models.subscription import Subscription
 from ..services.entitlement import (
     Resource,
+)
+from ..services.entitlement import (
     check as check_quota,
+)
+from ..services.entitlement import (
     consume as consume_quota,
+)
+from ..services.entitlement import (
     release as release_quota,
 )
 from ..services.workflow_runtime import normalize_workflow_definition
@@ -29,6 +35,7 @@ from .deps import current_subscription
 router = APIRouter()
 
 from app.logging_setup import get_logger
+
 logger = get_logger("api.agents")
 
 

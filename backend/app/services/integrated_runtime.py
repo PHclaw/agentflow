@@ -3,17 +3,18 @@
 
 使用 agent-* 库生态
 """
-from typing import Optional, List, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 import json
+from typing import Any, Dict, List, Optional
 
-from ..models.agent import Agent, ChatSession
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..integrations import config, tracer
-from ..integrations.prompts_outputs import prompt_manager, output_parser
-from ..integrations.tools_memory import tool_manager, MemoryManager, ConversationMemory
-from ..services.llm import LLMService
+from ..integrations.prompts_outputs import output_parser, prompt_manager
+from ..integrations.tools_memory import ConversationMemory, MemoryManager, tool_manager
+from ..models.agent import Agent, ChatSession
 from ..services.knowledge import KnowledgeService
+from ..services.llm import LLMService
 
 
 class IntegratedAgentRuntime:
@@ -264,7 +265,7 @@ class IntegratedAgentRuntime:
         如果 agent-orchestrator 可用则使用真正的编排器。
         """
         try:
-            from agent_orchestrator import Workflow, AgentWrapper, Context
+            from agent_orchestrator import AgentWrapper, Context, Workflow
 
             # 创建 Agent 包装器
             agents = []

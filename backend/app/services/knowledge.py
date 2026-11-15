@@ -1,30 +1,30 @@
 """
 知识库服务 - LangChain RAG 实现
 """
-from typing import List, Dict, Any, AsyncIterator
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, AsyncIterator, Dict, List
 
-from ..models.agent import KnowledgeBase
-from ..models.document import Document, DocumentChunk
-from ..services.llm import LLMService
-from ..core.config import settings
-from ..core.paths import uploads_root
+from langchain_community.vectorstores import Chroma
 
 # LangChain imports
 from langchain_core.documents import Document as LCDocument
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-import logging
+from ..core.config import settings
+from ..core.paths import uploads_root
+from ..models.agent import KnowledgeBase
+from ..models.document import Document, DocumentChunk
+from ..services.llm import LLMService
 
 logger = logging.getLogger(__name__)
 

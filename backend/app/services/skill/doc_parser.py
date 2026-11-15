@@ -95,7 +95,7 @@ def ensure_parser(*, timeout_sec: float = 90.0) -> None:
         port = parsed.port or 15003
         cmd = [
             java_bin,
-            f"-Dspring.profiles.active=local",
+            "-Dspring.profiles.active=local",
             f"-Dserver.port={port}",
             f"-Ddocument.images.public-base-url={_base_url()}",
             "-jar",

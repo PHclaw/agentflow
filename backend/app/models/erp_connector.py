@@ -14,7 +14,14 @@
 import uuid
 
 from sqlalchemy import (
-    Boolean, Column, DateTime, Integer, JSON, String, Text, UniqueConstraint,
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
 )
 
 from app.core.base import Base

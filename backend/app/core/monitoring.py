@@ -1,11 +1,12 @@
 """健康检查和指标监控"""
-from fastapi import APIRouter
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
+
+import psutil
+from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import text
-import psutil
-import time
 
 router = APIRouter()
 

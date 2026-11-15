@@ -1,9 +1,10 @@
 """
 文档向量模型 - pgvector
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, JSON
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 # pgvector 扩展
 try:

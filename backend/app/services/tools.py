@@ -1,9 +1,10 @@
 """
 工具服务 - Agent 工具调用
 """
-from typing import Callable, Dict, Any, List
-from pydantic import BaseModel
+from typing import Any, Callable, Dict, List
+
 import httpx
+from pydantic import BaseModel
 
 
 class ToolDefinition(BaseModel):

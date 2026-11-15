@@ -869,10 +869,23 @@ def wants_category_rollup(text: str, columns: list[str], numeric_cols: list[str]
     return False
 
 
+def _safe_stem(stem: str) -> str:
+    """把用户给的文件名清洗成安全主干。
+
+    单独抽出来是为了兼容 Python 3.11：f-string 里直接写带反斜杠的正则
+    （f"{re.sub(r'[^\\w.\\-]+', ...)}" ）是 3.12 才允许的语法，CI 跑 3.11 会
+    直接 SyntaxError。
+    """
+    return re.sub(r"[^\w.\-一-龥]+", "_", stem)[:40]
+
+
 def category_rollup_rows(
     con, table_map: dict[str, str]
 ) -> tuple[list[str], list[tuple], str]:
     tbl = next(iter(table_map.values()))
+    # df 原本缺失：这个函数直接读了未定义的 df，一旦被调用就是 NameError。
+    # 与文件里其它位置（见上面 SELECT * 的用法）保持一致，从表里取。
+    df = con.execute(f'SELECT * FROM "{tbl}"').df()
     if "_src_order" in df.columns:
         df = df.drop(columns=["_src_order"])
     types = {c[0]: c[1] for c in con.execute(f'DESCRIBE "{tbl}"').fetchall()}
@@ -940,7 +953,7 @@ def write_xlsx_sheets(
             width = min(40, max(10, len(str(col)) + 4))
             ws.column_dimensions[get_column_letter(i)].width = width
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    name = f"{re.sub(r'[^\w.\-一-龥]+', '_', stem)[:40]}-{uuid.uuid4().hex[:8]}.xlsx"
+    name = f"{_safe_stem(stem)}-{uuid.uuid4().hex[:8]}.xlsx"
     path = GENERATED_DIR / name
     wb.save(path)
     return _public_url(name), name
@@ -1499,7 +1512,7 @@ def _save_chart_png(fig, stem: str) -> tuple[str, str]:
     import matplotlib.pyplot as plt
 
     GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    name = f"{re.sub(r'[^\w.\-一-龥]+', '_', stem)[:40]}-{uuid.uuid4().hex[:8]}.png"
+    name = f"{_safe_stem(stem)}-{uuid.uuid4().hex[:8]}.png"
     path = GENERATED_DIR / name
     fig.savefig(path, dpi=140, bbox_inches="tight", pad_inches=0.4, facecolor="white")
     plt.close(fig)

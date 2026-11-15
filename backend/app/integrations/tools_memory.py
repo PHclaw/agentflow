@@ -3,19 +3,19 @@ AgentFlow 整合 agent-tool-registry 和 agent-memory-store
 
 Phase 3: 工具注册 + 记忆管理
 """
-from typing import Dict, Any, List, Callable
 import asyncio
+from typing import Any, Callable, Dict, List
 
 # agent-tool-registry 整合
 try:
-    from agent_tool_registry import ToolRegistry, Tool
+    from agent_tool_registry import Tool, ToolRegistry
     HAS_TOOL_REGISTRY = True
 except ImportError:
     HAS_TOOL_REGISTRY = False
 
 # agent-memory-store 整合
 try:
-    from agent_memory_store import MemoryStore, MemoryConfig
+    from agent_memory_store import MemoryConfig, MemoryStore
     HAS_MEMORY_STORE = True
 except ImportError:
     HAS_MEMORY_STORE = False

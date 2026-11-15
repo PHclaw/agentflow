@@ -11,17 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.logging_setup import get_logger
 from app.services.adapters.base import ChatResult
 from app.services.model_runtime import run_chat_messages
-from app.services.skill.excel_pipeline import run_excel_tools
 from app.services.skill.store import FileSkill
-from app.services.skill_agent.checklist import Checklist, Goal, excel_goals, goals_from_clauses
+from app.services.skill_agent.checklist import Checklist, Goal, goals_from_clauses
 from app.services.skill_agent.excel_tools import (
     ExcelToolSession,
-    excel_tool_defs,
     recommend_excel_tool,
-    recommend_excel_tools,
 )
 from app.services.skill_agent.pipeline_pack import PipelineToolSession, pipeline_tool_defs
-from app.services.skill_agent.prompts import EXCEL_RULES, PIPELINE_RULES, agent_system_prompt
+from app.services.skill_agent.prompts import PIPELINE_RULES, agent_system_prompt
 from app.services.skill_agent.protocol import ActionParseError, parse_action, schema_hint
 
 logger = get_logger("skill-agent")

@@ -2,28 +2,28 @@
 AgentFlow - AI Agent 部署平台
 生产级架构，支持 WebSocket、缓存、监控、日志
 """
-from app.core.paths import generated_root, static_root
+import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from contextlib import asynccontextmanager
-import time
 
-from app.core.config import settings
-from app.core.database import init_db, get_async_session_factory
-from app.core.logging import setup_logging, logger
-from app.core.monitoring import router as monitoring_router
-from app.core.websocket import router as websocket_router
-from app.services.entitlement import HTTP_QUOTA_EXCEEDED, QuotaExceeded
-from app.api import auth, users, agents, templates, chat, billing, skills
 from app.api import admin as admin_api
-from app.api import llm_configs, pi_agent as pi_agent_api
-from app.api import connectors
+from app.api import agents, auth, billing, chat, connectors, llm_configs, skills, templates, users
+from app.api import pi_agent as pi_agent_api
+from app.api.agent_routes import router as agent_routes_router
 from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
-from app.api.agent_routes import router as agent_routes_router
+from app.core.config import settings
+from app.core.database import get_async_session_factory, init_db
+from app.core.logging import logger, setup_logging
+from app.core.monitoring import router as monitoring_router
+from app.core.paths import generated_root, static_root
+from app.core.websocket import router as websocket_router
+from app.services.entitlement import HTTP_QUOTA_EXCEEDED, QuotaExceeded
 
 # 导入模型以便创建表
 

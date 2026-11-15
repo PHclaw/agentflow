@@ -8,14 +8,14 @@ import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
-from pathlib import Path
 
 import httpx
 
-from app.logging_setup import get_logger
 from app.core.paths import generated_root
+from app.logging_setup import get_logger
 
 logger = get_logger("academic")
 

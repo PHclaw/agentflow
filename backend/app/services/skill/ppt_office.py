@@ -109,22 +109,22 @@ def _text(tf, text: str, *, size: int, color, bold=False, align=None, font=PPT_F
     _set_run_font(p, name=font)
 
 
-def _box(slide, l, t, w, h, text: str, *, size, color, bold=False, align=None, wrap=True):
+def _box(slide, left, top, w, h, text: str, *, size, color, bold=False, align=None, wrap=True):
     from pptx.util import Inches
 
-    box = slide.shapes.add_textbox(Inches(l), Inches(t), Inches(w), Inches(h))
+    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(w), Inches(h))
     tf = box.text_frame
     tf.word_wrap = wrap
     _text(tf, text, size=size, color=color, bold=bold, align=align)
     return box
 
 
-def _shape(slide, name, l, t, w, h, fill, *, line=None, adj=None):
+def _shape(slide, name, left, top, w, h, fill, *, line=None, adj=None):
     from pptx.enum.shapes import MSO_SHAPE
     from pptx.util import Inches
 
     kind = getattr(MSO_SHAPE, name)
-    sh = slide.shapes.add_shape(kind, Inches(l), Inches(t), Inches(w), Inches(h))
+    sh = slide.shapes.add_shape(kind, Inches(left), Inches(top), Inches(w), Inches(h))
     _solid(sh, fill, line=line)
     if adj is not None and sh.adjustments:
         try:
@@ -247,7 +247,7 @@ def _add_clustered_chart(slide, headers, rows, *, left, top, width, height, t: d
 
 
 def _cover(slide, sl, plan, *, width, height, index, total, t) -> None:
-    from pptx.util import Inches, Emu
+    from pptx.util import Emu
 
     _bg(slide, width, height, t)
     _shape(slide, "RECTANGLE", 0, 0, 13.333, 0.1, t["accent"])

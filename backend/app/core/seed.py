@@ -1,10 +1,10 @@
 """数据库种子数据"""
 import uuid
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
 
 from app.models.agent import WorkflowTemplate
-
 
 # 模板里**不写 model**。
 #

@@ -3,10 +3,10 @@ AgentFlow 整合 agent-* 库生态
 
 Phase 1: agent-config-loader + agent-observability
 """
-from typing import Optional, Dict, Any
-from functools import wraps
 import time
 import warnings
+from functools import wraps
+from typing import Any, Dict, Optional
 
 # agent-config-loader 整合
 try:
@@ -18,7 +18,7 @@ except ImportError:
 
 # agent-observability 整合
 try:
-    from agent_observability import Tracer, Span, TokenUsage
+    from agent_observability import Span, TokenUsage, Tracer
     HAS_OBSERVABILITY = True
 except ImportError:
     HAS_OBSERVABILITY = False

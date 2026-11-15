@@ -1,19 +1,21 @@
 """
 支付 API - Stripe 集成
 """
-import stripe
 import json
-from fastapi import APIRouter, HTTPException, Depends, Request
+from datetime import datetime, timezone
+
+import stripe
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime, timezone
-from app.core.database import get_db
+
 from app.api.auth import get_current_user_id
+from app.core.database import get_db
 
 from ..core.config import settings
+from ..models.subscription import PlanType, Subscription
 from ..models.user import User
-from ..models.subscription import Subscription, PlanType
 from ..services.entitlement import Resource, ensure_subscription, limits_for
 
 router = APIRouter()
@@ -346,7 +348,6 @@ async def get_subscription(
     user_id: str = Depends(get_current_user_id),
 ):
     """获取当前订阅状态"""
-    from sqlalchemy import select
     
     # 获取用户订阅。走 ensure_subscription 而不是「没有就返回一份假数据」：
     # 历史用户没有订阅记录，返回全 0 会让前端把超额用户显示成「刚注册」。

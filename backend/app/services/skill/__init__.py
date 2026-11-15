@@ -7,9 +7,8 @@ from app.services.skill.compiler import (
 )
 from app.services.skill.invocation import prepare_call_messages
 from app.services.skill.resolver import resolve_skills
-from app.services.skill.taxonomy import infer_category, list_categories
-
 from app.services.skill.store import get_skill, list_skills, save_skill
+from app.services.skill.taxonomy import infer_category, list_categories
 
 __all__ = [
     "assemble_executable_md",

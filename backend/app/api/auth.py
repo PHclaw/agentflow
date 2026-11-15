@@ -2,24 +2,24 @@
 认证 API — 数据库版本
 """
 import logging
+from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timedelta, timezone
-import bcrypt
-from jose import jwt, JWTError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.database import get_db
 from ..core.config import settings
+from ..core.database import get_db
 from ..core.rate_limiter import get_limiter
 from ..models.user import User
 from ..services.entitlement import new_free_subscription
+from ..services.mailer import MailNotConfigured, send_verification_code
 from ..services.password_policy import validate_password
 from ..services.roles import apply_configured_role
-from ..services.mailer import MailNotConfigured, send_verification_code
 from ..services.verification import (
     PURPOSE_REGISTER,
     consume_code,

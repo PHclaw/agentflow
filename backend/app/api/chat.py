@@ -3,31 +3,36 @@
 
 使用 IntegratedAgentRuntime
 """
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from pydantic import BaseModel
-from typing import Optional, List
 import asyncio
 import json
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
 from ..models.agent import Agent, ChatSession
 from ..models.subscription import Subscription
-from ..services.entitlement import (
-    Resource,
-    check as check_quota,
-    consume as consume_quota,
-)
-from ..services.integrated_runtime import IntegratedAgentRuntime
-from ..services.llm import LLMNotConfiguredError, humanize_llm_error
 from ..services.agent_turn import (
     agent_has_workflow,
     append_turn,
     load_or_create_session,
     run_workflow_turn,
 )
+from ..services.entitlement import (
+    Resource,
+)
+from ..services.entitlement import (
+    check as check_quota,
+)
+from ..services.entitlement import (
+    consume as consume_quota,
+)
+from ..services.integrated_runtime import IntegratedAgentRuntime
+from ..services.llm import LLMNotConfiguredError, humanize_llm_error
 from .auth import get_current_user_id
 from .deps import current_subscription
 
@@ -285,7 +290,7 @@ async def chat(
 
                 # 获取历史 + RAG 上下文
                 from ..integrations.prompts_outputs import prompt_manager
-                from ..integrations.tools_memory import MemoryManager, ConversationMemory
+                from ..integrations.tools_memory import ConversationMemory, MemoryManager
 
                 memory = ConversationMemory(
                     session_id=runtime.session.id,

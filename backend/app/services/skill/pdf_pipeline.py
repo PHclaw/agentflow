@@ -860,8 +860,8 @@ def _parse_watermark_text(user_text: str) -> str:
 
 def add_text_watermark(files: list[dict], *, text: str) -> dict[str, Any]:
     from pypdf import PdfReader, PdfWriter
-    from reportlab.pdfgen import canvas
     from reportlab.lib.colors import Color
+    from reportlab.pdfgen import canvas
 
     if not files:
         return {

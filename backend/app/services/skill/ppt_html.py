@@ -7,8 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from app.logging_setup import get_logger
 from app.core.paths import generated_root, repo_root, skills_root, static_root
+from app.logging_setup import get_logger
 
 logger = get_logger("ppt.html")
 

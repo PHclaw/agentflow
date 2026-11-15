@@ -26,7 +26,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..core.config import settings
 from ..core.database import get_db
 from ..core.paths import static_root
 from ..models.user import User

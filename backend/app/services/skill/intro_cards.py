@@ -200,7 +200,7 @@ def card_for(skill_id: str | None = None, *, name: str = "") -> SkillCard | None
 def format_card_markdown(card: SkillCard) -> str:
     name = str(card.get("name") or "本助手")
     lines = [
-        f"## 我能做什么",
+        "## 我能做什么",
         "",
         f"我是 **{name}**。{card.get('blurb') or ''}",
         "",

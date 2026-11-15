@@ -2,11 +2,11 @@
 核心配置
 """
 import json
+from functools import lru_cache
+from typing import Annotated, Any, List
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, NoDecode
-from typing import Annotated, Any, List
-from functools import lru_cache
 
 
 class Settings(BaseSettings):

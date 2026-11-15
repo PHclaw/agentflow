@@ -1,29 +1,35 @@
 """
 工作流执行 API
 """
-from fastapi import APIRouter, HTTPException, Depends
+import asyncio
+import json
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-import json
-import asyncio
+
+from app.api.auth import get_current_user_id
+from app.api.deps import current_subscription
 
 from ..core.database import get_db
 from ..models.subscription import Subscription
 from ..services.entitlement import (
     Resource,
+)
+from ..services.entitlement import (
     check as check_quota,
+)
+from ..services.entitlement import (
     consume as consume_quota,
 )
 from ..services.workflow_runtime import (
-    workflow_runtime,
     NodeStatus,
     extract_final_response,
     normalize_workflow_definition,
+    workflow_runtime,
 )
-from app.api.auth import get_current_user_id
-from app.api.deps import current_subscription
 
 router = APIRouter(dependencies=[Depends(get_current_user_id)])
 
@@ -195,10 +201,15 @@ async def execute_workflow_stream(
                     break
 
                 if "_final_output" in evt:
-                    yield f"data: {json.dumps({
-                        'type': 'complete',
-                        'final_output': evt['_final_output'],
-                    })}\n\n"
+                    # 先 dumps 再拼 f-string：多行表达式直接写在 {} 里是 3.12 语法，
+                    # CI 跑 3.11 会报 invalid-syntax
+                    payload = json.dumps(
+                        {
+                            "type": "complete",
+                            "final_output": evt["_final_output"],
+                        }
+                    )
+                    yield f"data: {payload}\n\n"
                     continue
 
                 yield f"data: {json.dumps(evt)}\n\n"
@@ -209,11 +220,14 @@ async def execute_workflow_stream(
                     text = (evt.get("outputs") or {}).get("response")
                     if isinstance(text, str) and text:
                         for i in range(0, len(text), 10):
-                            yield f"data: {json.dumps({
-                                'type': 'llm_chunk',
-                                'node_id': evt.get('node_id'),
-                                'chunk': text[i:i + 10],
-                            })}\n\n"
+                            chunk_payload = json.dumps(
+                                {
+                                    "type": "llm_chunk",
+                                    "node_id": evt.get("node_id"),
+                                    "chunk": text[i : i + 10],
+                                }
+                            )
+                            yield f"data: {chunk_payload}\n\n"
                             await asyncio.sleep(0.01)
         finally:
             # 客户端中途断开时别把任务留在后台空转。
