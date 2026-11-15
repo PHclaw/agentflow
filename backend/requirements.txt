@@ -61,10 +61,12 @@ reportlab==5.0.1
 pillow==12.3.0
 aiofiles==25.1.0
 
-# Skill runtime（表格分析 / 图表 / 统计）
+# Skill runtime（表格分析 / 图表 / 统计 / 农历换算）
 pandas==3.0.6
 duckdb==1.5.6
 matplotlib==3.11.2
+# app/services/skill/time_sync.py 顶层 import，缺了会 ModuleNotFoundError（CI 就是这么红的）
+lunar-python>=1.4.0
 
 # Testing
 pytest==9.1.1
@@ -85,7 +87,4 @@ pytest-timeout==2.4.0
 # 浏览器自动化（工作流的 Browser 节点）：
 # playwright==1.41.0
 # browser-use==0.1.11
-#
-# 农历相关的技能文案：
-# lunar-python>=1.4.0
 # ---------------------------------------------------------------------------
