@@ -24,11 +24,11 @@ passlib[bcrypt]==1.7.4
 bcrypt==5.0.0
 
 # Payments（未配置 STRIPE_* 时计费模块不启用）
-stripe==16.0.0
+stripe==17.0.0
 
 # LLM
 openai==3.28.0
-anthropic==1.13.0
+anthropic==2.8.0
 httpx==0.28.1
 
 # LangChain：只保留实际在用的部分。工作流走自研引擎，不再依赖 langgraph。
@@ -57,16 +57,16 @@ lxml>=5.0              # app/services/skill/ppt_office.py: PPT 模板解析
 # File Processing
 python-docx==1.2.0
 openpyxl==3.1.5
-pypdf==6.20.0
+pypdf==7.0.1
 pdfplumber==0.11.10
 python-pptx==1.0.2
 reportlab==5.0.1
-pillow==12.3.0
+pillow==13.0.0
 aiofiles==25.1.0
 
 # Skill runtime（表格分析 / 图表 / 统计 / 农历换算）
 pandas==3.0.6
-duckdb==1.5.6
+duckdb==2.0.0
 matplotlib==3.11.2
 # app/services/skill/time_sync.py 顶层 import，缺了会 ModuleNotFoundError（CI 就是这么红的）
 lunar-python>=1.4.0
