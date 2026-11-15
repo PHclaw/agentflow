@@ -72,7 +72,8 @@ const accentScale = {
   950: '#1e1b4b',
 }
 
-export default {
+// 与 postcss.config.js 同理：CJS 导出，兼容 Node 18（CI）
+module.exports = {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
