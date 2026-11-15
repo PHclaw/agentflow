@@ -1,0 +1,25 @@
+{
+  "id": "brainstorming",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "头脑风暴",
+  "description": "结构化发散：先不做判断穷举、按维度轮转、后期收敛。避免「就那三招」式的窄产出。",
+  "specialty": "创意方法",
+  "routerBlurb": "需要多个候选方案时用。",
+  "tags": [
+    "创意",
+    "发散",
+    "方法论",
+    "obra/superpowers"
+  ],
+  "triggers": [
+    "头脑风暴",
+    "创意",
+    "想法",
+    "发散",
+    "brainstorm",
+    "多方案"
+  ],
+  "authorName": "obra/superpowers"
+}

@@ -1,23 +1,30 @@
 import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
+  LayoutDashboard,
+  Users,
+  BarChart3,
   Settings,
   MessageSquare,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   Plus,
+  Workflow,
+  Bell,
   HelpCircle,
   Sparkles,
+  FileText,
+  LayoutTemplate,
   LogOut,
   History,
+  Shield,
   X,
-  Github,
 } from 'lucide-react'
 import { Logo, LogoSmall } from './Logo'
-import { GITHUB_REPO_URL } from '../../lib/links'
 import { Button } from '../ui/Button'
 import { agents as agentsApi, auth } from '../../services/api'
-import { useAuthStore } from '../../stores'
+import { useAuthStore, useIsAdmin } from '../../stores'
 
 interface RecentAgent {
   id: string
@@ -26,15 +33,29 @@ interface RecentAgent {
 }
 
 const navItems = [
-  { icon: MessageSquare, label: '对话', href: '/chat' },
+  { icon: LayoutDashboard, label: '控制台', href: '/dashboard' },
+  { icon: MessageSquare, label: 'Agent', href: '/agents' },
+  // 历史对话原先没有任何入口，/conversations 只是重复渲染 Agent 列表
   { icon: History, label: '对话记录', href: '/conversations' },
   { icon: Sparkles, label: 'Skill 广场', href: '/skills' },
+  { icon: Workflow, label: '工作流', href: '/workflow/new' },
+  // 模板市场原先只从落地页能进，登录后在应用里没有任何入口
+  { icon: LayoutTemplate, label: '模板市场', href: '/templates' },
+  { icon: FileText, label: '知识库', href: '/knowledge' },
 ]
 
 const bottomNavItems = [
   { icon: Settings, label: '设置', href: '/settings' },
   { icon: HelpCircle, label: '帮助', href: '/help' },
 ]
+
+/**
+ * 管理后台入口，只对管理员显示。
+ *
+ * 这只是体验层：让普通用户看不到后台入口，避免误点后拿到一屏 403。
+ * 真正的权限在后端 require_admin —— 前端隐藏不等于禁止。
+ */
+const adminNavItem = { icon: Shield, label: '管理后台', href: '/admin' }
 
 interface SidebarProps {
   /** 折叠状态由 AppLayout 持有：内容区的左边距必须跟着一起变，否则会留出空隙 */
@@ -63,9 +84,10 @@ export function Sidebar({
   const location = useLocation()
   const navigate = useNavigate()
   const logout = useAuthStore((s) => s.logout)
+  const isAdmin = useIsAdmin()
   const [recentAgents, setRecentAgents] = useState<RecentAgent[]>([])
 
-  const items = navItems
+  const items = isAdmin ? [...navItems, adminNavItem] : navItems
 
   const toggleCollapsed = () => {
     const next = !collapsed
@@ -87,7 +109,8 @@ export function Sidebar({
     return () => window.removeEventListener('keydown', onKey)
   }, [mobileOpen])
 
-  // 「最近」拉取当前账号真实的 Agent，点击进入该 Agent 的真实聊天页。
+  // 「最近」此前是写死的假数据（智能客服助手 / HR 工作台 / 产品推荐），
+  // 点了没有任何反应。改为拉取该账号真实的 Agent。
   useEffect(() => {
     let cancelled = false
     agentsApi
@@ -151,11 +174,8 @@ export function Sidebar({
   /** 分组标题：Kimi 里就是一行灰色小字，不大写、不加字距、不加粗。 */
   const sectionLabel = 'px-2 mb-1 text-xs text-slate-400 dark:text-slate-500'
 
-  const isItemActive = (href: string) => {
-    // 「对话」入口会重定向到真实的 /agents/:id/chat，那条路径也要点亮本项
-    if (href === '/chat' && /^\/agents\/[^/]+\/chat$/.test(location.pathname)) return true
-    return location.pathname === href || location.pathname.startsWith(href + '/')
-  }
+  const isItemActive = (href: string) =>
+    location.pathname === href || location.pathname.startsWith(href + '/')
 
   return (
     <aside
@@ -219,18 +239,18 @@ export function Sidebar({
       */}
       <div className="px-3 pt-1 pb-2">
         {!collapsed ? (
-          <NavLink to="/chat">
+          <NavLink to="/agents/new">
             <Button
               className="w-full justify-center"
               variant="outline"
               size="md"
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              新建对话
+              创建 Agent
             </Button>
           </NavLink>
         ) : (
-          <NavLink to="/chat" title="新建对话">
+          <NavLink to="/agents/new" title="创建 Agent">
             <Button className="w-full" size="sm" variant="outline">
               <Plus className="w-4 h-4" />
             </Button>
@@ -271,9 +291,13 @@ export function Sidebar({
                     }}
                     title={agent.description || agent.name}
                     className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-[13px] transition-colors ${
-                      location.pathname === `/agents/${agent.id}/chat` ? itemActive : itemIdle
+                      location.pathname === `/agents/${agent.id}/chat`
+                        ? itemActive
+                        : itemIdle
                     }`}
                   >
+                    {/* 首字母块：Kimi 里「对话」列表就是纯文字，这里保留一个小色块
+                        是为了和上面的导航图标区分开 —— 纯文字会看不出是哪一级。 */}
                     <span className="w-5 h-5 flex-shrink-0 rounded-md bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-2xs font-semibold flex items-center justify-center">
                       {agent.name.slice(0, 1)}
                     </span>
@@ -305,16 +329,6 @@ export function Sidebar({
               {!collapsed && <span className="truncate">{item.label}</span>}
             </NavLink>
           ))}
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={collapsed ? 'GitHub 仓库' : undefined}
-            className={`${itemBase} ${itemIdle}`}
-          >
-            <Github className="w-4 h-4 flex-shrink-0" strokeWidth={1.75} />
-            {!collapsed && <span className="truncate">GitHub 仓库</span>}
-          </a>
           <button
             type="button"
             onClick={() => {

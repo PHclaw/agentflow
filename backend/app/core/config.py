@@ -85,9 +85,16 @@ class Settings(BaseSettings):
     # 发生在下面这个 field_validator 之前，所以光写校验器接不住逗号分隔串。
     # 结果是「本地开发一切正常（因为从不设这个环境变量），一上 docker-compose
     # 设了 CORS_ORIGINS 就再也起不来」。
+    # 后三条是 Capacitor 打的 App（Android / iOS）的 WebView origin：
+    # 页面装在本地，请求从 ``http://localhost`` / ``https://localhost`` /
+    # ``capacitor://localhost`` 发出。漏掉任意一条，App 里所有接口都会被
+    # 浏览器按 CORS 拦掉，表现是「登录没反应、列表空白」。
     CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost",
+        "https://localhost",
+        "capacitor://localhost",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")

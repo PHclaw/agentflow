@@ -3,9 +3,8 @@ import { Link } from 'react-router-dom'
 import { Button } from '../ui/Button'
 // 原来这里 import 了 ArrowRight / Play / Shield / Zap / Users 五个图标，
 // 但函数体里一个都没用到 —— 属于死了的 import，顺手清掉。
-import { Github, Menu, X } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import { Logo } from '../layout/Logo'
-import { GITHUB_REPO_URL } from '../../lib/links'
 
 const NAV_LINKS = [
   { href: '#features', label: '功能' },
@@ -53,18 +52,6 @@ export function Header() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
-            {/* GitHub 仓库 */}
-            <a
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="在 GitHub 上查看 AgentFlow"
-              title="GitHub 仓库"
-              className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 transition-all hover:scale-105"
-            >
-              <Github className="w-5 h-5" />
-            </a>
-
             {/* Theme Toggle */}
             <button
               className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all hover:scale-105"
@@ -141,17 +128,6 @@ export function Header() {
             >
               登录
             </Link>
-            <a
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={close}
-              className="flex items-center gap-2 px-2 py-3 rounded-lg text-sm font-medium text-slate-700
-                hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
-            >
-              <Github className="w-4 h-4" />
-              GitHub 仓库
-            </a>
           </nav>
         </div>
       )}

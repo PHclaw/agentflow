@@ -69,8 +69,24 @@ coverage.xml
 *.tmp
 *.bak
 *~
+
+# 本地构建产物与临时素材（不入库）
+*.apk
+*.zip
+seg-*.mp4
+seg-*.gif
+screenshots/
+*_landing_top.png
+
+# 运行时数据（用户上传、生成物）
+static/avatars/
+static/generated/
+
+# 可再生的素材与本地排查脚本
+assets/_banner_frames/
+assets/videos/*Edge*.mp4
+docs/*.docx
+scripts/_probe-*
+scripts/_analyze-*
 _readme_preview.html
 .gstack/
-
-# 第三方技能不随本仓库分发（见 THIRD_PARTY_NOTICES.md）
-skills/*/

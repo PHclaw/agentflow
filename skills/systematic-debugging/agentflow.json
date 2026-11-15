@@ -1,0 +1,24 @@
+{
+  "id": "systematic-debugging",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "系统化调试法",
+  "description": "任何 bug 都走「复现 → 观察 → 假设 → 验证」四步；反对瞎猜式改代码。含常见反模式与配套测试约束。",
+  "specialty": "调试方法论",
+  "routerBlurb": "所有 bug 修复类任务优先挂载，强制根因分析。",
+  "tags": [
+    "调试",
+    "方法论",
+    "obra/superpowers"
+  ],
+  "triggers": [
+    "调试",
+    "bug",
+    "排错",
+    "定位问题",
+    "根因",
+    "root cause"
+  ],
+  "authorName": "obra/superpowers"
+}

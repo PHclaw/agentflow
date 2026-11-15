@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '../ui/Button'
-import { ArrowRight, Play, Cpu, Globe, Lock, Zap, MessageSquare, Check, Brain, Github } from 'lucide-react'
-import { GITHUB_REPO_URL } from '../../lib/links'
+import { ArrowRight, Play, Cpu, Globe, Lock, Zap, MessageSquare, Check, Brain } from 'lucide-react'
 
 const stats = [
   { label: '企业用户', value: '10,000+' },
@@ -147,7 +146,7 @@ export function HeroSection() {
             </p>
 
             {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row sm:flex-wrap items-center justify-center lg:justify-start gap-4 mb-10">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
               {/* viewTransition：支持的浏览器会在跳转时对新旧两屏做交叉淡化，
                   不支持的浏览器就是普通跳转，不会卡住导航（见 index.css 的说明） */}
               <Link to="/register" viewTransition>
@@ -162,12 +161,6 @@ export function HeroSection() {
                   浏览模板
                 </Button>
               </Link>
-              <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                <Button variant="ghost" size="lg" className="w-full sm:w-auto group">
-                  <Github className="mr-2 w-5 h-5" />
-                  在 GitHub 上查看
-                </Button>
-              </a>
             </div>
 
             {/* Feature pills */}

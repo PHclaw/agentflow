@@ -1,4 +1,49 @@
-const API_BASE = '/api/v1'
+/**
+ * 接口基地址。
+ *
+ * 网页端默认走同源相对路径 `/api/v1`，由 Vite dev proxy / nginx 反向代理
+ * 转发到后端；**打包成 App（Capacitor）后页面来自本地资源**，没有同源后端
+ * 可代理，必须在构建时注入绝对地址：
+ *
+ * ```bash
+ * VITE_API_BASE=http://159.75.21.251:3000/api/v1 npm run build:app
+ * ```
+ *
+ * 留空时行为与改造前完全一致，网页端不受影响。
+ */
+const RAW_API_BASE = (import.meta.env?.VITE_API_BASE ?? '').trim()
+const API_BASE = (RAW_API_BASE || '/api/v1').replace(/\/+$/, '')
+
+/** 接口地址是绝对地址时，取它的源（scheme://host[:port]）；网页端为空串 */
+export const API_ORIGIN = /^https?:\/\//i.test(API_BASE)
+  ? new URL(API_BASE).origin
+  : ''
+
+/** 接口地址的路径部分（`/api/v1`），用于识别「后端回传的完整路径」 */
+const API_PATH = /^https?:\/\//i.test(API_BASE)
+  ? new URL(API_BASE).pathname.replace(/\/+$/, '')
+  : API_BASE
+
+/**
+ * 把后端回传的相对静态资源（如 `/static/avatars/x.png`）补成可访问地址。
+ *
+ * 网页端原样返回，交给同源代理；App 里 相对路径会指到本地资源包，必须补
+ * 上后端域名。已经是绝对地址 / data: / blob: 的保持不动。
+ */
+export function assetUrl(path?: string | null): string {
+  if (!path) return ''
+  if (/^(https?:|data:|blob:)/i.test(path)) return path
+  if (!path.startsWith('/')) return path
+  return `${API_ORIGIN}${path}`
+}
+
+/** 拼一个后端接口的完整地址，给需要自己发 fetch / SSE 的调用方使用 */
+export function apiUrl(path: string): string {
+  if (path === API_PATH || path.startsWith(`${API_PATH}/`)) {
+    return `${API_ORIGIN}${path}`
+  }
+  return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+}
 
 /**
  * 带结构化信息的请求错误。
@@ -93,8 +138,9 @@ class ApiClient {
    * 带到外部域名。
    */
   private resolveUrl(endpoint: string): string {
-    if (endpoint === API_BASE || endpoint.startsWith(`${API_BASE}/`)) {
-      return endpoint
+    if (endpoint === API_PATH || endpoint.startsWith(`${API_PATH}/`)) {
+      // 网页端：原样返回相对路径（走同源代理）；App 里补上后端域名
+      return `${API_ORIGIN}${endpoint}`
     }
     if (/^[a-z][a-z0-9+.-]*:/i.test(endpoint) || endpoint.startsWith('//')) {
       throw new Error(`不允许请求站外地址：${endpoint}`)
@@ -454,7 +500,7 @@ export const chat = {
       error?: string
       files?: PiArtifact[]
     }>(
-      `/api/v1/chat/${agentId}`,
+      `${API_BASE}/chat/${agentId}`,
       { message, session_id: sessionId, stream: true, new_session: newSession || false },
       signal
     ),
@@ -886,7 +932,7 @@ export const skills = {
     const token = localStorage.getItem('token')
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    const response = await fetch(`/api/v1/skills/${id}/call-with-files`, {
+    const response = await fetch(`${API_BASE}/skills/${id}/call-with-files`, {
       method: 'POST',
       headers,
       body: formData,
@@ -1156,7 +1202,7 @@ export const pi = {
   workspace: (agentId: string) => api.get(`/pi/${agentId}/workspace`),
   run: (agentId: string, data: PiChatBody) => api.post(`/pi/${agentId}/run`, data),
   stream: (agentId: string, data: PiChatBody, signal?: AbortSignal) =>
-    streamSse<PiStreamEvent>(`/api/v1/pi/${agentId}/stream`, data, signal),
+    streamSse<PiStreamEvent>(`${API_BASE}/pi/${agentId}/stream`, data, signal),
   downloadArtifact: (agentId: string, path: string) =>
     api.getBlob(`/pi/${agentId}/files/${path}`),
   /** 把文件上传到该 Agent 的工作目录（模型可直接读取） */

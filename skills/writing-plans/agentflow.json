@@ -1,0 +1,25 @@
+{
+  "id": "writing-plans",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "任务计划撰写",
+  "description": "把大需求拆成可执行清单：目标 → 里程碑 → 步骤 → 验收标准。避免「我以为我做完了」这类验收漂移。",
+  "specialty": "规划方法",
+  "routerBlurb": "接到多步骤任务时先出这份。",
+  "tags": [
+    "计划",
+    "拆解",
+    "方法论",
+    "obra/superpowers"
+  ],
+  "triggers": [
+    "计划",
+    "拆解",
+    "里程碑",
+    "roadmap",
+    "任务清单",
+    "方案"
+  ],
+  "authorName": "obra/superpowers"
+}

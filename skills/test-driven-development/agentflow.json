@@ -1,0 +1,24 @@
+{
+  "id": "test-driven-development",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "测试驱动开发",
+  "description": "红-绿-重构三步骤，先写失败测试再写实现。含常见反模式（测试实现细节、过度 mock）与命名约定。",
+  "specialty": "开发方法论",
+  "routerBlurb": "新功能开发时约束实现节奏。",
+  "tags": [
+    "TDD",
+    "测试",
+    "方法论",
+    "obra/superpowers"
+  ],
+  "triggers": [
+    "tdd",
+    "测试驱动",
+    "单元测试",
+    "红绿重构",
+    "先写测试"
+  ],
+  "authorName": "obra/superpowers"
+}

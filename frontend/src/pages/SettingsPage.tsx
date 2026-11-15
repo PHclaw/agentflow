@@ -23,7 +23,7 @@ import {
   Sun,
   Monitor,
 } from 'lucide-react'
-import { api, auth, billing } from '../services/api'
+import { api, auth, billing, assetUrl } from '../services/api'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { Card } from '../components/ui/Card'
@@ -404,7 +404,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-6">
                     {me.avatar ? (
                       <img
-                        src={me.avatar}
+                        src={assetUrl(me.avatar)}
                         alt="头像"
                         className="w-20 h-20 rounded-2xl object-cover bg-slate-100 dark:bg-slate-800"
                       />

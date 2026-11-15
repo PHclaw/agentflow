@@ -1,0 +1,25 @@
+{
+  "id": "brand-guidelines",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "品牌规范应用",
+  "description": "把公司品牌色、字体、语气、Logo 使用规则一致地应用到所有产出（PPT / 网页 / 文档 / 邮件），避免各部门风格漂移。",
+  "specialty": "企业规范",
+  "routerBlurb": "所有需要「像我们公司出品」的物料。",
+  "tags": [
+    "品牌",
+    "VI",
+    "企业",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "品牌",
+    "brand",
+    "VI",
+    "规范",
+    "视觉识别",
+    "企业风格"
+  ],
+  "authorName": "Anthropic 官方"
+}
