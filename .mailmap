@@ -1,0 +1,22 @@
+# .mailmap —— 把历史提交里的多个邮箱身份归到同一个 GitHub 账号。
+#
+# 背景：仓库早期提交用的邮箱是 phclaw@example.com、dev@agentflow.local 这类
+# 占位地址。example.com 是 IANA 保留的示例域名，dev@agentflow.local 也不是
+# 真实可验证邮箱，所以 GitHub 无法把这些提交归属到任何账号 —— 表现就是仓库
+# 首页的「Contribution activity」永远是空的，Contributors 统计也不算数。
+#
+# 这些地址收不到验证邮件，走「加邮箱再验证」这条路走不通。
+#
+# mailmap 不改写任何历史提交，只告诉 GitHub「这几个邮箱是同一个人」：
+# 语法为  真实姓名 <目标邮箱> <提交里的邮箱>
+# 目标邮箱用账号的 noreply 地址，它与账号绑定、无需验证。
+#
+# 以后新提交请直接用 noreply 地址（已写入本仓库的 .git/config）：
+#   PHclaw <273259289+PHclaw@users.noreply.github.com>
+
+PHclaw <273259289+PHclaw@users.noreply.github.com> <phclaw@example.com>
+PHclaw <273259289+PHclaw@users.noreply.github.com> <dev@agentflow.local>
+PHclaw <273259289+PHclaw@users.noreply.github.com> <agentflow@example.com>
+PHclaw <273259289+PHclaw@users.noreply.github.com> <github@example.com>
+PHclaw <273259289+PHclaw@users.noreply.github.com> <phclaw@qq.com>
+PHclaw <273259289+PHclaw@users.noreply.github.com> <168465420@qq.com>
