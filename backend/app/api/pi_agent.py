@@ -26,6 +26,7 @@ from app.api.auth import get_current_user_id
 from app.api.deps import current_subscription
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.errors import log_and_mask
 from app.core.paths import pi_agent_workspace, pi_skills_root, pi_workspace_root
 from app.models.agent import Agent
 from app.models.subscription import Subscription
@@ -221,7 +222,10 @@ async def pi_stream(
                 await consume_quota(db, sub, Resource.MESSAGES)
                 await db.commit()
         except Exception as exc:  # noqa: BLE001 - 保证流以 error 事件收尾
-            payload = {"type": "error", "content": f"执行失败：{exc}"}
+            # 异常原文不回给前端：这里会原样显示在对话气泡里，
+            # 可能带工作区路径与内部依赖信息。只给 trace id
+            trace_id, message = log_and_mask(exc, where="pi.execute", fallback="执行失败")
+            payload = {"type": "error", "content": message, "trace_id": trace_id}
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(

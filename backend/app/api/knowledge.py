@@ -17,6 +17,7 @@ from app.api.auth import get_current_user_id
 
 from ..core.config import settings
 from ..core.database import get_db
+from ..core.errors import log_and_mask
 from ..core.paths import uploads_root
 from ..models.agent import KnowledgeBase
 from ..models.document import Document, DocumentChunk
@@ -631,5 +632,11 @@ async def rerank_results(
             ]
         }
     except Exception as e:
-        # 降级：按原始顺序返回
-        return {"results": data.results[:data.top_n], "fallback": True, "error": str(e)}
+        # 降级：按原始顺序返回。异常原文只进日志，对外给 trace id
+        trace_id, message = log_and_mask(e, where="knowledge.rerank")
+        return {
+            "results": data.results[:data.top_n],
+            "fallback": True,
+            "error": message,
+            "trace_id": trace_id,
+        }

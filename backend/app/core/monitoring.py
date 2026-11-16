@@ -8,6 +8,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from sqlalchemy import text
 
+from app.core.errors import log_and_mask
+
 router = APIRouter()
 
 
@@ -179,7 +181,10 @@ async def readiness_check():
             await conn.execute(text("SELECT 1"))
         return {"status": "ready", "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
-        return {"status": "not_ready", "error": str(e)}
+        # 就绪检查是**无需认证**的公开端点，异常原文里可能带连接串与主机名，
+        # 只入日志；对外给固定文案 + trace id
+        trace_id, message = log_and_mask(e, where="health.ready", fallback="数据库不可用")
+        return {"status": "not_ready", "error": message, "trace_id": trace_id}
 
 
 @router.get("/metrics/system", response_model=SystemMetrics)

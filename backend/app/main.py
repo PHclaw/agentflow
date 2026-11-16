@@ -19,6 +19,7 @@ from app.api.knowledge import router as knowledge_api_router
 from app.api.workflow import router as workflow_router
 from app.core.config import settings
 from app.core.database import get_async_session_factory, init_db
+from app.core.errors import log_and_mask
 from app.core.logging import logger, setup_logging
 from app.core.monitoring import router as monitoring_router
 from app.core.paths import generated_root, static_root
@@ -211,15 +212,20 @@ async def health():
 # 全局异常处理
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理"""
-    logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
+    """全局异常处理
+
+    不把 str(exc) 回给客户端：堆栈、文件路径、SQL 片段这些内部细节一旦出门，
+    等于免费给攻击者做信息收集。完整异常只进日志，响应里给 trace id 供报障对照。
+    """
+    trace_id, message = log_and_mask(exc, where=f"unhandled:{request.url.path}")
     return JSONResponse(
         status_code=500,
         content={
             "error": "Internal Server Error",
-            "message": str(exc) if settings.DEBUG else "An error occurred",
-            "path": request.url.path
-        }
+            "message": message,
+            "trace_id": trace_id,
+            "path": request.url.path,
+        },
     )
 
 

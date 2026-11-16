@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user_id
 from app.core.database import get_db
+from app.core.errors import log_and_mask
 
 from ..core.config import settings
 from ..models.subscription import PlanType, Subscription
@@ -285,7 +286,10 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
                 json.loads(payload), stripe.api_key
             )
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        # webhook 解析失败时不要把异常原文回给调用方：Stripe 的报错里可能带
+        # 签名片段与内部字段。异常只进日志，对外给 trace id
+        trace_id, message = log_and_mask(e, where="billing.webhook", fallback="Webhook 校验失败")
+        return JSONResponse({"error": message, "trace_id": trace_id}, status_code=400)
     
     # 处理事件
     event_type = event.get("type")
