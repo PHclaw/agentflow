@@ -35,8 +35,19 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          # 只在手动触发时才跑全量查询，平时用默认集，控制时长
-          queries: security-and-quality
+          # security-extended：只跑安全类规则。
+          # 之前用的 security-and-quality 会把「未使用变量 / 空 except / 魔法数字」
+          # 这类质量规则也算进来，一次扫出 471 条告警，其中 309 条与安全无关，
+          # 真正的 critical 被埋在噪音里，Security 面板反而失去参考价值。
+          queries: security-extended
+          # 第三方技能是 vendored 代码，其告警既不归本项目维护，
+          # 也会淹没自己代码里的问题，这里直接排除。
+          config: |
+            paths-ignore:
+              - skills/**
+              - '**/node_modules/**'
+              - '**/dist/**'
+              - '**/__pycache__/**'
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v3
