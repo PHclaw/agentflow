@@ -10,6 +10,7 @@ on:
     branches: [master, main]
   schedule:
     - cron: "0 2 * * 1" # 每周一 02:00 UTC
+  workflow_dispatch:
 
 permissions:
   actions: read

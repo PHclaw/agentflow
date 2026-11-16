@@ -5,6 +5,9 @@ on:
     branches: [master, main, develop]
   pull_request:
     branches: [master, main]
+  # 允许在 Actions 页面或通过 gh workflow run 手动触发：
+  # 排查「推送后没有触发流水线」这类问题时，需要一个不依赖 push 事件的入口。
+  workflow_dispatch:
 
 jobs:
   backend:
