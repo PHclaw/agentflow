@@ -347,6 +347,8 @@ agentflow/
 
 ## 📚 文档
 
+📖 **在线阅读**：<https://phclaw.github.io/agentflow/>　·　[Wiki（入门与常见问题）](https://github.com/PHclaw/agentflow/wiki)
+
 | 文档 | 内容 |
 |:--|:--|
 | [配置说明](docs/CONFIGURATION.md) | 环境变量 · 模型配置热切换 · SQLite 轻量模式 |
