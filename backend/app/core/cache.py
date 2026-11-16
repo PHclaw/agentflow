@@ -67,7 +67,7 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     # 按键名排序确保一致性
     sorted_items = sorted(kwargs.items())
     key_str = json.dumps(sorted_items, sort_keys=True)
-    key_hash = hashlib.md5(key_str.encode()).hexdigest()[:12]
+    key_hash = hashlib.sha256(key_str.encode()).hexdigest()[:12]
     return f"{prefix}:{key_hash}"
 
 

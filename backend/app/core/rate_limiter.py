@@ -19,8 +19,14 @@ class RateLimiter:
         self._memory_store: Dict[str, list] = {}  # 内存存储（无 Redis 时使用）
 
     def _get_key(self, identifier: str, path: str) -> str:
-        """生成限流 key"""
-        return f"rate_limit:{hashlib.md5(f'{identifier}:{path}'.encode()).hexdigest()}"
+        """生成限流 key
+
+        用 sha256 而不是 md5：identifier 常是 IP 或邮箱，虽然这里只是做 key
+        不做安全存储，但用弱哈希会被静态扫描标记（py/weak-sensitive-data-hashing），
+        换成 sha256 成本为零，也省掉一次人工解释。
+        """
+        digest = hashlib.sha256(f"{identifier}:{path}".encode()).hexdigest()
+        return f"rate_limit:{digest}"
 
     async def is_allowed(
         self,
