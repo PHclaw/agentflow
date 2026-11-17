@@ -34,7 +34,7 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 
 <br>
 
-[Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Skill extension](#-skill-extension) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
+[Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
 
 <br>
 
@@ -47,7 +47,7 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 ## 📖 Table of contents
 
 - [Product demo](#️-product-demo)　·　[Screenshots](#️-screenshots)
-- [Features](#-features)　·　[Skill extension](#-skill-extension)
+- [Features](#-features)　·　[Built-in skills](#-built-in-skills)
 - [Quick start](#-quick-start)　·　[Key configuration](#️-key-configuration)
 - [Architecture](#️-architecture)　·　[Project layout](#-project-layout)
 - [How it differs from Dify / Coze](#️-how-it-differs-from-dify--coze)
@@ -289,9 +289,13 @@ agentflow/
 
 ---
 
-## 🧩 Skill extension
+## 🧩 Built-in skills
 
-> **This repository does not ship third-party skills.** Community skills carry different licenses (Apache-2.0 / MIT / no notice / all rights reserved) and cannot be redistributed as a whole under Apache-2.0; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). `skills/` is kept as an empty runtime mount point. Startup does not depend on any skill: an empty directory simply yields an empty plaza, and all other features work. To install one, drop a directory containing `SKILL.md` into `skills/` and keep its original LICENSE. The table below lists optional community skills, not bundled content:
+The repository ships **26 skill directories** out of the box; each skill is a folder containing `SKILL.md`, scanned at startup.
+
+> **License note:** these skills come from different communities with different licenses (Apache-2.0 / MIT / no notice / all rights reserved) and **cannot be redistributed as a whole under this repository's license**; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). If you redistribute commercially, review that list first or remove the skills you don't need.
+
+The most used ones:
 
 | Skill | What it does |
 |:--|:--|
