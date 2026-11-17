@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# 换行统一
+#
+# Windows 上默认 core.autocrlf=true，clone 出来是 CRLF，提交回去再转成 LF。
+# 结果就是每次改动都被记成「整个文件重写」，diff 里全是行尾噪音（本仓库之前
+# 反复出现 "LF will be replaced by CRLF" 的警告）。这里显式声明，各平台一致。
+# ---------------------------------------------------------------------------
+* text=auto eol=lf
+
+# 脚本按各自平台的惯例
+*.sh      text eol=lf
+*.bash    text eol=lf
+*.ps1     text eol=crlf
+*.psm1    text eol=crlf
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Windows 批处理相关的构建脚本
+gradlew   text eol=lf
+gradlew.bat text eol=crlf
+
+# ---------------------------------------------------------------------------
+# 二进制：不参与换行转换，也不做文本 diff
+# ---------------------------------------------------------------------------
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.mp4   binary
+*.webm  binary
+*.mov   binary
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.pptx  binary
+*.zip   binary
+*.jks   binary
+*.keystore binary
+*.wav   binary
+*.ttf   binary
+*.woff  binary
+*.woff2 binary
+
+# ---------------------------------------------------------------------------
+# GitHub 语言统计
+#
+# skills/ 下的技能来自不同社区，是 vendored 代码：里面有成千上万个 Tabler 图标
+# SVG 和第三方脚本。不打标记的话，语言占比会被它们带偏（本仓库 Python 统计一度
+# 达到 9MB，主要不是业务代码）。标记为 vendored 后 GitHub 会把这些文件排除在
+# 语言统计之外，让语言条如实反映项目本身。
+# ---------------------------------------------------------------------------
+skills/** linguist-vendored
+
+# 演示素材不计入统计
+assets/** linguist-documentation
+
+# gradle wrapper 是生成物
+frontend/android/gradlew     linguist-vendored
+frontend/android/gradlew.bat linguist-vendored

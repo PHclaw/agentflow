@@ -1,0 +1,40 @@
+# 编辑器统一配置：让不同 IDE 产出的文件在缩进与换行上一致，
+# 避免 PR 里出现「只改了缩进」的噪音。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python：PEP 8 用 4 空格
+[*.py]
+indent_size = 4
+
+# Markdown 保留行尾空格（表格与换行语义里有用）
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml}]
+indent_size = 2
+
+# Windows 脚本
+[*.{ps1,psm1,bat,cmd}]
+end_of_line = crlf
+
+# Shell
+[*.{sh,bash}]
+end_of_line = lf
+
+# 依赖锁文件与生成物：不要手工格式化
+[{package-lock.json,pnpm-lock.yaml,poetry.lock}]
+insert_final_newline = false
+
+# skills/ 下的第三方技能保持原样，不做任何自动格式化
+[skills/**]
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_size = unset
