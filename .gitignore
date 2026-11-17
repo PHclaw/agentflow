@@ -90,3 +90,6 @@ scripts/_probe-*
 scripts/_analyze-*
 _readme_preview.html
 .gstack/
+
+# 推广与运营素材（发帖稿、评论区话术、发布 SOP）——不随产品分发
+docs/promo/
