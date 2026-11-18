@@ -291,7 +291,7 @@ agentflow/
 
 ## 🧩 Built-in skills
 
-The repository ships **26 skill directories** out of the box; each skill is a folder containing `SKILL.md`, scanned at startup.
+The repository ships **27 skill directories** out of the box; each skill is a folder containing `SKILL.md`, scanned at startup.
 
 > **License note:** these skills come from different communities with different licenses (Apache-2.0 / MIT / no notice / all rights reserved) and **cannot be redistributed as a whole under this repository's license**; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). If you redistribute commercially, review that list first or remove the skills you don't need.
 
@@ -310,6 +310,7 @@ The most used ones:
 | **Clinical Case Report** | Chief complaint and findings → structured teaching case |
 | **Statistics Assistant** | Hypothesis testing, sample size, confidence intervals, with decision advice |
 | **Chart Visualization** | Picks the chart type that fits the data and renders it |
+| **API Doc Writer** | Turns an API definition / OpenAPI spec into a deliverable doc: parameter tables, error codes, curl examples |
 
 Self-authored skills carry no such restrictions: add a folder following the `SKILL.md` format. The optional HTML-PPT pipeline also reads assets such as `skills/html-ppt-skill-main/assets`; calling it without those skills installed raises a missing-file error, which is expected.
 
