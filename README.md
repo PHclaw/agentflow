@@ -35,6 +35,8 @@
 
 [功能演示](#-功能演示) · [快速开始](#-快速开始) · [核心特性](#-核心特性) · [内置技能](#-内置技能) · [文档](#-文档) · [常见问题](docs/FAQ.md)
 
+[📖 文档站](https://phclaw.github.io/agentflow/) · [Wiki 入门](https://github.com/PHclaw/agentflow/wiki) · [💬 Discussions](https://github.com/PHclaw/agentflow/discussions)
+
 [English](README.en.md) · [中文](README.md)
 
 </div>
@@ -64,6 +66,20 @@
 <img src="assets/gifs/demo-product-tour.gif" alt="产品全流程" width="900">
 
 <p align="center"><a href="assets/videos/demo-product-tour.mp4">▶ 完整录屏</a></p>
+
+### 30 秒跑起来
+
+```bash
+git clone https://github.com/PHclaw/agentflow.git
+cd agentflow
+cp .env.example .env      # 至少填 JWT_SECRET_KEY
+docker compose up -d --build
+```
+
+打开 `http://localhost:3000` 注册即可；进「设置 → 模型配置」填一个 OpenAI 兼容端点就能对话。详见 [快速开始](#-快速开始) 与 [部署指南](docs/DEPLOYMENT.md)。
+
+<details>
+<summary><b>展开看更多演示</b>：一句话出 PPT · 拖拽搭工作流 · 贴表出图 · 知识库检索 · 工具调用（5 段）</summary>
 
 <h3 align="center">② 一句话生成 PPT —— 端到端交付</h3>
 
@@ -110,6 +126,8 @@ Agent 执行时实时显示「正在调用工具」，同屏只保留当前这�
 <img src="assets/gifs/demo-chat-tool-calls.gif" alt="对话中的工具调用" width="900">
 
 <p align="center"><a href="assets/videos/demo-chat-tool-calls.mp4">▶ 完整录屏</a></p>
+
+</details>
 
 ---
 

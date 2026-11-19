@@ -36,6 +36,8 @@ Runs on SQLite out of the box, so a single machine is enough — and every byte 
 
 [Product demo](#️-product-demo) · [Quick start](#-quick-start) · [Features](#-features) · [Built-in skills](#-built-in-skills) · [Docs](#-docs) · [FAQ](docs/FAQ.md)
 
+[📖 Docs site](https://phclaw.github.io/agentflow/) · [Wiki](https://github.com/PHclaw/agentflow/wiki) · [💬 Discussions](https://github.com/PHclaw/agentflow/discussions)
+
 <br>
 
 [English](README.en.md) · [中文](README.md)
@@ -67,6 +69,20 @@ Landing page → sign in → pick a template from the marketplace → create an 
 <img src="assets/gifs/demo-product-tour.gif" alt="Product tour" width="900">
 
 <p align="center"><a href="assets/videos/demo-product-tour.mp4">▶ Full recording</a></p>
+
+### Up and running in 30 seconds
+
+```bash
+git clone https://github.com/PHclaw/agentflow.git
+cd agentflow
+cp .env.example .env      # set JWT_SECRET_KEY at minimum
+docker compose up -d --build
+```
+
+Open `http://localhost:3000` and sign up, then go to Settings → Model Config and drop in any OpenAI-compatible endpoint. See [Quick start](#-quick-start) and the [Deployment guide](docs/DEPLOYMENT.md).
+
+<details>
+<summary><b>More demos</b>: chat-to-PPT · drag-and-drop workflows · paste a table get a chart · knowledge-base search · tool calls (5 clips)</summary>
 
 <h3 align="center">② One sentence to a PPT — end-to-end delivery</h3>
 
@@ -113,6 +129,8 @@ While the Agent runs, a live "calling tool" line appears; only the current one s
 <img src="assets/gifs/demo-chat-tool-calls.gif" alt="Tool calls in chat" width="900">
 
 <p align="center"><a href="assets/videos/demo-chat-tool-calls.mp4">▶ Full recording</a></p>
+
+</details>
 
 ---
 
