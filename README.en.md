@@ -368,6 +368,8 @@ The full comparison lives in **[How it differs from Dify / Coze](docs/COMPARISON
 
 ## 📚 Docs
 
+🌐 **English landing page**: <https://phclaw.github.io/agentflow/en.html> — a one-page overview with quick start and links.
+
 | Document | Contents |
 |:--|:--|
 | [Configuration guide](docs/CONFIGURATION.md) | Environment variables · model hot-swap · SQLite lite mode |
@@ -378,7 +380,7 @@ The full comparison lives in **[How it differs from Dify / Coze](docs/COMPARISON
 | [FAQ](docs/FAQ.md) | Models · RAG · self-hosting · billing |
 | [Changelog](docs/CHANGELOG.md) | Version history and roadmap |
 
-> These documents are written in Chinese.
+> The detailed guides below are written in Chinese. For an English overview, see the [English landing page](https://phclaw.github.io/agentflow/en.html) and the [English README](README.en.md).
 
 Once the server is up, the live API docs are at http://localhost:8001/docs (Swagger) · http://localhost:8001/redoc
 
