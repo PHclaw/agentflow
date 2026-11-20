@@ -10,6 +10,7 @@ title: AgentFlow 文档
 - 仓库：<https://github.com/PHclaw/agentflow>
 - 在线演示：<http://159.75.21.251:3000>
 - Wiki（入门与常见问题）：<https://github.com/PHclaw/agentflow/wiki>
+- 🌐 **English**: [One-page overview](en.html) · [English README](https://github.com/PHclaw/agentflow/blob/master/README.en.md)
 
 ## 开始使用
 
