@@ -2,6 +2,52 @@
 
 > 本页由 README 拆分而来，内容与代码同步维护。返回 [README](../README.md)。
 
+## v2.1（未发布 · master）
+
+**完整版回归与工程化收敛** —— 补齐此前从主线移除的模块，同时把 CI 与安全从「长期红」修到全绿。
+
+#### 完整版能力
+
+| 模块 | 说明 |
+|:-----|:-----|
+| **17 个页面** | 落地页 / 控制台 / Agent 配置 / 工作流画布 / 对话 / 对话记录 / 知识库 / Skill 广场 / 模板市场 / 设置 / 管理后台等 |
+| **27 个技能目录** | 在原有 8 个基础上补齐 PDF、PPT、学术检索、会议纪要、统计分析等场景，新增「API 文档助手」 |
+| **Android 客户端** | Capacitor 打包，随 [v2.0.2 Release](https://github.com/PHclaw/agentflow/releases/tag/v2.0.2) 提供正式签名 APK（在线版，界面由服务端下发） |
+
+#### 依赖与构建
+
+| 问题 | 处理 |
+|:-----|:-----|
+| `requirements.txt` 钉的版本互相冲突，pip 直接 `ResolutionImpossible` | 按实际运行环境重写，`pip install --dry-run` 验证 169 个包可解析 |
+| 缺少 `lunar-python` / `psutil` / `pyyaml` / `lxml` 等运行时依赖 | 按 `app/` 下真实 import 逐一补齐 |
+| PostCSS / Tailwind 配置用 ESM 写法，CI 的 Node 18 不识别 | 改为 CJS，Node 18 / 20 / 22 行为一致 |
+| 前端 `setup-node` 找不到锁文件 | 指定 `cache-dependency-path: frontend/package-lock.json` |
+
+#### 安全
+
+| 项 | 说明 |
+|:---|:-----|
+| CodeQL 告警 471 → 0 | 查询包由 `security-and-quality` 改为 `security-extended`，排除 `skills/` 等 vendored 代码；剩余按规则逐条标注理由 |
+| 异常信息不再回传客户端 | 新增 `app/core/errors.py`，异常原文只进日志，响应返回固定文案 + `trace_id` |
+| 路径穿越统一返回 403 | 工作区文件解析先归一化反斜杠再校验，避免 `..\` 在 POSIX 上被当作普通文件名而返回 404 |
+| 限流与缓存 key 换 `sha256` | 原用 `md5`，虽然不涉及安全存储，但换哈希成本为零 |
+
+#### 文档
+
+- **文档站**（GitHub Pages）：`docs/` 下 Markdown 自动渲染，补英文落地页 `en.html`
+- **Wiki**：5 个页面（Home / 快速开始 / 模型配置 / 常见问题 / 架构说明）
+- `.gitattributes` 统一换行（`skills/**` 标记 vendored，不计入语言统计）+ `.editorconfig`
+- `.mailmap` 修正历史提交的作者归属
+- `CONTRIBUTING.md` 补「第一次贡献从哪里开始」
+
+#### 修复的真实缺陷
+
+- `excel_engine.category_rollup_rows` 使用了未定义的 `df`，一旦调用即 `NameError`
+- 合并时 `skills/` 下 11 个技能目录与 `workflow/nodes/index.ts` 被静默删除（「我方删除、对方未修改」不产生冲突）
+- 邮件模板测试用整页文案计数判定页头，依赖 `MAIL_FROM_NAME` 环境变量，在 CI 上误报
+
+---
+
 ## v2.0.1
 
 **Skill 广场整合** — 将 Model Lab 预置 Skill 接入 AgentFlow，开箱即用专业场景助手。
@@ -41,7 +87,8 @@ Skill 运行时支持 OpenAI 兼容网关，可在 `.env` 中配置 `CHATZOC_*` 
 | **v1.0** | ✅ 已发布 | MVP：用户系统 + Agent 管理 + 工作流编辑器 + 对话 |
 | **v1.1** | ✅ 已发布 | 知识库 RAG + 文档处理 + 向量检索 |
 | **v1.2** | ✅ 已发布 | Stripe 订阅 + 定价方案 + 配额管理 |
-| **v2.0** | ✅ 已发布 | 全新 UI + agent-* 生态整合 + 9 个核心库集成 |
+| **v2.0** | ✅ 已发布 | 全新 UI + agent-* 生态整合 + 3 个适配器（`backend/app/integrations/`） |
 | **v2.0.1** | ✅ 已发布 | Model Lab Skill 广场整合：8 个预置 Skill + 编排运行时 + REST API |
-| **v2.1** | 🚧 开发中 | 多 Agent 协作 + 插件市场 |
+| **v2.0.2** | ✅ 已发布 | Android 客户端（正式签名 APK，在线版） |
+| **v2.1** | 🚧 开发中 | 完整版回归（17 页面 / 27 技能）+ CI 与 CodeQL 治理；待补多 Agent 协作与插件市场 |
 | **v3.0** | 📋 规划中 | 多租户企业版 + SSO + 审计日志 |
