@@ -6,20 +6,20 @@
 # 现在与运行时对齐；升级依赖请同步更新本文件，不要只改运行环境。
 
 # Core
-fastapi==0.143.0
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
-python-multipart==0.0.32
+python-multipart==0.0.34
 
 # Database
-sqlalchemy[asyncio]==2.1.4
+sqlalchemy[asyncio]==2.1.9
 asyncpg>=0.29.0
-alembic==1.20.0
+alembic==1.20.1
 pgvector>=0.2.3
 aiosqlite==0.22.1
 
 # Auth
 python-jose[cryptography]==3.5.0
-email-validator==2.3.0
+email-validator==2.4.0
 passlib[bcrypt]==1.7.4
 bcrypt==5.0.0
 
@@ -27,15 +27,15 @@ bcrypt==5.0.0
 stripe==16.0.0
 
 # LLM
-openai==3.28.0
+openai==3.56.0
 anthropic==1.13.0
 httpx==0.28.1
 
 # LangChain：只保留实际在用的部分。工作流走自研引擎，不再依赖 langgraph。
 langchain-classic==1.0.8
 langchain-community==0.4.2
-langchain-core==1.6.9
-langchain-openai==1.7.0
+langchain-core==1.8.3
+langchain-openai==1.8.4
 langchain-text-splitters==1.1.3
 
 # 向量库：langchain_community.vectorstores.Chroma 运行时依赖 chromadb。
@@ -43,12 +43,12 @@ langchain-text-splitters==1.1.3
 chromadb==1.5.9
 
 # Task Queue（当前编排里没有 worker 容器，保留依赖以便单独启用）
-celery==5.6.3
+celery==5.7.0
 redis==8.1.0
 
 # Utils
-pydantic==2.14.0
-pydantic-settings==2.15.0
+pydantic==2.14.4
+pydantic-settings==2.16.3
 python-dotenv==1.2.4
 psutil>=5.9            # app/services/monitoring.py: 进程与内存指标
 pyyaml>=6.0            # app/services/skill/store.py: 技能清单解析
@@ -60,20 +60,20 @@ openpyxl==3.1.5
 pypdf==6.20.0
 pdfplumber==0.11.10
 python-pptx==1.0.2
-reportlab==5.0.1
+reportlab==5.1.0
 pillow==12.3.0
 aiofiles==25.1.0
 
 # Skill runtime（表格分析 / 图表 / 统计 / 农历换算）
-pandas==3.0.6
+pandas==3.1.1
 duckdb==1.5.6
 matplotlib==3.11.2
 # app/services/skill/time_sync.py 顶层 import，缺了会 ModuleNotFoundError（CI 就是这么红的）
-lunar-python>=1.4.0
+lunar-python>=1.4.9
 
 # Testing
-pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest==9.2.0
+pytest-asyncio==1.5.0
 pytest-cov==7.1.0
 pytest-timeout==2.4.0
 
