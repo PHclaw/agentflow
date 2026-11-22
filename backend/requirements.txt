@@ -14,7 +14,7 @@ python-multipart==0.0.32
 sqlalchemy[asyncio]==2.1.4
 asyncpg>=0.29.0
 alembic==1.20.0
-pgvector>=0.2.3
+pgvector>=0.5.1
 aiosqlite==0.22.1
 
 # Auth
