@@ -44,6 +44,11 @@ from ..services.group_chat import (
     save_message,
     strip_handoff,
 )
+from ..services.group_recruit import (
+    join_group,
+    member_payload,
+    recruit_member,
+)
 from ..services.integrated_runtime import IntegratedAgentRuntime
 from ..services.llm import humanize_llm_error
 from .auth import get_current_user_id
@@ -462,15 +467,53 @@ async def send_message(
             yield f"data: {json.dumps({'type': 'route_decision', 'agent': agent.name if agent else None, 'reason': reason, 'confidence': round(confidence, 2)}, ensure_ascii=False)}\n\n"
 
             if agent is None:
-                # 没人接：把原因留在历史里，用户能看到为什么
-                sys_msg = await save_message(
-                    db, group.id, "system", reason,
-                    meta={"route_reason": reason, "reply_to": user_msg.id},
+                # 没人接 —— 先试着按任务招一个对口的人进来。
+                # 群设置里显式关闭（auto_recruit = false）时不招。
+                allow_recruit = (group.settings or {}).get("auto_recruit", True)
+                recruited = None
+                recruit_note = ""
+
+                if allow_recruit and effective_mode == "llm":
+                    # 只有路由明确判定无人能做时才招，正常流程走不到这里
+                    recruited, recruit_note = await recruit_member(
+                        db, group, effective_content, agents, user_id
+                    )
+
+                if recruited is None:
+                    # 招不到（或已关自动补人）：保持原行为，把原因说清楚
+                    detail = reason
+                    if recruit_note:
+                        detail = f"{reason}\n{recruit_note}"
+                    sys_msg = await save_message(
+                        db, group.id, "system", detail,
+                        meta={"route_reason": reason, "reply_to": user_msg.id},
+                    )
+                    await db.commit()
+                    yield f"data: {json.dumps({'type': 'system_message', 'id': sys_msg.id, 'content': detail, 'reply_to': user_msg.id}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                    return
+
+                # 招到了：拉进群 + 留痕 + 交给它执行。
+                # 就地追加而不是重新赋值 agents —— 重新赋值会把它变成
+                # event_stream 的局部变量，上面 recruit_member(agents) 先引用会炸。
+                join_group(group, recruited)
+                await db.commit()
+                agents.append(recruited)
+
+                join_text = f"系统为你创建并拉入「{recruited.name}」：{recruit_note}"
+                join_msg = await save_message(
+                    db, group.id, "system", join_text,
+                    meta={
+                        "reply_to": user_msg.id,
+                        "member_joined": recruited.id,
+                        "recruit_reason": reason,
+                    },
                 )
                 await db.commit()
-                yield f"data: {json.dumps({'type': 'system_message', 'id': sys_msg.id, 'content': reason, 'reply_to': user_msg.id}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                return
+                yield f"data: {json.dumps({'type': 'member_joined', 'id': join_msg.id, 'member': member_payload(recruited), 'content': join_text, 'reason': reason, 'reply_to': user_msg.id}, ensure_ascii=False)}\n\n"
+
+                agent = recruited
+                reason = f"群里没有对口的成员，已为你创建「{recruited.name}」并接手"
 
             # 3. 落一条系统消息，把「谁接了」写进历史
             accept_text = f"{agent.name} 接下了这个任务：{reason}"

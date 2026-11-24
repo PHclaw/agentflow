@@ -640,6 +640,32 @@ export default function GroupChatPage() {
         executionMode,
         readyFiles.map((f) => f.stored_name)
       )) {
+        // 群里没人能做，后端现场招了个人进来
+        if (evt.type === 'member_joined') {
+          setBubbles((prev) => [
+            ...prev,
+            {
+              kind: 'message',
+              data: {
+                id: evt.id || -Date.now(),
+                sender_type: 'system',
+                content: evt.content || '已创建并拉入新成员',
+                meta: { member_joined: evt.member?.id, reply_to: evt.reply_to },
+                created_at: new Date().toISOString(),
+              },
+            },
+          ])
+          // 成员列表变了，重新拉一次群详情，顶部头像和人数要跟着更新
+          if (activeId) {
+            void groupsApi
+              .get(activeId)
+              .then((g) => setDetail(g))
+              .catch(() => {})
+          }
+          scrollToBottom()
+          continue
+        }
+
         // 转交：把这一棒已确认的内容留在时间线，再显示「转给谁」
         if (evt.type === 'handoff') {
           const carriedText = evt.carried || ''

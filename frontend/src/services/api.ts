@@ -571,6 +571,9 @@ export type GroupStreamEvent = {
   type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
   | 'agent_chunk' | 'agent_done' | 'error' | 'done'
   | 'thinking' | 'tool_call' | 'log' | 'mode_switch' | 'handoff'
+  | 'member_joined'
+  // 群里没人能做时，后端按任务现场创建并拉入的成员
+  member?: { id: string; name: string; description?: string | null }
   // 转交：from 说完的话放在 carried 里，前端把它留在时间线上
   from?: string
   from_agent_id?: string
