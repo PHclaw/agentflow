@@ -112,16 +112,24 @@ class LLMService:
         return (active.api_key or None), (active.base_url or None)
 
     def _resolved_credentials(self) -> tuple[str | None, str | None]:
-        """解析生效凭证：优先「大模型 API 配置」，否则回退 .env。"""
-        api_key, base_url = self._active_credentials()
-        if api_key or base_url:
-            return api_key, base_url
+        """解析生效凭证。
 
+        「大模型 API 配置」表里存的是 **OpenAI 兼容端点**（Ollama / 各类中转），
+        只能给 openai 这一种 provider 用。之前这里先无条件读表，导致显式指定
+        provider="deepseek" 时仍把 deepseek-chat 发到表里那个 Ollama 地址，
+        报「model not found」——看起来像 key 配错了，其实是端点串了。
+
+        所以先按 provider 分流，只有 openai 才去读数据库配置。
+        """
         if self.provider == "anthropic":
             return settings.ANTHROPIC_API_KEY or None, None
         if self.provider == "deepseek":
             base = (settings.DEEPSEEK_BASE_URL or "").rstrip("/")
             return settings.DEEPSEEK_API_KEY or None, f"{base}/v1" if base else None
+
+        api_key, base_url = self._active_credentials()
+        if api_key or base_url:
+            return api_key, base_url
         return settings.OPENAI_API_KEY or None, None
 
     def ensure_configured(self) -> None:

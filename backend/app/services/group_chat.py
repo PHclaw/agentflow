@@ -121,7 +121,14 @@ async def route_task(
 {{"assignee": "成员名字（没有合适的就填 null）", "reason": "一句话理由", "confidence": 0.0~1.0}}"""
 
     try:
-        llm = LLMService()
+        # 路由模型跟随群里第一个成员的配置：
+        # 不写死 provider，否则用户把 Agent 配成 DeepSeek / Ollama 时，
+        # 路由仍去调默认端点，表现成「明明配了模型却报未配置」。
+        router_cfg = agents[0].model_config or {}
+        llm = LLMService(
+            provider=router_cfg.get("provider", "openai"),
+            model=router_cfg.get("model"),
+        )
         raw = await llm.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,      # 路由要稳定，不要发散
