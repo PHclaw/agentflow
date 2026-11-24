@@ -6,8 +6,9 @@
  * 2. 被选中的智能体回复时 @ 回发起人，并带引用关系
  * 3. 其他人保持沉默，不让群里变成一堆人在说话
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { Markdown } from '../components/ui/Markdown'
 import {
   agents as agentsApi,
   groups as groupsApi,
@@ -29,31 +30,19 @@ const ROUTE_MODE_LABEL: Record<string, string> = {
   off: '全员回复',
 }
 
-/** 把正文里的 @成员名 渲染成可辨识的高亮片段。
+/** 把正文里的 @成员名 包成行内代码，交给 Markdown 渲染。
  *  长名字优先匹配，避免把 @文案编辑 里的 @文案 先切走。
+ *
+ *  为什么不直接插 <span>：正文要过 Markdown 渲染（模型输出带 ** 加粗、
+ *  有序列表等），而 rehype-sanitize 会剥掉自定义 class 的 span，
+ *  高亮会失效。行内代码是 Markdown 原生语法，渲染后自带底色，效果一致。
  */
-function renderMentions(text: string, names: string[]): ReactNode[] {
+function markMentions(text: string, names: string[]): string {
+  if (!names.length) return text
   const sorted = [...names].sort((a, b) => b.length - a.length)
-  if (!sorted.length) return [text]
   const escaped = sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   const re = new RegExp(`@(${escaped.join('|')})`, 'g')
-  const out: ReactNode[] = []
-  let last = 0
-  let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
-    if (m.index > last) out.push(text.slice(last, m.index))
-    out.push(
-      <span
-        key={`at-${m.index}`}
-        className="rounded bg-blue-50 px-0.5 font-medium text-brand-700"
-      >
-        {m[0]}
-      </span>
-    )
-    last = m.index + m[0].length
-  }
-  if (last < text.length) out.push(text.slice(last))
-  return out
+  return text.replace(re, (m) => '`' + m + '`')
 }
 
 export default function GroupChatPage() {
@@ -325,13 +314,28 @@ export default function GroupChatPage() {
           if (evt.type === 'agent_start') continue
         }
 
-        // PiAgent 事件：显示执行过程，不打断正文流
+        // PiAgent 事件：把执行进度写进「正在输入」气泡，
+        // 否则它整段只显示三个字，用户以为卡死了。
         if (evt.type === 'thinking' || evt.type === 'tool_call' || evt.type === 'log') {
-          const label = evt.type === 'thinking' ? '思考中' : evt.type === 'tool_call' ? '调用工具' : '执行'
-          const detail = (evt as any).content || (evt as any).text || ''
-          setRoutingHint(
-            `${(evt as any).agent || '智能体'} ${label}${detail ? '：' + String(detail).slice(0, 40) : '…'}`
-          )
+          const label =
+            evt.type === 'thinking' ? '思考中' : evt.type === 'tool_call' ? '调用工具' : '执行'
+          const detail = String((evt as any).content || (evt as any).text || '').slice(0, 60)
+          const line = detail ? `${label}：${detail}` : `${label}…`
+          setRoutingHint(line)
+          setBubbles((prev) => {
+            const next = [...prev]
+            for (let i = next.length - 1; i >= 0; i--) {
+              const b = next[i]
+              if (b.kind === 'pending') {
+                // 累积最近几条，滚动看得到做过什么
+                const merged = (b.text ? b.text + '\n' : '') + line
+                next[i] = { ...b, text: merged.split('\n').slice(-6).join('\n') }
+                break
+              }
+            }
+            return next
+          })
+          scrollToBottom()
           continue
         }
 
@@ -399,7 +403,11 @@ export default function GroupChatPage() {
       if (e?.name !== 'AbortError') setRoutingHint('连接中断，请重试')
     } finally {
       setSending(false)
-      setBubbles((prev) => prev.filter((b) => b.kind !== 'routing'))
+      // 同时清掉 pending：PiAgent 模式下若中途失败或没收到 agent_done，
+      // 「正在输入…」会永远留在界面上（之前就是这个表现）。
+      setBubbles((prev) =>
+        prev.filter((b) => b.kind !== 'routing' && b.kind !== 'pending')
+      )
       abortRef.current = null
       void loadList()
     }
@@ -674,9 +682,21 @@ export default function GroupChatPage() {
                           )}
                         </div>
                         {quoteBlock}
-                        <div className="rounded-xl rounded-tl-sm bg-gray-50 border border-gray-100 px-3.5 py-2.5 text-sm text-gray-800 whitespace-pre-wrap">
-                          {renderMentions(m.content, memberNames)}
+                        <div className="rounded-xl rounded-tl-sm bg-gray-50 border border-gray-100 px-3.5 py-2.5 text-sm text-gray-800">
+                          <Markdown content={markMentions(m.content, memberNames)} />
                         </div>
+                        {Array.isArray(m.meta?.files) && m.meta.files.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1.5">
+                            {m.meta.files.map((f: any, i: number) => (
+                              <span
+                                key={i}
+                                className="text-[10.5px] px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-600"
+                              >
+                                📎 {f.name || f.path || '产物'}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <button
                           onClick={() => setReplyTo(m)}
                           className="mt-1 text-[10.5px] text-gray-400 opacity-0 transition group-hover:opacity-100 hover:text-brand-600"
@@ -704,8 +724,8 @@ export default function GroupChatPage() {
                   >
                     <div className="max-w-[75%]">
                       {quoteBlock}
-                      <div className="rounded-xl rounded-tr-sm bg-brand-600 px-3.5 py-2.5 text-sm text-white whitespace-pre-wrap">
-                        {renderMentions(m.content, memberNames)}
+                      <div className="rounded-xl rounded-tr-sm bg-brand-600 px-3.5 py-2.5 text-sm text-white [&_*]:!text-white [&_code]:!bg-white/20">
+                        <Markdown content={markMentions(m.content, memberNames)} />
                       </div>
                       <button
                         onClick={() => setReplyTo(m)}
