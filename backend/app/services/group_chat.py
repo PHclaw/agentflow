@@ -107,6 +107,22 @@ async def route_task(
         names = "、".join(f"@{a.name}" for a in agents[:5])
         return None, f"这个群设成了手动指派，请用 @ 指定成员（{names}）", 0.0
 
+    # 路由完全靠 description 判断能力。描述为空时模型只能瞎猜，
+    # 实测会幻觉出「文案编辑」这种群里根本不存在的名字。
+    # 与其给用户一个莫名其妙的报错，不如在调用前就拦住并说清楚。
+    blank = [a for a in agents if not (a.description or "").strip()]
+    if blank:
+        names = "、".join(a.name for a in blank[:3])
+        if len(blank) == len(agents):
+            return None, (
+                f"群成员（{names}）都没有填写能力描述，无法判断谁适合接这个任务。"
+                "请在 Agent 设置里补充描述，或直接用 @ 指定成员"
+            ), 0.0
+        return None, (
+            f"以下成员没有能力描述：{names}。请补全描述后再自动派发，"
+            "或直接用 @ 指定其他成员"
+        ), 0.0
+
     prompt = f"""你是任务调度器。下面是群里的智能体成员：
 
 {chr(10).join(_agent_brief(a) for a in agents)}
@@ -161,9 +177,14 @@ async def route_task(
                 return None, f"不确定该谁接（{reason}），请用 @ 指定成员", confidence
             return agent, reason, confidence
 
-    # 模型给了个不在列表里的名字
+    # 模型给了个不在列表里的名字。除了报错，把真实成员列出来，
+    # 用户才知道该 @ 谁 —— 否则只能回到群里翻成员列表。
     logger.warning("group route picked unknown agent: %s", name)
-    return None, f"调度结果指向了不存在的成员（{name}），请用 @ 指定", confidence
+    actual = "、".join(f"@{a.name}" for a in agents[:5])
+    return None, (
+        f"调度模型返回了不存在的成员（{name}），未自动派发。"
+        f"当前成员：{actual}。请用 @ 指定其中一位"
+    ), confidence
 
 
 def build_reply_message(agent: Agent, question: str, asked_by: str) -> str:

@@ -502,17 +502,29 @@ export default function GroupChatPage() {
                   {ROUTE_MODE_LABEL[detail.route_mode] || detail.route_mode} ·{' '}
                   {detail.members.length} 位成员
                 </p>
+                {detail.members.some((m) => !(m.description || '').trim()) && (
+                  <p className="text-[10.5px] text-amber-600 mt-1">
+                    有成员未填写能力描述（头像标黄），自动派发不可用 · 请到 Agent 设置补充
+                  </p>
+                )}
               </div>
               <div className="flex -space-x-1.5">
-                {detail.members.slice(0, 5).map((m) => (
-                  <div
-                    key={m.id}
-                    title={m.name}
-                    className="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-blue-500 text-white text-[11px] flex items-center justify-center ring-2 ring-white"
-                  >
-                    {m.name.slice(0, 1)}
-                  </div>
-                ))}
+                {detail.members.slice(0, 5).map((m) => {
+                  const noDesc = !(m.description || '').trim()
+                  return (
+                    <div
+                      key={m.id}
+                      title={noDesc ? `${m.name}（未填写能力描述，无法自动派发）` : m.name}
+                      className={`w-7 h-7 rounded-full text-white text-[11px] flex items-center justify-center ring-2 ring-white ${
+                        noDesc
+                          ? 'bg-amber-400 ring-amber-100'
+                          : 'bg-gradient-to-br from-brand-500 to-blue-500'
+                      }`}
+                    >
+                      {m.name.slice(0, 1)}
+                    </div>
+                  )
+                })}
               </div>
             </header>
 
