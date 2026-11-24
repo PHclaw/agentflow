@@ -570,7 +570,7 @@ export type PendingUpload = {
 export type GroupStreamEvent = {
   type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
   | 'agent_chunk' | 'agent_done' | 'error' | 'done'
-  | 'thinking' | 'tool_call' | 'log'
+  | 'thinking' | 'tool_call' | 'log' | 'mode_switch'
   agent?: string | null
   agent_id?: string
   user_message_id?: number

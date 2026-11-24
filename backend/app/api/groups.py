@@ -404,6 +404,26 @@ async def send_message(
                     + group_files.summarize_for_prompt(attachments)
                 )
 
+            # 带附件时强制走 PiAgent：纯大模型拿不到文件内容，
+            # 让它回答只会有两种结果——编造内容，或者写一大段「我读不到」。
+            # 这两种都不是用户想要的，所以这里直接升级执行方式。
+            effective_mode = data.execution_mode
+            mode_note = ""
+            if attachments and effective_mode == "llm":
+                try:
+                    from app.services.pi_agent import pi_agent_runner
+
+                    if pi_agent_runner.exe:
+                        effective_mode = "pi"
+                        mode_note = "检测到附件，已自动使用工作模式读取文件"
+                    else:
+                        mode_note = "未安装 PiAgent，附件只能看到文件名而读不到内容"
+                except Exception:  # noqa: BLE001
+                    mode_note = "PiAgent 不可用，附件只能看到文件名"
+
+            if mode_note:
+                yield f"data: {json.dumps({'type': 'mode_switch', 'execution_mode': effective_mode, 'content': mode_note}, ensure_ascii=False)}\n\n"
+
             agent, reason, confidence = await route_task(
                 db, group, agents, effective_content, mentioned_agent=mentioned
             )
@@ -443,7 +463,7 @@ async def send_message(
 
             # 群目录不在 PiAgent 的工作区里，执行前必须搬一份过去，
             # 否则模型看不到用户上传的文件，只会反问「请提供文件」。
-            if attachments and data.execution_mode == "pi":
+            if attachments and effective_mode == "pi":
                 try:
                     from app.services.pi_agent import pi_agent_workspace
 
@@ -461,7 +481,7 @@ async def send_message(
                     logger.warning("copy group files to workspace failed: %s", exc)
 
             try:
-                if data.execution_mode == "pi":
+                if effective_mode == "pi":
                     # PiAgent：独立工作区、可读写文件、多轮工具循环，
                     # 事件逐条转发给前端（thinking / tool_call / text / done）
                     from app.services.pi_agent import pi_agent_runner
@@ -500,7 +520,7 @@ async def send_message(
 
             # 纯大模型模式分块推送做打字机效果；
             # PiAgent 已经逐事件推过文字了，这里只补最终完整内容给前端替换。
-            if data.execution_mode != "pi":
+            if effective_mode != "pi":
                 step = 12
                 for i in range(0, len(content), step):
                     yield f"data: {json.dumps({'type': 'agent_chunk', 'agent_id': agent.id, 'text': content[i:i + step]}, ensure_ascii=False)}\n\n"
@@ -516,14 +536,14 @@ async def send_message(
                     "mentions": [asked_by],
                     "route_reason": reason,
                     "confidence": round(confidence, 2),
-                    "execution_mode": data.execution_mode,
+                    "execution_mode": effective_mode,
                     "files": artifacts,
                 },
             )
             await consume_quota(db, sub, Resource.MESSAGES)
             await db.commit()
 
-            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': agent.id, 'reply_to': user_msg.id, 'content': content, 'execution_mode': data.execution_mode, 'files': artifacts}, ensure_ascii=False, default=str)}\n\n"
+            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': agent.id, 'reply_to': user_msg.id, 'content': content, 'execution_mode': effective_mode, 'files': artifacts}, ensure_ascii=False, default=str)}\n\n"
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
         except Exception as exc:  # noqa: BLE001 - 流式响应里只能以事件形式报错

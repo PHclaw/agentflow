@@ -262,20 +262,19 @@ def new_batch_id() -> str:
 
 
 def summarize_for_prompt(files: Iterable[dict[str, Any]]) -> str:
-    """给纯文本模型看的附件清单。
+    """附件清单，拼进发给 agent 的任务描述。
 
-    LLM 模式读不到二进制内容，只能告诉它「用户带了这些文件」，
-    让它据此追问或说明需要什么，而不是假装看过。
+    带附件时调用方会自动切到 PiAgent 执行（只有它能真正读文件内容），
+    所以这里可以直接要求「读文件后直接给结果」，不需要教模型怎么解释限制。
     """
     items = list(files or [])
     if not items:
         return ""
-    lines = ["用户随消息上传了以下文件："]
-    for f in items:
-        size_kb = max(1, int((f.get("size") or 0) / 1024))
-        lines.append(f"- {f.get('name')}（{size_kb} KB，{f.get('kind')}）")
-    lines.append(
-        "如果任务是处理这些文件，请说明你已收到文件，并指出需要读取的方式；"
-        "纯文本模式下你无法直接解析二进制内容，不要假装已经看过文件内容。"
+    names = "、".join(
+        f"{f.get('name')}（{max(1, int((f.get('size') or 0) / 1024))} KB）" for f in items
     )
-    return "\n".join(lines)
+    return (
+        f"附件：{names}\n"
+        "文件已就位，可直接读取。读完直接给结论，不要复述文件名，"
+        "也不要让用户重新提供文件。"
+    )

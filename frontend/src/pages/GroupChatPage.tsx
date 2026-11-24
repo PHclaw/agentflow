@@ -640,6 +640,15 @@ export default function GroupChatPage() {
         executionMode,
         readyFiles.map((f) => f.stored_name)
       )) {
+        // 带附件时后端会自动升级到工作模式（只有它能真正读文件）
+        if (evt.type === 'mode_switch') {
+          if (evt.execution_mode === 'pi' || evt.execution_mode === 'llm') {
+            setExecutionMode(evt.execution_mode)
+          }
+          setRoutingHint(evt.content || null)
+          continue
+        }
+
         if (evt.type === 'routing') {
           // 把临时负数 id 换成数据库正式 id，否则后续引用块找不到这条消息
           if (evt.user_message_id) {
