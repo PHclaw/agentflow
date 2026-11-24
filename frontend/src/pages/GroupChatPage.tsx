@@ -9,12 +9,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Markdown } from '../components/ui/Markdown'
+import { downloadBlob } from '../lib/download'
 import {
   agents as agentsApi,
+  api,
   groups as groupsApi,
+  pi,
   type GroupDetail,
   type GroupMessageItem,
   type GroupSummary,
+  type PiArtifact,
 } from '../services/api'
 
 type Member = { id: string; name: string; description?: string | null }
@@ -28,6 +32,107 @@ const ROUTE_MODE_LABEL: Record<string, string> = {
   auto: '自动指派',
   manual: '手动 @ 指定',
   off: '全员回复',
+}
+
+/** 执行方式的中文名。pi 内部仍叫 pi，只改对用户展示的字。 */
+const EXEC_MODE_LABEL: Record<'llm' | 'pi', string> = {
+  llm: '快速回答',
+  pi: '工作模式',
+}
+
+function formatSize(bytes?: number): string {
+  if (!bytes) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg)$/i
+
+/** 工作区文件要带 Bearer 头，`<img src>` / `<a href>` 直接访问会 401，
+ *  所以统一走 blob：预览转 objectURL，下载调 downloadBlob。 */
+async function fetchArtifact(file: PiArtifact, agentId?: string): Promise<Blob> {
+  if (file.url) return api.getBlob(file.url)
+  if (!agentId) throw new Error('缺少 agent 标识')
+  return pi.downloadArtifact(agentId, file.path)
+}
+
+function ArtifactPreview({ file, agentId }: { file: PiArtifact; agentId?: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!IMAGE_EXT.test(file.name)) return
+    let alive = true
+    let objectUrl: string | null = null
+    ;(async () => {
+      try {
+        const blob = await fetchArtifact(file, agentId)
+        if (!alive) return
+        objectUrl = URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      } catch {
+        /* 预览失败不影响下载 */
+      }
+    })()
+    return () => {
+      alive = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [file, agentId])
+
+  if (!src) return null
+  return (
+    <img
+      src={src}
+      alt={file.name}
+      className="max-h-[320px] w-auto max-w-full rounded-lg border border-gray-200 bg-white"
+    />
+  )
+}
+
+/** 产物附件卡：文件名 + 大小 + 下载 */
+function ArtifactCard({ file, agentId }: { file: PiArtifact; agentId?: string }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  const onDownload = async () => {
+    if (busy) return
+    setBusy(true)
+    setErr(null)
+    try {
+      const blob = await fetchArtifact(file, agentId)
+      downloadBlob(blob, file.name)
+    } catch (e: any) {
+      setErr(e?.message || '下载失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div>
+      <button
+        onClick={onDownload}
+        disabled={busy}
+        className="group/f flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-left transition hover:border-brand-300 hover:bg-brand-50/40 disabled:opacity-60"
+        title={`下载 ${file.name}`}
+      >
+        <span className="text-[15px] leading-none">📎</span>
+        <span className="min-w-0">
+          <span className="block max-w-[220px] truncate text-[11.5px] font-medium text-gray-700">
+            {file.name}
+          </span>
+          <span className="block text-[10px] text-gray-400">
+            {busy ? '准备中…' : formatSize(file.size)}
+          </span>
+        </span>
+        <span className="ml-1 text-[10.5px] text-brand-600 opacity-0 transition group-hover/f:opacity-100">
+          下载
+        </span>
+      </button>
+      {err && <p className="mt-1 text-[10px] text-red-500">{err}</p>}
+    </div>
+  )
 }
 
 /** 把正文里的 @成员名 包成行内代码，交给 Markdown 渲染。
@@ -383,13 +488,21 @@ export default function GroupChatPage() {
                   sender_id: evt.agent_id,
                   sender_name: finalName,
                   content: finalText,
-                  meta: { reply_to: evt.reply_to, mentions: ['你'] },
+                  meta: {
+                    reply_to: evt.reply_to,
+                    mentions: ['你'],
+                    // 工作模式产出的文件必须带进 meta，否则气泡里没有下载入口
+                    ...((evt as any).files?.length ? { files: (evt as any).files } : {}),
+                    ...(evt.execution_mode ? { execution_mode: evt.execution_mode } : {}),
+                  },
                   created_at: new Date().toISOString(),
                 },
               },
             ]
           })
           pendingAgent = null
+          // 产物已经在气泡里以附件卡呈现，不必再在输入框上方留一行提示
+          setRoutingHint(null)
           scrollToBottom()
           continue
         }
@@ -686,15 +799,28 @@ export default function GroupChatPage() {
                           <Markdown content={markMentions(m.content, memberNames)} />
                         </div>
                         {Array.isArray(m.meta?.files) && m.meta.files.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {m.meta.files.map((f: any, i: number) => (
-                              <span
-                                key={i}
-                                className="text-[10.5px] px-2 py-0.5 rounded-md bg-white border border-gray-200 text-gray-600"
-                              >
-                                📎 {f.name || f.path || '产物'}
-                              </span>
-                            ))}
+                          <div className="mt-2 space-y-1.5">
+                            <p className="text-[10.5px] text-gray-400">
+                              生成了 {m.meta.files.length} 个文件
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {m.meta.files.map((f: PiArtifact, i: number) => (
+                                <ArtifactCard key={i} file={f} agentId={m.sender_id || undefined} />
+                              ))}
+                            </div>
+                            {m.meta.files.some((f: PiArtifact) => IMAGE_EXT.test(f.name)) && (
+                              <div className="flex flex-wrap gap-2 pt-0.5">
+                                {m.meta.files
+                                  .filter((f: PiArtifact) => IMAGE_EXT.test(f.name))
+                                  .map((f: PiArtifact, i: number) => (
+                                    <ArtifactPreview
+                                      key={`p-${i}`}
+                                      file={f}
+                                      agentId={m.sender_id || undefined}
+                                    />
+                                  ))}
+                              </div>
+                            )}
                           </div>
                         )}
                         <button
@@ -745,7 +871,7 @@ export default function GroupChatPage() {
                 <p className="text-[11px] text-amber-600 mb-2">{routingHint}</p>
               )}
 
-              {/* 执行模式：纯大模型 vs PiAgent */}
+              {/* 执行方式：快速回答（一次模型调用） vs 工作模式（PiAgent，可产出文件） */}
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-[10.5px] text-gray-400">执行方式</span>
                 <button
@@ -755,9 +881,9 @@ export default function GroupChatPage() {
                       ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
-                  title="一次模型调用，快，适合问答与文案"
+                  title="快速回答：一次模型调用，秒级返回，适合问答、文案、分析与建议"
                 >
-                  纯大模型
+                  {EXEC_MODE_LABEL.llm}
                 </button>
                 <button
                   onClick={() => setExecutionMode('pi')}
@@ -766,12 +892,12 @@ export default function GroupChatPage() {
                       ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
                       : 'border-gray-200 text-gray-500 hover:border-gray-300'
                   }`}
-                  title="PiAgent 引擎：可读写工作区、调用工具、生成真实文件，较慢"
+                  title="工作模式：可读写工作区、调用工具、生成并交付真实文件，耗时较长"
                 >
-                  PiAgent
+                  {EXEC_MODE_LABEL.pi}
                 </button>
                 <span className="text-[10px] text-gray-400">
-                  {executionMode === 'pi' ? '可生成文件，较慢' : '纯对话，快'}
+                  {executionMode === 'pi' ? '生成文件，耗时较长' : '秒级返回，纯对话'}
                 </span>
               </div>
 
