@@ -570,7 +570,16 @@ export type PendingUpload = {
 export type GroupStreamEvent = {
   type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
   | 'agent_chunk' | 'agent_done' | 'error' | 'done'
-  | 'thinking' | 'tool_call' | 'log' | 'mode_switch'
+  | 'thinking' | 'tool_call' | 'log' | 'mode_switch' | 'handoff'
+  // 转交：from 说完的话放在 carried 里，前端把它留在时间线上
+  from?: string
+  from_agent_id?: string
+  to?: string
+  to_agent_id?: string
+  carried?: string
+  interim_id?: number
+  handoff?: boolean
+  handoff_hops?: number
   agent?: string | null
   agent_id?: string
   user_message_id?: number

@@ -206,7 +206,100 @@ def build_reply_message(agent: Agent, question: str, asked_by: str) -> str:
         "请直接给出结果，不要复述任务、不要说明你是被选中的。"
         "如果任务缺少必要信息，明确说明缺什么，不要猜。\n"
         "回复要短：能一两句说清就不要展开成三段。"
-        "文件已经收到时不要再说「我已收到文件」，直接给结果。"
+        "文件已经收到时不要再说「我已收到文件」，直接给结果。\n\n"
+        "【转交协议｜必须遵守】\n"
+        "如果这个任务超出你的职责，光说「不在我职责范围内」是不够的——"
+        "那会让任务停在你这里，用户拿不到结果。\n"
+        "你必须做两件事：\n"
+        "1. 先说清你能确认的部分（没有就省略）\n"
+        "2. 在最后单独一行，严格按下面格式输出，不能改写、不能加引号：\n"
+        "[[HANDOFF: 成员名 | 一句话理由]]\n"
+        "例如：[[HANDOFF: 数据分析师 | 涉及表格计算与汇总，超出文案职责]]\n"
+        "系统识别到这一行才会真的把任务转给他，并带上你上面写的内容。\n"
+        "只在确实做不了时使用；能做就自己做，不要为了省事而转交。"
+    )
+
+
+#: 转交协议：``[[HANDOFF: 成员名 | 理由]]``
+#: 用双中括号包住，正常回复里几乎不会出现；冒号中英文都接受，
+#: 因为模型偶尔会输出全角冒号。
+_HANDOFF_RE = re.compile(
+    r"\[\[\s*HANDOFF\s*[:：]\s*([^|\]|]+?)\s*\|\s*([^\]|]*?)\s*\]\]",
+    re.IGNORECASE,
+)
+
+
+def parse_handoff(text: str) -> Tuple[Optional[str], str]:
+    """从回复里取出转交目标与理由。没有标记时返回 (None, "")。"""
+    if not text:
+        return None, ""
+    m = _HANDOFF_RE.search(text)
+    if not m:
+        return None, ""
+    return m.group(1).strip(), m.group(2).strip()
+
+
+def strip_handoff(text: str) -> str:
+    """去掉协议标记，留下真正要给用户看的内容。
+
+    模型常把「我先说明 A，再转交 B」写在同一条里，
+    前半段是有价值的信息，要保留下来传给下一位。
+    """
+    if not text:
+        return ""
+    return _HANDOFF_RE.sub("", text).strip()
+
+
+#: 模型经常「说了不归我管」但忘了输出协议标记，任务就卡在它这里。
+#: 用这组词做兜底识别；只在回复很短时才认定为推辞——长回复通常已经
+#: 给了实质内容，不该被误判成拒绝。
+_REFUSAL_RE = re.compile(
+    r"(不在我(的)?职责|不属于我(的)?(职责|范围)|超出我(的)?(职责|能力)"
+    r"|请转给|建议(由|转给)|需要转交给|无法处理这类)"
+)
+
+
+def looks_like_refusal(text: str) -> bool:
+    body = (text or "").strip()
+    if not body or len(body) > 260:
+        return False
+    return bool(_REFUSAL_RE.search(body))
+
+
+def find_agent_by_name(agents: List[Agent], name: str) -> Optional[Agent]:
+    """按名字找成员。模型可能带 @ 或多余空格，做一次宽松匹配。"""
+    target = (name or "").lstrip("@").strip()
+    if not target:
+        return None
+    for a in agents:
+        if a.name.strip() == target:
+            return a
+    # 退一步：允许「数据分析同事」这种近似称呼命中「数据分析师」
+    for a in agents:
+        if target in a.name or a.name in target:
+            return a
+    return None
+
+
+def build_handoff_prompt(
+    next_agent: Agent,
+    original_task: str,
+    from_agent: Agent,
+    carried: str,
+    asked_by: str,
+) -> str:
+    """转交后的任务描述。
+
+    必须带上前一位已经确认的内容，否则接手的人会把同样的活重做一遍，
+    用户看到的就是「换个人重来」而不是「接力」。
+    """
+    return (
+        f"原始任务（{asked_by} 提出）：\n{original_task}\n\n"
+        f"前一位同事「{from_agent.name}」已经处理过一轮，他确认的内容如下：\n"
+        f"{carried or '（没有留下可用信息）'}\n\n"
+        "请接力完成。不要重复他做过的事，"
+        "也不要再问他已经确认过的信息；只处理他留给你的部分。\n"
+        "如果任务确实还缺关键信息，直接说明缺什么。"
     )
 
 

@@ -31,13 +31,18 @@ from ..services.entitlement import Resource
 from ..services.entitlement import check as check_quota
 from ..services.entitlement import consume as consume_quota
 from ..services.group_chat import (
+    build_handoff_prompt,
     build_reply_message,
     display_name_of_user,
+    find_agent_by_name,
     format_reply_content,
     load_agents,
+    looks_like_refusal,
+    parse_handoff,
     resolve_user,
     route_task,
     save_message,
+    strip_handoff,
 )
 from ..services.integrated_runtime import IntegratedAgentRuntime
 from ..services.llm import humanize_llm_error
@@ -463,74 +468,164 @@ async def send_message(
 
             # 群目录不在 PiAgent 的工作区里，执行前必须搬一份过去，
             # 否则模型看不到用户上传的文件，只会反问「请提供文件」。
-            if attachments and effective_mode == "pi":
-                try:
-                    from app.services.pi_agent import pi_agent_workspace
+            # 转交循环：agent 判断「这活不该我干」时，真的换人接着做。
+            # 上限 2 跳，防止两个成员互相踢皮球。
+            MAX_HANDOFF = 2
+            hop = 0
+            current_agent = agent
+            task_text = effective_content
+            artifacts: list[dict[str, Any]] = []
 
-                    copied = group_files.copy_to_workspace(
-                        group.id,
-                        [a["stored_name"] for a in attachments],
-                        pi_agent_workspace(agent.id),
-                    )
-                    if copied:
-                        effective_content += (
-                            "\n\n文件已放入你的工作目录，可直接读取："
-                            + "、".join(copied)
+            while True:
+                # 群目录不在 PiAgent 工作区里，每轮都要给当前 agent 搬一份
+                file_hint = ""
+                if attachments and effective_mode == "pi":
+                    try:
+                        from app.services.pi_agent import pi_agent_workspace
+
+                        copied = group_files.copy_to_workspace(
+                            group.id,
+                            [a["stored_name"] for a in attachments],
+                            pi_agent_workspace(current_agent.id),
                         )
-                except Exception as exc:  # noqa: BLE001 - 复制失败不该让整轮对话崩掉
-                    logger.warning("copy group files to workspace failed: %s", exc)
+                        if copied:
+                            file_hint = (
+                                "\n\n文件已放入你的工作目录，可直接读取："
+                                + "、".join(copied)
+                            )
+                    except Exception as exc:  # noqa: BLE001 - 复制失败不该中断对话
+                        logger.warning("copy group files to workspace failed: %s", exc)
 
-            try:
-                if effective_mode == "pi":
-                    # PiAgent：独立工作区、可读写文件、多轮工具循环，
-                    # 事件逐条转发给前端（thinking / tool_call / text / done）
-                    from app.services.pi_agent import pi_agent_runner
+                try:
+                    if effective_mode == "pi":
+                        # PiAgent：独立工作区、可读写文件、多轮工具循环，
+                        # 事件逐条转发给前端（thinking / tool_call / text / done）
+                        from app.services.pi_agent import pi_agent_runner
 
-                    async for ev in pi_agent_runner.stream(
-                        message=build_reply_message(agent, effective_content, asked_by),
-                        agent_id=agent.id,
-                        agent=agent,
-                        session_id=None,
-                    ):
-                        etype = ev.get("type")
-                        if etype == "done":
-                            raw = ev.get("content") or ""
-                            artifacts = ev.get("files") or []
-                            continue
-                        # 群聊事件带上 agent 标识，前端才知道是谁在动
-                        yield f"data: {json.dumps({**ev, 'agent_id': agent.id, 'agent': agent.name}, ensure_ascii=False, default=str)}\n\n"
-                else:
-                    runtime = IntegratedAgentRuntime(agent.id, db, user_id)
-                    await runtime.initialize()
-                    raw = await runtime.chat(build_reply_message(agent, effective_content, asked_by))
-            except Exception as exc:  # noqa: BLE001 - 单个 agent 失败不该中断整个群聊
-                err = humanize_llm_error(exc) or str(exc)
-                fail_text = f"{agent.name} 执行失败：{err}"
-                await save_message(
-                    db, group.id, "system", fail_text,
-                    meta={"reply_to": user_msg.id, "error": True},
+                        async for ev in pi_agent_runner.stream(
+                            message=build_reply_message(
+                                current_agent, task_text + file_hint, asked_by
+                            ),
+                            agent_id=current_agent.id,
+                            agent=current_agent,
+                            session_id=None,
+                        ):
+                            etype = ev.get("type")
+                            if etype == "done":
+                                raw = ev.get("content") or ""
+                                artifacts = ev.get("files") or []
+                                continue
+                            # 群聊事件带上 agent 标识，前端才知道是谁在动
+                            yield f"data: {json.dumps({**ev, 'agent_id': current_agent.id, 'agent': current_agent.name}, ensure_ascii=False, default=str)}\n\n"
+                    else:
+                        runtime = IntegratedAgentRuntime(current_agent.id, db, user_id)
+                        await runtime.initialize()
+                        raw = await runtime.chat(
+                            build_reply_message(
+                                current_agent, task_text + file_hint, asked_by
+                            )
+                        )
+                except Exception as exc:  # noqa: BLE001 - 单个 agent 失败不该中断群聊
+                    err = humanize_llm_error(exc) or str(exc)
+                    fail_text = f"{current_agent.name} 执行失败：{err}"
+                    await save_message(
+                        db, group.id, "system", fail_text,
+                        meta={"reply_to": user_msg.id, "error": True},
+                    )
+                    await db.commit()
+                    yield f"data: {json.dumps({'type': 'error', 'agent': current_agent.name, 'content': fail_text}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                    return
+
+                # 检查是否要求转交
+                target_name, why = parse_handoff(raw)
+
+                # 兜底：模型说了「不归我管」却没输出协议标记。
+                # 这种情况任务会卡在它这里，用路由再判一次该谁接。
+                if not target_name and hop < MAX_HANDOFF and looks_like_refusal(raw):
+                    alt, alt_reason, _ = await route_task(
+                        db, group, agents, effective_content
+                    )
+                    if alt is not None and alt.id != current_agent.id:
+                        logger.info(
+                            "handoff fallback: %s -> %s (%s)",
+                            current_agent.name, alt.name, alt_reason,
+                        )
+                        target_name, why = alt.name, alt_reason
+
+                if not target_name or hop >= MAX_HANDOFF:
+                    break
+
+                next_agent = find_agent_by_name(agents, target_name)
+                if next_agent is None or next_agent.id == current_agent.id:
+                    # 找不到人，或要转回自己：保留原回复，不制造假转交
+                    break
+
+                hop += 1
+                carried = strip_handoff(raw)
+
+                # 把这一棒的发言落库：他说的「我确认了什么 / 为什么做不了」
+                # 对用户是有用的信息，只在内存里传给下一位、界面上不落盘，
+                # 刷新后就丢了，对话看起来就断片。
+                interim_id = None
+                if carried:
+                    interim_msg = await save_message(
+                        db, group.id, "agent", carried,
+                        sender_id=current_agent.id,
+                        sender_name=current_agent.name,
+                        meta={
+                            "reply_to": user_msg.id,
+                            "interim": True,
+                            "execution_mode": effective_mode,
+                        },
+                    )
+                    interim_id = interim_msg.id
+                    await db.commit()
+
+                handoff_text = (
+                    f"{current_agent.name} 把任务转交给 {next_agent.name}"
+                    + (f"：{why}" if why else "")
+                )
+                handoff_msg = await save_message(
+                    db, group.id, "system", handoff_text,
+                    meta={
+                        "reply_to": user_msg.id,
+                        "handoff_from": current_agent.id,
+                        "handoff_to": next_agent.id,
+                        "handoff_reason": why,
+                    },
                 )
                 await db.commit()
-                yield f"data: {json.dumps({'type': 'error', 'agent': agent.name, 'content': fail_text}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                return
+                # carried 是这一棒已经确认的内容：前端据此把它的发言留在时间线上，
+                # 否则用户只看到「转交给谁」，看不到「转交前干了什么」。
+                yield f"data: {json.dumps({'type': 'handoff', 'id': handoff_msg.id, 'interim_id': interim_id, 'from': current_agent.name, 'from_agent_id': current_agent.id, 'to': next_agent.name, 'to_agent_id': next_agent.id, 'reason': why, 'content': handoff_text, 'carried': carried, 'reply_to': user_msg.id}, ensure_ascii=False)}\n\n"
 
-            # 5. @ 回发起人
-            content = format_reply_content(agent, raw, asked_by)
+                # 换人，并把前一位确认的内容带过去
+                task_text = build_handoff_prompt(
+                    next_agent, effective_content, current_agent, carried, asked_by
+                )
+                current_agent = next_agent
+                raw = ""
+                artifacts = []
+
+                yield f"data: {json.dumps({'type': 'agent_start', 'agent_id': current_agent.id, 'agent': current_agent.name, 'handoff': True}, ensure_ascii=False)}\n\n"
+
+            # 5. @ 回发起人（用最后一棒 agent 的身份）
+            content = format_reply_content(current_agent, strip_handoff(raw), asked_by)
 
             # 纯大模型模式分块推送做打字机效果；
             # PiAgent 已经逐事件推过文字了，这里只补最终完整内容给前端替换。
             if effective_mode != "pi":
                 step = 12
                 for i in range(0, len(content), step):
-                    yield f"data: {json.dumps({'type': 'agent_chunk', 'agent_id': agent.id, 'text': content[i:i + step]}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'agent_chunk', 'agent_id': current_agent.id, 'text': content[i:i + step]}, ensure_ascii=False)}\n\n"
                     await asyncio.sleep(0.012)
 
-            # 6. 落库
+            # 6. 落库（sender 用最后一棒，可能是转交后的接手人）
             reply_msg = await save_message(
                 db, group.id, "agent", content,
-                sender_id=agent.id,
-                sender_name=agent.name,
+                sender_id=current_agent.id,
+                sender_name=current_agent.name,
                 meta={
                     "reply_to": user_msg.id,
                     "mentions": [asked_by],
@@ -538,12 +633,13 @@ async def send_message(
                     "confidence": round(confidence, 2),
                     "execution_mode": effective_mode,
                     "files": artifacts,
+                    **({"handoff_hops": hop} if hop else {}),
                 },
             )
             await consume_quota(db, sub, Resource.MESSAGES)
             await db.commit()
 
-            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': agent.id, 'reply_to': user_msg.id, 'content': content, 'execution_mode': effective_mode, 'files': artifacts}, ensure_ascii=False, default=str)}\n\n"
+            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': current_agent.id, 'agent': current_agent.name, 'reply_to': user_msg.id, 'content': content, 'execution_mode': effective_mode, 'files': artifacts, 'handoff_hops': hop}, ensure_ascii=False, default=str)}\n\n"
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
         except Exception as exc:  # noqa: BLE001 - 流式响应里只能以事件形式报错

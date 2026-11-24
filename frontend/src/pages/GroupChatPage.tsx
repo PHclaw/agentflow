@@ -640,6 +640,45 @@ export default function GroupChatPage() {
         executionMode,
         readyFiles.map((f) => f.stored_name)
       )) {
+        // 转交：把这一棒已确认的内容留在时间线，再显示「转给谁」
+        if (evt.type === 'handoff') {
+          const carriedText = evt.carried || ''
+          const fromName = evt.from || pendingAgent?.name || '智能体'
+          setBubbles((prev) => {
+            const next = prev.filter((b) => b.kind !== 'pending')
+            if (carriedText) {
+              next.push({
+                kind: 'message',
+                data: {
+                  // 用后端落库的正式 id，刷新前后能对上
+                  id: evt.interim_id || -Date.now() - Math.floor(Math.random() * 1000),
+                  sender_type: 'agent',
+                  sender_id: evt.from_agent_id,
+                  sender_name: fromName,
+                  content: carriedText,
+                  meta: { interim: true },
+                  created_at: new Date().toISOString(),
+                },
+              })
+            }
+            // 转交说明本身落过库，这里用正式 id，刷新后能对上
+            next.push({
+              kind: 'message',
+              data: {
+                id: evt.id || -Date.now(),
+                sender_type: 'system',
+                content: evt.content || `${fromName} 转交给 ${evt.to || '同事'}`,
+                meta: { handoff: true, reply_to: evt.reply_to },
+                created_at: new Date().toISOString(),
+              },
+            })
+            return next
+          })
+          pendingAgent = null
+          scrollToBottom()
+          continue
+        }
+
         // 带附件时后端会自动升级到工作模式（只有它能真正读文件）
         if (evt.type === 'mode_switch') {
           if (evt.execution_mode === 'pi' || evt.execution_mode === 'llm') {
