@@ -549,9 +549,12 @@ export type GroupMessageItem = {
 export type GroupStreamEvent = {
   type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
   | 'agent_chunk' | 'agent_done' | 'error' | 'done'
+  | 'thinking' | 'tool_call' | 'log'
   agent?: string | null
   agent_id?: string
   user_message_id?: number
+  execution_mode?: string
+  files?: Array<{ name?: string; path?: string; url?: string }>
   text?: string
   content?: string
   reason?: string
@@ -586,11 +589,12 @@ export const groups = {
     content: string,
     agentId?: string,
     signal?: AbortSignal,
-    replyTo?: number
+    replyTo?: number,
+    executionMode: 'llm' | 'pi' = 'llm'
   ) =>
     streamSse<GroupStreamEvent>(
       `${API_BASE}/groups/${groupId}/messages`,
-      { content, agent_id: agentId, reply_to: replyTo },
+      { content, agent_id: agentId, reply_to: replyTo, execution_mode: executionMode },
       signal
     ),
 }

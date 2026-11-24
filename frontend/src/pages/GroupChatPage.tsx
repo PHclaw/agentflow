@@ -70,6 +70,8 @@ export default function GroupChatPage() {
   const [replyTo, setReplyTo] = useState<GroupMessageItem | null>(null)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [mentionIndex, setMentionIndex] = useState(0)
+  const [explicitAgentId, setExplicitAgentId] = useState<string | null>(null)
+  const [executionMode, setExecutionMode] = useState<'llm' | 'pi'>('llm')
   const [highlightId, setHighlightId] = useState<number | null>(null)
   const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
@@ -189,12 +191,15 @@ export default function GroupChatPage() {
   }, [])
 
   const pickMention = useCallback(
-    (name: string) => {
+    (m: Member) => {
       const at = input.lastIndexOf('@')
       if (at < 0 || mentionQuery === null) return
       const head = input.slice(0, at)
       const tail = input.slice(at + mentionQuery.length + 1)
-      setInput(`${head}@${name} ${tail}`)
+      setInput(`${head}@${m.name} ${tail}`)
+      // 记下显式选中的人：正文里可能还有其他 @（引用/提到），
+      // 不能靠后端从全文猜，否则会派错人。
+      setExplicitAgentId(m.id)
       setMentionQuery(null)
       setMentionIndex(0)
     },
@@ -227,6 +232,7 @@ export default function GroupChatPage() {
     setInput('')
     setMentionQuery(null)
     setMentionIndex(0)
+    setExplicitAgentId(null)
     setSending(true)
     setRoutingHint(null)
 
@@ -258,9 +264,10 @@ export default function GroupChatPage() {
       for await (const evt of groupsApi.stream(
         activeId,
         text,
-        undefined,
+        explicitAgentId || undefined,
         ctrl.signal,
-        quoted?.id && quoted.id > 0 ? quoted.id : undefined
+        quoted?.id && quoted.id > 0 ? quoted.id : undefined,
+        executionMode
       )) {
         if (evt.type === 'routing') {
           // 把临时负数 id 换成数据库正式 id，否则后续引用块找不到这条消息
@@ -308,13 +315,23 @@ export default function GroupChatPage() {
           continue
         }
 
-        if (evt.type === 'agent_start') {
-          pendingAgent = { name: evt.agent || '智能体', text: '' }
+        if (evt.type === 'agent_start' || (executionMode === 'pi' && !pendingAgent)) {
+          pendingAgent = { name: (evt as any).agent || '智能体', text: '' }
           setBubbles((prev) => [
             ...prev,
             { kind: 'pending', agentName: pendingAgent!.name, text: '', replyToName: '你' },
           ])
           scrollToBottom()
+          if (evt.type === 'agent_start') continue
+        }
+
+        // PiAgent 事件：显示执行过程，不打断正文流
+        if (evt.type === 'thinking' || evt.type === 'tool_call' || evt.type === 'log') {
+          const label = evt.type === 'thinking' ? '思考中' : evt.type === 'tool_call' ? '调用工具' : '执行'
+          const detail = (evt as any).content || (evt as any).text || ''
+          setRoutingHint(
+            `${(evt as any).agent || '智能体'} ${label}${detail ? '：' + String(detail).slice(0, 40) : '…'}`
+          )
           continue
         }
 
@@ -348,8 +365,8 @@ export default function GroupChatPage() {
           // 必须先把文本抓到局部变量：setBubbles 的 updater 是延后执行的，
           // 而下面马上会把 pendingAgent 置空，直接闭包引用会拿到 null，
           // 表现为「智能体气泡是空的」（内容其实已经正常落库）。
-          const finalText = pendingAgent?.text || ''
-          const finalName = pendingAgent?.name || '智能体'
+          const finalText = (evt as any).content || pendingAgent?.text || ''
+          const finalName = (evt as any).agent || pendingAgent?.name || '智能体'
           setBubbles((prev) => {
             const next = prev.filter((b) => b.kind !== 'pending')
             return [
@@ -708,6 +725,36 @@ export default function GroupChatPage() {
                 <p className="text-[11px] text-amber-600 mb-2">{routingHint}</p>
               )}
 
+              {/* 执行模式：纯大模型 vs PiAgent */}
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[10.5px] text-gray-400">执行方式</span>
+                <button
+                  onClick={() => setExecutionMode('llm')}
+                  className={`text-[10.5px] px-2 py-0.5 rounded-full border transition ${
+                    executionMode === 'llm'
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                  title="一次模型调用，快，适合问答与文案"
+                >
+                  纯大模型
+                </button>
+                <button
+                  onClick={() => setExecutionMode('pi')}
+                  className={`text-[10.5px] px-2 py-0.5 rounded-full border transition ${
+                    executionMode === 'pi'
+                      ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                  title="PiAgent 引擎：可读写工作区、调用工具、生成真实文件，较慢"
+                >
+                  PiAgent
+                </button>
+                <span className="text-[10px] text-gray-400">
+                  {executionMode === 'pi' ? '可生成文件，较慢' : '纯对话，快'}
+                </span>
+              </div>
+
               {/* 引用头：发消息前能取消 */}
               {replyTo && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border-l-2 border-brand-400 bg-brand-50/60 px-2.5 py-1.5 text-[11px] text-gray-600">
@@ -736,7 +783,7 @@ export default function GroupChatPage() {
                   {mentionOptions.map((m, i) => (
                     <button
                       key={m.id}
-                      onClick={() => pickMention(m.name)}
+                      onClick={() => pickMention(m)}
                       onMouseEnter={() => setMentionIndex(i)}
                       className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition ${
                         i === mentionIndex ? 'bg-brand-50' : 'hover:bg-gray-50'
@@ -777,7 +824,7 @@ export default function GroupChatPage() {
                       }
                       if (e.key === 'Enter' || e.key === 'Tab') {
                         e.preventDefault()
-                        pickMention(mentionOptions[mentionIndex]?.name || mentionOptions[0].name)
+                        pickMention(mentionOptions[mentionIndex] || mentionOptions[0])
                         return
                       }
                       if (e.key === 'Escape') {

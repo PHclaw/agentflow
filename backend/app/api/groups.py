@@ -13,7 +13,7 @@
 """
 import asyncio
 import json
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -31,7 +31,6 @@ from ..services.entitlement import consume as consume_quota
 from ..services.group_chat import (
     build_reply_message,
     display_name_of_user,
-    find_mentioned_agent,
     format_reply_content,
     load_agents,
     resolve_user,
@@ -67,6 +66,8 @@ class SendMessage(BaseModel):
     agent_id: Optional[str] = None
     # 引用哪条消息（飞书式引用回复），仅允许引用本群内的消息
     reply_to: Optional[int] = None
+    # llm = 纯大模型（快） / pi = PiAgent（可读写工作区、生成真实文件）
+    execution_mode: str = Field(default="llm", pattern="^(llm|pi)$")
 
 
 # ---------------------------------------------------------------- helpers
@@ -294,8 +295,10 @@ async def send_message(
     mentioned = None
     if data.agent_id:
         mentioned = next((a for a in agents if a.id == data.agent_id), None)
-    if mentioned is None:
-        mentioned = find_mentioned_agent(agents, data.content)
+
+    # 不再从正文扫 @：用户可能在引用块里转述「发给 @AI2 可以吗」，
+    # 那是在问当前这个 agent，不是在指定 AI2 接活。
+    # 显式指定只认前端 @ 选择器传来的 agent_id。
 
     async def event_stream():
         try:
@@ -355,10 +358,32 @@ async def send_message(
             # 4. 让被选中的 agent 干活
             yield f"data: {json.dumps({'type': 'agent_start', 'agent_id': agent.id, 'agent': agent.name}, ensure_ascii=False)}\n\n"
 
+            raw = ""
+            artifacts: list[dict[str, Any]] = []
+
             try:
-                runtime = IntegratedAgentRuntime(agent.id, db, user_id)
-                await runtime.initialize()
-                raw = await runtime.chat(build_reply_message(agent, effective_content, asked_by))
+                if data.execution_mode == "pi":
+                    # PiAgent：独立工作区、可读写文件、多轮工具循环，
+                    # 事件逐条转发给前端（thinking / tool_call / text / done）
+                    from app.services.pi_agent import pi_agent_runner
+
+                    async for ev in pi_agent_runner.stream(
+                        message=build_reply_message(agent, effective_content, asked_by),
+                        agent_id=agent.id,
+                        agent=agent,
+                        session_id=None,
+                    ):
+                        etype = ev.get("type")
+                        if etype == "done":
+                            raw = ev.get("content") or ""
+                            artifacts = ev.get("files") or []
+                            continue
+                        # 群聊事件带上 agent 标识，前端才知道是谁在动
+                        yield f"data: {json.dumps({**ev, 'agent_id': agent.id, 'agent': agent.name}, ensure_ascii=False, default=str)}\n\n"
+                else:
+                    runtime = IntegratedAgentRuntime(agent.id, db, user_id)
+                    await runtime.initialize()
+                    raw = await runtime.chat(build_reply_message(agent, effective_content, asked_by))
             except Exception as exc:  # noqa: BLE001 - 单个 agent 失败不该中断整个群聊
                 err = humanize_llm_error(exc) or str(exc)
                 fail_text = f"{agent.name} 执行失败：{err}"
@@ -374,11 +399,13 @@ async def send_message(
             # 5. @ 回发起人
             content = format_reply_content(agent, raw, asked_by)
 
-            # 分块推送，前端有打字机效果（底层是一次性返回，这里只做展示分块）
-            step = 12
-            for i in range(0, len(content), step):
-                yield f"data: {json.dumps({'type': 'agent_chunk', 'agent_id': agent.id, 'text': content[i:i + step]}, ensure_ascii=False)}\n\n"
-                await asyncio.sleep(0.012)
+            # 纯大模型模式分块推送做打字机效果；
+            # PiAgent 已经逐事件推过文字了，这里只补最终完整内容给前端替换。
+            if data.execution_mode != "pi":
+                step = 12
+                for i in range(0, len(content), step):
+                    yield f"data: {json.dumps({'type': 'agent_chunk', 'agent_id': agent.id, 'text': content[i:i + step]}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.012)
 
             # 6. 落库
             reply_msg = await save_message(
@@ -390,12 +417,14 @@ async def send_message(
                     "mentions": [asked_by],
                     "route_reason": reason,
                     "confidence": round(confidence, 2),
+                    "execution_mode": data.execution_mode,
+                    "files": artifacts,
                 },
             )
             await consume_quota(db, sub, Resource.MESSAGES)
             await db.commit()
 
-            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': agent.id, 'reply_to': user_msg.id}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'agent_done', 'id': reply_msg.id, 'agent_id': agent.id, 'reply_to': user_msg.id, 'content': content, 'execution_mode': data.execution_mode, 'files': artifacts}, ensure_ascii=False, default=str)}\n\n"
             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
 
         except Exception as exc:  # noqa: BLE001 - 流式响应里只能以事件形式报错
