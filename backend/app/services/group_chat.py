@@ -89,6 +89,7 @@ async def route_task(
     agents: List[Agent],
     message: str,
     mentioned_agent: Optional[Agent] = None,
+    mention_reason: str = "由你直接指定",
 ) -> Tuple[Optional[Agent], str, float]:
     """决定谁接这个任务。
 
@@ -98,9 +99,9 @@ async def route_task(
     if not agents:
         return None, "这个群还没有成员，先添加智能体", 0.0
 
-    # 用户已 @ 指定 → 跳过路由
+    # 已确定接单人（@ 指定 或 引用回复推断）→ 跳过路由
     if mentioned_agent is not None:
-        return mentioned_agent, "由你直接指定", 1.0
+        return mentioned_agent, mention_reason, 1.0
 
     # manual 模式：不做自动派发
     if (group.route_mode or "auto") == "manual":
@@ -187,19 +188,41 @@ async def route_task(
     ), confidence
 
 
-def build_reply_message(agent: Agent, question: str, asked_by: str) -> str:
+def build_reply_message(
+    agent: Agent,
+    question: str,
+    asked_by: str,
+    peers: Optional[List[Agent]] = None,
+) -> str:
     """构造发给 agent 的输入。
 
-    三件事要说清楚：
+    四件事要说清楚：
     1. 它是谁（角色与能力边界）—— 群里只说「请回答」会让它越界答别人的活
-    2. 这是群聊、什么任务、谁派的
-    3. 输出要求：直接给结论，不要复述，缺信息就问
+    2. 群里还有谁（否则它想转交却不知道该转给谁，只能编一个名字）
+    3. 这是群聊、什么任务、谁派的
+    4. 输出要求：直接给结论，不要复述，缺信息就问
     """
     role = (agent.description or "").strip()
     role_line = f"你的角色：{agent.name}。{role}\n" if role else f"你的角色：{agent.name}。\n"
 
+    # 列出其他成员：转交协议要能落地，前提是它知道可选的人有哪些。
+    # 不列的话模型会写出「已转给数据分析同事」这种群里并不存在的人。
+    roster = ""
+    others = [p for p in (peers or []) if p.id != agent.id]
+    if others:
+        lines = [
+            f"- {p.name}：{(p.description or '（未填写能力描述）').strip() or '（未填写能力描述）'}"
+            for p in others
+        ]
+        roster = (
+            "\n群里的其他成员（只能转给他们，不能编造别的名字）：\n"
+            + "\n".join(lines)
+            + "\n"
+        )
+
     return (
         role_line
+        + roster
         + f"\n你在一个多智能体工作群里。{asked_by} 发了一条任务，由你负责处理。\n"
         f"群里还有其他成员负责别的方向，只回答你职责范围内能确定的部分。\n\n"
         f"任务内容：\n{question}\n\n"
@@ -216,7 +239,10 @@ def build_reply_message(agent: Agent, question: str, asked_by: str) -> str:
         "[[HANDOFF: 成员名 | 一句话理由]]\n"
         "例如：[[HANDOFF: 数据分析师 | 涉及表格计算与汇总，超出文案职责]]\n"
         "系统识别到这一行才会真的把任务转给他，并带上你上面写的内容。\n"
-        "只在确实做不了时使用；能做就自己做，不要为了省事而转交。"
+        "只在确实做不了时使用；能做就自己做，不要为了省事而转交。\n\n"
+        "【重要】如果群里的其他成员也都不适合（比如没有做数据的人），"
+        "不要硬答，也不要假装转交，直接说清楚：「群里没有擅长 X 的成员」，"
+        "并建议用户补充成员或自己确认。硬答会给出不可靠的结论，比不答更糟。"
     )
 
 

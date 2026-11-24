@@ -369,12 +369,36 @@ async def send_message(
 
     # 2. 决定谁接
     mentioned = None
+    mention_reason = "由你直接指定"
     if data.agent_id:
         mentioned = next((a for a in agents if a.id == data.agent_id), None)
 
     # 不再从正文扫 @：用户可能在引用块里转述「发给 @AI2 可以吗」，
     # 那是在问当前这个 agent，不是在指定 AI2 接活。
     # 显式指定只认前端 @ 选择器传来的 agent_id。
+
+    # 引用某条消息继续追问时，默认由被引用的那位回应。
+    # 「可以叫会数据分析的同事进行」是接着他上一句说的，
+    # 换个人来接等于让对话断线——用户会觉得「我问的是你，怎么换了个人」。
+    # 想改派就用 @ 选择器，它的优先级更高。
+    if mentioned is None and data.reply_to:
+        qrow = await db.execute(
+            select(GroupMessage).where(
+                GroupMessage.id == data.reply_to,
+                GroupMessage.group_id == group.id,
+            )
+        )
+        quoted_for_route = qrow.scalars().first()
+        if (
+            quoted_for_route is not None
+            and quoted_for_route.sender_type == "agent"
+            and quoted_for_route.sender_id
+        ):
+            mentioned = next(
+                (a for a in agents if a.id == quoted_for_route.sender_id), None
+            )
+            if mentioned is not None:
+                mention_reason = f"接着 {mentioned.name} 上一条回复继续"
 
     async def event_stream():
         try:
@@ -430,7 +454,9 @@ async def send_message(
                 yield f"data: {json.dumps({'type': 'mode_switch', 'execution_mode': effective_mode, 'content': mode_note}, ensure_ascii=False)}\n\n"
 
             agent, reason, confidence = await route_task(
-                db, group, agents, effective_content, mentioned_agent=mentioned
+                db, group, agents, effective_content,
+                mentioned_agent=mentioned,
+                mention_reason=mention_reason,
             )
 
             yield f"data: {json.dumps({'type': 'route_decision', 'agent': agent.name if agent else None, 'reason': reason, 'confidence': round(confidence, 2)}, ensure_ascii=False)}\n\n"
@@ -504,7 +530,8 @@ async def send_message(
 
                         async for ev in pi_agent_runner.stream(
                             message=build_reply_message(
-                                current_agent, task_text + file_hint, asked_by
+                                current_agent, task_text + file_hint, asked_by,
+                                peers=agents,
                             ),
                             agent_id=current_agent.id,
                             agent=current_agent,
@@ -522,7 +549,8 @@ async def send_message(
                         await runtime.initialize()
                         raw = await runtime.chat(
                             build_reply_message(
-                                current_agent, task_text + file_hint, asked_by
+                                current_agent, task_text + file_hint, asked_by,
+                                peers=agents,
                             )
                         )
                 except Exception as exc:  # noqa: BLE001 - 单个 agent 失败不该中断群聊
