@@ -15,16 +15,18 @@ import asyncio
 import json
 from typing import Any, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.database import get_db
+from ..core.logging import logger
 from ..models.agent import Agent
 from ..models.group import AgentGroup, GroupMessage
 from ..models.subscription import Subscription
+from ..services import group_files
 from ..services.entitlement import Resource
 from ..services.entitlement import check as check_quota
 from ..services.entitlement import consume as consume_quota
@@ -68,6 +70,8 @@ class SendMessage(BaseModel):
     reply_to: Optional[int] = None
     # llm = 纯大模型（快） / pi = PiAgent（可读写工作区、生成真实文件）
     execution_mode: str = Field(default="llm", pattern="^(llm|pi)$")
+    # 已上传到本群的文件（stored_name 列表），随消息一起交付给接手的成员
+    file_names: List[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------- helpers
@@ -264,6 +268,53 @@ async def list_messages(
     return {"messages": [_message_payload(m) for m in msgs]}
 
 
+# ---------------------------------------------------------------- 文件
+@router.post("/{group_id}/files")
+async def upload_group_file(
+    group_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """上传文件到群聊。
+
+    上传时还不知道会由哪个成员接手，所以先落在群目录；
+    发送消息时再校验归属、复制进被选中成员的工作区。
+    """
+    await _get_group_or_404(db, group_id, user_id)
+
+    content = await file.read()
+    try:
+        # 大小、扩展名白名单、群容量都在这一层统一校验
+        info = group_files.save_bytes(group_id, file.filename or "upload.bin", content)
+    except group_files.GroupFileError as exc:
+        # 413 专指体积问题，前端据此提示「换个文件」而不是「重试」
+        status = 413 if "上限" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc))
+
+    return info
+
+
+@router.get("/{group_id}/files/{stored_name}")
+async def download_group_file(
+    group_id: str,
+    stored_name: str,
+    db: AsyncSession = Depends(get_db),
+    user_id: str = Depends(get_current_user_id),
+):
+    """下载群文件。
+
+    必须带 Bearer 头：文件走这个接口而不是静态目录，
+    否则知道文件名的人都能读，等于绕过了群归属校验。
+    """
+    await _get_group_or_404(db, group_id, user_id)
+    try:
+        path = group_files.resolve_file(group_id, stored_name)
+    except group_files.GroupFileError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return FileResponse(path, filename=path.name)
+
+
 # ---------------------------------------------------------------- 发送消息（SSE）
 @router.post("/{group_id}/messages")
 async def send_message(
@@ -284,11 +335,31 @@ async def send_message(
     user = await resolve_user(db, user_id)
     asked_by = display_name_of_user(user)
 
+    # 0. 文件校验：只接受真实存在于本群的文件，
+    #    防止构造一个别的群的 stored_name 塞进来做越权引用。
+    attachments: List[dict[str, Any]] = []
+    if data.file_names:
+        if len(data.file_names) > group_files.MAX_FILES_PER_MESSAGE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"一条消息最多 {group_files.MAX_FILES_PER_MESSAGE} 个文件",
+            )
+        for name in group_files.check_owned_by_group(group.id, data.file_names):
+            try:
+                attachments.append(group_files.describe(group.id, name))
+            except Exception:  # noqa: BLE001 - 单个文件异常不该挡住整条消息
+                continue
+
     # 1. 落用户消息
+    user_meta: dict[str, Any] = {}
+    if data.reply_to:
+        user_meta["reply_to"] = data.reply_to
+    if attachments:
+        user_meta["files"] = attachments
     user_msg = await save_message(
         db, group.id, "user", data.content,
         sender_name=asked_by,
-        meta={"reply_to": data.reply_to} if data.reply_to else None,
+        meta=user_meta or None,
     )
 
     # 2. 决定谁接
@@ -323,6 +394,15 @@ async def send_message(
                         f"用户引用了一条历史消息：\n{quoted.content}\n\n"
                         f"针对上面的消息，用户现在说：\n{data.content}"
                     )
+
+            # 附件清单要进路由输入：否则「帮我分析这个表」会被判成信息不足，
+            # 而实际上文件就在消息里。
+            if attachments:
+                effective_content = (
+                    effective_content
+                    + "\n\n"
+                    + group_files.summarize_for_prompt(attachments)
+                )
 
             agent, reason, confidence = await route_task(
                 db, group, agents, effective_content, mentioned_agent=mentioned
@@ -360,6 +440,25 @@ async def send_message(
 
             raw = ""
             artifacts: list[dict[str, Any]] = []
+
+            # 群目录不在 PiAgent 的工作区里，执行前必须搬一份过去，
+            # 否则模型看不到用户上传的文件，只会反问「请提供文件」。
+            if attachments and data.execution_mode == "pi":
+                try:
+                    from app.services.pi_agent import pi_agent_workspace
+
+                    copied = group_files.copy_to_workspace(
+                        group.id,
+                        [a["stored_name"] for a in attachments],
+                        pi_agent_workspace(agent.id),
+                    )
+                    if copied:
+                        effective_content += (
+                            "\n\n文件已放入你的工作目录，可直接读取："
+                            + "、".join(copied)
+                        )
+                except Exception as exc:  # noqa: BLE001 - 复制失败不该让整轮对话崩掉
+                    logger.warning("copy group files to workspace failed: %s", exc)
 
             try:
                 if data.execution_mode == "pi":

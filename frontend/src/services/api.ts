@@ -545,6 +545,27 @@ export type GroupMessageItem = {
   created_at?: string | null
 }
 
+/** 群聊文件。stored_name 是落盘名（下载用），name 是用户看到的原始名。 */
+export type GroupFileInfo = {
+  name: string
+  stored_name: string
+  size: number
+  ext: string
+  kind: 'image' | 'sheet' | 'slide' | 'pdf' | 'archive' | 'code' | 'doc'
+  mime: string
+  url: string
+}
+
+/** 前端本地的上传态：正在传 / 成功 / 失败，失败可重试 */
+export type PendingUpload = {
+  id: string
+  file: File
+  percent: number
+  status: 'uploading' | 'done' | 'error'
+  error?: string
+  result?: GroupFileInfo
+}
+
 /** 群聊流式事件 */
 export type GroupStreamEvent = {
   type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
@@ -568,6 +589,56 @@ export const groups = {
   list: () =>
     api.get('/groups') as Promise<{ groups: GroupSummary[] }>,
 
+  /** 上传文件到群。用 XHR 而不是 fetch：只有 XHR 能拿到上传进度。 */
+  uploadFile: (
+    groupId: string,
+    file: File,
+    onProgress?: (percent: number) => void,
+    signal?: AbortSignal
+  ) =>
+    new Promise<GroupFileInfo>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API_BASE}/groups/${groupId}/files`)
+      const token = localStorage.getItem('token')
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100))
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            resolve(JSON.parse(xhr.responseText))
+          } catch {
+            reject(new Error('上传响应无法解析'))
+          }
+          return
+        }
+        let msg = `上传失败 (${xhr.status})`
+        try {
+          const body = JSON.parse(xhr.responseText)
+          if (body?.detail) msg = String(body.detail)
+        } catch {
+          /* 非 JSON 响应，保留默认提示 */
+        }
+        if (xhr.status === 401) msg = '未登录或登录已过期，请重新登录'
+        reject(new Error(msg))
+      }
+      xhr.onerror = () => reject(new Error('网络中断，上传失败'))
+      xhr.onabort = () => reject(new Error('已取消上传'))
+      signal?.addEventListener('abort', () => xhr.abort())
+      xhr.send((() => {
+        const fd = new FormData()
+        fd.append('file', file)
+        return fd
+      })())
+    }),
+
+  downloadFile: (groupId: string, storedName: string) =>
+    api.getBlob(`/groups/${groupId}/files/${encodeURIComponent(storedName)}`),
+
   create: (data: { name: string; description?: string; agent_ids?: string[]; route_mode?: string }) =>
     api.post('/groups', data) as Promise<GroupDetail>,
 
@@ -590,11 +661,18 @@ export const groups = {
     agentId?: string,
     signal?: AbortSignal,
     replyTo?: number,
-    executionMode: 'llm' | 'pi' = 'llm'
+    executionMode: 'llm' | 'pi' = 'llm',
+    fileNames?: string[]
   ) =>
     streamSse<GroupStreamEvent>(
       `${API_BASE}/groups/${groupId}/messages`,
-      { content, agent_id: agentId, reply_to: replyTo, execution_mode: executionMode },
+      {
+        content,
+        agent_id: agentId,
+        reply_to: replyTo,
+        execution_mode: executionMode,
+        file_names: fileNames || [],
+      },
       signal
     ),
 }
