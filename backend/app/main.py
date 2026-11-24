@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import admin as admin_api
-from app.api import agents, auth, billing, chat, connectors, llm_configs, skills, templates, users
+from app.api import agents, auth, billing, chat, connectors, groups, llm_configs, skills, templates, users
 from app.api import pi_agent as pi_agent_api
 from app.api.agent_routes import router as agent_routes_router
 from app.api.knowledge import router as knowledge_api_router
@@ -159,6 +159,7 @@ app.include_router(agents.router, prefix="/api/v1/agents", tags=["Agent"])
 app.include_router(templates.router, prefix="/api/v1/templates", tags=["模板"])
 app.include_router(knowledge_api_router, tags=["知识库"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["对话"])
+app.include_router(groups.router, prefix="/api/v1/groups", tags=["多智能体群聊"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["支付"])
 app.include_router(workflow_router, prefix="/api/v1/workflow", tags=["工作流"])
 app.include_router(skills.router, prefix="/api/v1/skills", tags=["Skill 广场"])

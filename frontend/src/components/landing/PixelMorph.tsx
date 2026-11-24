@@ -287,7 +287,11 @@ export function PixelMorph({
 
     const paint = (localMs: number, fromIdx: number) => {
       const ctx = canvas.getContext('2d')
-      if (!ctx || nodes.length < 2) return
+      // 动画帧与 resize 重建可能交错：idx 按旧的 cycle 算出，
+      // 而 nodes 已被替换成更短的数组，取到的 from/to 会是 undefined。
+      const from = nodes[fromIdx]
+      const to = nodes[(fromIdx + 1) % nodes.length]
+      if (!ctx || !from || !to || nodes.length < 2) return
       const cssW = wrap.clientWidth
       const cssH = wrap.clientHeight
       ctx.clearRect(0, 0, cssW, cssH)
@@ -295,8 +299,6 @@ export function PixelMorph({
       // 第 0 层：底格
       if (backdrop) ctx.drawImage(backdrop, 0, 0, cssW, cssH)
 
-      const from = nodes[fromIdx]
-      const to = nodes[(fromIdx + 1) % nodes.length]
       const base = cell * 0.86
       /** 变形进度，停留期为负 */
       const morphT = localMs - HOLD_MS

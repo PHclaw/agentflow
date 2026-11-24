@@ -506,6 +506,95 @@ export const chat = {
     ),
 }
 
+/** 多智能体群聊 */
+export type GroupMember = {
+  id: string
+  name: string
+  description?: string | null
+  is_active?: boolean
+}
+
+export type GroupSummary = {
+  id: string
+  name: string
+  description?: string | null
+  member_count: number
+  route_mode: string
+  last_message?: string | null
+  last_active?: string | null
+}
+
+export type GroupDetail = {
+  id: string
+  name: string
+  description?: string | null
+  agent_ids: string[]
+  route_mode: string
+  settings: Record<string, any>
+  members: GroupMember[]
+  created_at?: string | null
+}
+
+export type GroupMessageItem = {
+  id: number
+  sender_type: 'user' | 'agent' | 'system'
+  sender_id?: string | null
+  sender_name?: string | null
+  content: string
+  meta: Record<string, any>
+  created_at?: string | null
+}
+
+/** 群聊流式事件 */
+export type GroupStreamEvent = {
+  type: 'routing' | 'route_decision' | 'system_message' | 'agent_start'
+  | 'agent_chunk' | 'agent_done' | 'error' | 'done'
+  agent?: string | null
+  agent_id?: string
+  user_message_id?: number
+  text?: string
+  content?: string
+  reason?: string
+  confidence?: number
+  id?: number
+  reply_to?: number
+  assignee?: string
+}
+
+export const groups = {
+  list: () =>
+    api.get('/groups') as Promise<{ groups: GroupSummary[] }>,
+
+  create: (data: { name: string; description?: string; agent_ids?: string[]; route_mode?: string }) =>
+    api.post('/groups', data) as Promise<GroupDetail>,
+
+  get: (groupId: string) =>
+    api.get(`/groups/${groupId}`) as Promise<GroupDetail>,
+
+  update: (groupId: string, data: { name?: string; description?: string; agent_ids?: string[]; route_mode?: string }) =>
+    api.patch(`/groups/${groupId}`, data) as Promise<GroupDetail>,
+
+  remove: (groupId: string) =>
+    api.delete(`/groups/${groupId}`),
+
+  messages: (groupId: string, limit = 100) =>
+    api.get(`/groups/${groupId}/messages?limit=${limit}`) as Promise<{ messages: GroupMessageItem[] }>,
+
+  /** 发消息（SSE：routing / route_decision / agent_chunk / done） */
+  stream: (
+    groupId: string,
+    content: string,
+    agentId?: string,
+    signal?: AbortSignal,
+    replyTo?: number
+  ) =>
+    streamSse<GroupStreamEvent>(
+      `${API_BASE}/groups/${groupId}/messages`,
+      { content, agent_id: agentId, reply_to: replyTo },
+      signal
+    ),
+}
+
 export const knowledge = {
   list: () => {
     return api.get('/knowledge')
