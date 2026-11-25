@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PixelToggle — 像素日夜开关</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: #f4f4f4;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .list {
+      width: min(720px, 100%);
+      display: grid;
+      gap: 20px;
+      justify-items: center;
+    }
+    .row {
+      width: 100%;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.06);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .row span { font-size: 14px; color: #333; align-self: flex-start; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>
