@@ -1,0 +1,25 @@
+{
+  "id": "internal-comms",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "企业内部沟通稿",
+  "description": "写公告、变更通知、季度总结、组织架构调整、事故复盘这类面向全员的书面对外材料。带结构模板 + 语气规范。",
+  "specialty": "企业沟通",
+  "routerBlurb": "面向员工而非客户的书面沟通。",
+  "tags": [
+    "企业",
+    "沟通",
+    "公告",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "内部通知",
+    "公告",
+    "全员信",
+    "复盘",
+    "memo",
+    "变更通知"
+  ],
+  "authorName": "Anthropic 官方"
+}

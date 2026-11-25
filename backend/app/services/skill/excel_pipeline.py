@@ -1,7 +1,6 @@
 """Excel表格助手：结构探查 / SQL 分析 / 出图 / 生成或导出工作簿。"""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any
 
@@ -139,7 +138,6 @@ def run_excel_tools(
         add_sum_column,
         wants_chart_output,
         wants_workbook_output,
-        write_xlsx,
     )
 
     if wants_workbook_output(current) and not wants_chart_output(current):

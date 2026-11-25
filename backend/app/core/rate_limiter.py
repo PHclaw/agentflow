@@ -2,12 +2,13 @@
 速率限制中间件
 基于 Redis 实现滑动窗口限流
 """
+import hashlib
+import time
+from typing import Dict, Optional
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Optional, Dict
-import time
-import hashlib
 
 
 class RateLimiter:
@@ -18,8 +19,14 @@ class RateLimiter:
         self._memory_store: Dict[str, list] = {}  # 内存存储（无 Redis 时使用）
 
     def _get_key(self, identifier: str, path: str) -> str:
-        """生成限流 key"""
-        return f"rate_limit:{hashlib.md5(f'{identifier}:{path}'.encode()).hexdigest()}"
+        """生成限流 key
+
+        用 sha256 而不是 md5：identifier 常是 IP 或邮箱，虽然这里只是做 key
+        不做安全存储，但用弱哈希会被静态扫描标记（py/weak-sensitive-data-hashing），
+        换成 sha256 成本为零，也省掉一次人工解释。
+        """
+        digest = hashlib.sha256(f"{identifier}:{path}".encode()).hexdigest()
+        return f"rate_limit:{digest}"
 
     async def is_allowed(
         self,
@@ -65,6 +72,14 @@ class RateLimiter:
 
             remaining = max(0, max_requests - count)
             return count <= max_requests, remaining
+
+    def reset(self) -> None:
+        """清空内存计数。
+
+        限流器是全局单例，计数会一直累积。测试之间必须清掉，
+        否则后面的用例会莫名撞上前面积累的配额。
+        """
+        self._memory_store.clear()
 
 
 # 全局速率限制器

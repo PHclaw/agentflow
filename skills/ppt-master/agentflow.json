@@ -1,0 +1,20 @@
+{
+  "name": "PPT Master",
+  "description": "把大纲、素材或一句话需求做成可编辑的 PPTX 演示文稿，支持模板填充与配图",
+  "metadata": {
+    "version": "6.7.0",
+    "copyright": "Copyright (c) 2025-2026 Hugo He",
+    "license": "MIT",
+    "official_repository": "https://github.com/hugohe3/ppt-master",
+    "sponsors": [
+      "SPONSORS.md",
+      "SPONSORS_CN.md"
+    ]
+  },
+  "id": "ppt-master",
+  "authorId": "platform-preset",
+  "systemPrompt": "你是 PPT 制作助手，负责把用户需求整理成结构清晰的演示文稿大纲并生成 PPTX。",
+  "authorName": "平台预置",
+  "visibility": "public",
+  "status": "published"
+}

@@ -1,9 +1,10 @@
 """
 文档向量模型 - pgvector
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Index, JSON
-from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import relationship
 
 # pgvector 扩展
 try:
@@ -30,6 +31,10 @@ class Document(Base):
     filename = Column(String(255))
     file_type = Column(String(50))  # pdf, docx, txt, md
     file_size = Column(Integer)
+
+    # 原始文件在磁盘上的文件名（位于 UPLOAD_DIR 下），供下载原始文档使用。
+    # 早期上传的数据此列为空，下载时会提示文件不可用。
+    stored_path = Column(String(512))
     
     # 处理状态
     status = Column(String(20), default="pending")  # pending, processing, done, failed

@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from app.core.paths import generated_root
 from app.services.skill.ppt_html import (
     DEFAULT_PREVIEWS,
     render_deck_html,
@@ -14,9 +15,8 @@ from app.services.skill.ppt_html import (
     write_html,
 )
 
-ROOT = Path(__file__).resolve().parents[4]
-WIZARD_DIR = ROOT / "static" / "generated" / "ppt-wizard"
-GENERATED_DIR = ROOT / "static" / "generated"
+WIZARD_DIR = generated_root() / "ppt-wizard"
+GENERATED_DIR = generated_root()
 
 SKIP_WIZARD_RE = re.compile(r"(直接生成|直接出稿|跳过问卷|不用问|马上生成|立刻生成)")
 NEW_DECK_RE = re.compile(r"(生成|做|制作|创建).{0,12}(ppt|pptx|演示|幻灯片)", re.I)

@@ -8,18 +8,18 @@ import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote_plus
-from pathlib import Path
 
 import httpx
 
+from app.core.paths import generated_root
 from app.logging_setup import get_logger
 
 logger = get_logger("academic")
 
-ROOT = Path(__file__).resolve().parents[4]
-SEARCH_STATE_DIR = ROOT / "static" / "generated" / "academic-search"
+SEARCH_STATE_DIR = generated_root() / "academic-search"
 
 ATOM = "{http://www.w3.org/2005/Atom}"
 ARXIV_NS = "{http://arxiv.org/schemas/atom}"

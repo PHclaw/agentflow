@@ -1,0 +1,25 @@
+{
+  "id": "web-artifacts-builder",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "Web 制品构建器",
+  "description": "把交互原型 / demo 打包成可直接发布的单文件 HTML artifact，含常见框架脚手架 (React / Vue / Tailwind)，避免构建链复杂度。",
+  "specialty": "前端工程",
+  "routerBlurb": "单文件可分享的交互 demo。",
+  "tags": [
+    "Web",
+    "artifact",
+    "原型",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "artifact",
+    "原型",
+    "demo",
+    "交互稿",
+    "小工具",
+    "单页应用"
+  ],
+  "authorName": "Anthropic 官方"
+}

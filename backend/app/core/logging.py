@@ -1,10 +1,11 @@
 """日志系统 - 结构化日志记录"""
+import json
 import logging
 import sys
 from datetime import datetime, timezone
-from typing import Optional
 from pathlib import Path
-import json
+from typing import Optional
+
 
 # 配置日志格式
 class JSONFormatter(logging.Formatter):

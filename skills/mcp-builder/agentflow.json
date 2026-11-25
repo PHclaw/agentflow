@@ -1,0 +1,24 @@
+{
+  "id": "mcp-builder",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "MCP 服务构建器",
+  "description": "按需生成完整的 Model Context Protocol 服务器脚手架，含 Python 与 TypeScript 双模板、工具定义、错误处理样板。把外部 API/数据源接入 Agent 时用。",
+  "specialty": "集成开发",
+  "routerBlurb": "生成 MCP 服务器骨架，把外部能力封成 Agent 可调用工具。",
+  "tags": [
+    "MCP",
+    "集成",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "mcp",
+    "服务器",
+    "MCP 服务",
+    "接入",
+    "工具集成",
+    "集成"
+  ],
+  "authorName": "Anthropic 官方"
+}

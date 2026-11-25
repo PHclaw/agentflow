@@ -1,0 +1,25 @@
+{
+  "id": "doc-coauthoring",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "文档协同撰写",
+  "description": "结构化协作写长文档（RFC、设计文档、规范），分节推进、控制节奏、避免 AI 味。带大纲对齐、批注处理、修订记录。",
+  "specialty": "长文档协作",
+  "routerBlurb": "写长文时用，比直接问模型更结构化。",
+  "tags": [
+    "写作",
+    "文档",
+    "协同",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "写文档",
+    "RFC",
+    "设计文档",
+    "规范",
+    "协同写作",
+    "coauthor"
+  ],
+  "authorName": "Anthropic 官方"
+}

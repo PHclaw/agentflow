@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使用问题 / 部署求助
+    url: https://github.com/PHclaw/agentflow/discussions
+    about: 不确定是不是 Bug、或者想问怎么配置，发到 Discussions 更快
+  - name: 常见问题
+    url: https://github.com/PHclaw/agentflow/blob/master/docs/FAQ.md
+    about: 模型配置、RAG、自托管部署相关的常见问题

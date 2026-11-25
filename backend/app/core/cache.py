@@ -1,10 +1,11 @@
 """缓存层 - Redis/内存缓存"""
-import json
+import asyncio
 import hashlib
-from typing import Any, Optional, Callable
+import json
 from datetime import datetime, timedelta
 from functools import wraps
-import asyncio
+from typing import Any, Callable, Optional
+
 
 # 简单的内存缓存实现（生产环境应使用 Redis）
 class MemoryCache:
@@ -66,7 +67,7 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
     # 按键名排序确保一致性
     sorted_items = sorted(kwargs.items())
     key_str = json.dumps(sorted_items, sort_keys=True)
-    key_hash = hashlib.md5(key_str.encode()).hexdigest()[:12]
+    key_hash = hashlib.sha256(key_str.encode()).hexdigest()[:12]
     return f"{prefix}:{key_hash}"
 
 

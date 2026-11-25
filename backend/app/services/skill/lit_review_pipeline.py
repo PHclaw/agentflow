@@ -14,17 +14,16 @@ from app.services.skill.academic_search_pipeline import (
     ATOM,
     OPENALEX_URL,
     TIMEOUT,
-    load_last_papers,
     _clean_doi,
     _client,
     _get_json_or_text,
     _norm_title,
     _s2_headers,
-    _search_arxiv,
     _search_arxiv_by_title,
     _search_crossref,
     _search_openalex,
     _search_s2,
+    load_last_papers,
 )
 
 logger = get_logger("lit-review")

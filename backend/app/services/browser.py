@@ -2,7 +2,8 @@
 Browser-Use 工具 - 浏览器自动化控制
 集成 browser-use 实现 AI 控制浏览器
 """
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel
 
 # browser-use 核心组件

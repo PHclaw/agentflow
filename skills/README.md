@@ -22,6 +22,10 @@ skills/<slug>/
 | academic-search | 学术文献检索 |
 | lit-review-notes | 文献速读笔记 |
 | clinical-case-report | 临床病例报告 |
+| api-doc-writer | API 文档助手 |
+
+> 这里只列出常用的一批；实际可用数量以运行时扫描结果为准（服务启动时扫盘加载，
+> `GET /api/v1/skills/plaza` 返回全量）。
 
 ## API
 

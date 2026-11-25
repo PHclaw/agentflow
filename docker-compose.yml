@@ -1,95 +1,131 @@
+# AgentFlow 部署编排
+#
+# 默认栈只有两个容器：backend（FastAPI + SQLite）与 frontend（nginx）。
+# 数据库用 SQLite 文件，落在 ./data 下 —— 单机部署下它足够快，而且不用让
+# 使用者先准备一个数据库。需要 PostgreSQL 时加 --profile postgres（见文末）。
+#
+#   cp .env.example .env      # 必须做：至少填 JWT_SECRET_KEY
+#   docker compose up -d --build
+#   docker compose logs -f backend
+#
+# 首次访问：http://<服务器IP>:3000
+#
+# 为什么没有 celery-worker：app/celery_app.py 在全项目里**没有任何地方
+# 引用**（搜 `.delay(` / `apply_async` / `shared_task` 都是 0 命中），原编排
+# 里的 worker 容器只是空转。真要加异步任务时再补。
+
+name: agentflow
+
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: agentflow
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5433:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
+    image: agentflow-backend:2.0.2
     build:
-      context: .
+      context: .                    # 仓库根：镜像要带上 skills/ config/ static/
       dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    env_file:
+      # required: false 让「还没 cp .env.example .env」时也能起（走下面的默认值），
+      # 而不是直接报错退出 —— 首次部署时更容易看出到底缺了什么。
+      - path: .env
+        required: false
     environment:
       AGENTFLOW_REPO_ROOT: /repo
       AGENTFLOW_UPLOADS_DIR: /repo/uploads
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agentflow
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      CHATZOC_API_KEY: ${CHATZOC_API_KEY:-}
-      CHATZOC_BASE_URL: ${CHATZOC_BASE_URL:-}
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
-      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
-      CORS_ORIGINS: http://localhost:3000,http://localhost:5173,http://localhost:3001
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    ports:
-      - "8001:8000"
+      # ⚠️ 刻意**不用** ${DATABASE_URL} 插值。
+      #
+      # .env 是本地开发和 Docker 部署共用的一份，而本地那份通常写着相对路径
+      # （sqlite+aiosqlite:///./agentflow.db）。插值会把它原样带进容器，于是
+      # 数据库落在容器可写层里 —— 接口全正常，看起来毫无问题，直到
+      # `docker compose down` 之后所有用户和 Agent 一起消失。
+      #
+      # 所以这里用独立的变量名，默认永远是容器内的绝对路径 /data（compose 已
+      # 把 ./data 挂出来）。要换 PostgreSQL 就设：
+      #   AGENTFLOW_DOCKER_DATABASE_URL=postgresql+asyncpg://agentflow:密码@postgres:5432/agentflow
+      DATABASE_URL: ${AGENTFLOW_DOCKER_DATABASE_URL:-sqlite+aiosqlite:////data/agentflow.db}
+      # 留空 = 显式不用 Redis，验证码退回进程内存（单实例部署没问题）。
+      # 多 worker / 多实例时务必填上，否则「发码」和「校验」可能落在不同进程。
+      # 注意 .env 里的 REDIS_URL 若是 localhost，容器内指的是它自己，会连不上。
+      REDIS_URL: ${AGENTFLOW_DOCKER_REDIS_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:8001}
     volumes:
+      # SQLite 库。别用容器内路径 —— 容器重建就没了
+      - ./data:/data
+      # 技能目录：管理员在后台增删技能会直接写这里，挂出来便于备份和手工放
       - ./skills:/repo/skills
-      - ./config:/repo/config
+      # 模型目录（app/services/model_validation.py 读的静态目录），只读
+      - ./config:/repo/config:ro
+      # 头像 + 技能产物（Excel/PDF/PPT 下载走 /static）
       - ./static:/repo/static
+      # 知识库上传的原始文件 + PiAgent 工作区
       - ./uploads:/repo/uploads
+    ports:
+      # 只需给本机调试用；生产建议注释掉，只经前端的 nginx 访问
+      - "${BACKEND_PORT:-8001}:8000"
 
   frontend:
+    image: agentflow-frontend:2.0.2
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        # 等后端健康检查通过再起，避免首屏打开就是 502
+        condition: service_healthy
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
 
-  celery-worker:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
-    command: celery -A app.celery_app worker --loglevel=info
+  # ---------------------------------------------------------------------------
+  # 可选：PostgreSQL + pgvector
+  #
+  #   docker compose --profile postgres up -d
+  #
+  # 启用时**必须**同时在 .env 里把 DATABASE_URL 指过去，并把 asyncpg /
+  # pgvector 从 requirements-docker.txt 末尾的注释里放开后重新构建：
+  #   DATABASE_URL=postgresql+asyncpg://agentflow:<密码>@postgres:5432/agentflow
+  #
+  # 注意：这条路径**没有经过验证**（默认的 SQLite 组合是跑通的）。向量检索
+  # 用 pgvector 的话还需要 `CREATE EXTENSION vector`，init_db 在检测到
+  # PostgreSQL 时会自动尝试。
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg16
+    profiles: ["postgres"]
+    restart: unless-stopped
     environment:
-      AGENTFLOW_REPO_ROOT: /repo
-      AGENTFLOW_UPLOADS_DIR: /repo/uploads
-      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/agentflow
-      REDIS_URL: redis://redis:6379/0
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      CHATZOC_API_KEY: ${CHATZOC_API_KEY:-}
-      CHATZOC_BASE_URL: ${CHATZOC_BASE_URL:-}
-      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
-      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
-    depends_on:
-      - postgres
-      - redis
+      POSTGRES_USER: ${POSTGRES_USER:-agentflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentflow}
+      POSTGRES_DB: ${POSTGRES_DB:-agentflow}
     volumes:
-      - ./skills:/repo/skills
-      - ./config:/repo/config
-      - ./static:/repo/static
-      - ./uploads:/repo/uploads
+      - postgres_data:/var/lib/postgresql/data
+    # 刻意不映射端口：数据库只该被 backend 通过 compose 内网访问
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agentflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ---------------------------------------------------------------------------
+  # 可选：Redis（验证码存储 / 会话缓存）
+  #
+  #   docker compose --profile redis up -d
+  #
+  # 同时在 .env 里设 REDIS_URL=redis://redis:6379/0
+  # 单实例部署可以不启：验证码会退回进程内存，功能正常。
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
 volumes:
   postgres_data:
+  redis_data:

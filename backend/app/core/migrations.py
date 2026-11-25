@@ -1,6 +1,7 @@
 """数据库迁移"""
-from alembic.config import Config
 from alembic import command
+from alembic.config import Config
+
 
 def init_migrations():
     """初始化迁移"""

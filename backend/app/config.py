@@ -37,22 +37,17 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    s = Settings()
-    if not s.dashscope_api_key and core.OPENAI_API_KEY:
-        s.dashscope_api_key = core.OPENAI_API_KEY
-    if not s.model_base_url and core.DEEPSEEK_API_KEY:
-        s.model_base_url = core.DEEPSEEK_BASE_URL
-    if not s.chatzoc_api_key:
-        s.chatzoc_api_key = s.dashscope_api_key
-    if not s.chatzoc_base_url and s.model_base_url:
-        s.chatzoc_base_url = s.model_base_url
-    if not s.default_model or s.default_model == "chatzoc_9b_B":
-        if core.OPENAI_API_KEY:
-            s.default_model = core.OPENAI_MODEL or "gpt-4o-mini"
-    if not s.optimize_model or s.optimize_model == "chatzoc_9b_B":
-        s.optimize_model = s.default_model
-    s.log_level = core.LOG_LEVEL or s.log_level
-    return s
+    return Settings(
+        dashscope_api_key=core.DASHSCOPE_API_KEY or core.OPENAI_API_KEY,
+        model_base_url=core.MODEL_BASE_URL or core.DEEPSEEK_BASE_URL,
+        chatzoc_api_key=core.CHATZOC_API_KEY or core.DASHSCOPE_API_KEY or core.OPENAI_API_KEY,
+        chatzoc_base_url=core.CHATZOC_BASE_URL or core.MODEL_BASE_URL or core.DEEPSEEK_BASE_URL,
+        chatzoc_agent_type=core.CHATZOC_AGENT_TYPE,
+        default_model=core.DEFAULT_MODEL or core.OPENAI_MODEL or "gpt-4o-mini",
+        optimize_model=core.OPTIMIZE_MODEL or core.DEFAULT_MODEL or core.OPENAI_MODEL or "gpt-4o-mini",
+        log_level=core.LOG_LEVEL,
+        semantic_scholar_api_key=core.SEMANTIC_SCHOLAR_API_KEY,
+    )
 
 
 def reload_settings() -> Settings:

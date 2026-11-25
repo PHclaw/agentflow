@@ -1,0 +1,25 @@
+{
+  "id": "webapp-testing",
+  "authorId": "platform-preset",
+  "visibility": "public",
+  "status": "published",
+  "name": "Web 应用测试",
+  "description": "用 Playwright 驱动真实浏览器跑端到端用例：验证交互、抓取截图、检查关键 DOM。适合 SPA / Web 应用的自动化冒烟。",
+  "specialty": "自动化测试",
+  "routerBlurb": "浏览器 E2E 冒烟与截图存档。",
+  "tags": [
+    "测试",
+    "Playwright",
+    "E2E",
+    "Anthropic官方"
+  ],
+  "triggers": [
+    "端到端",
+    "E2E",
+    "自动化测试",
+    "playwright",
+    "网页测试",
+    "冒烟"
+  ],
+  "authorName": "Anthropic 官方"
+}

@@ -1,20 +1,18 @@
 ﻿"""统计分析 Skill：意图路由 + 白名单脚本执行。"""
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+from app.core.paths import skills_root
 from app.logging_setup import get_logger
 
 logger = get_logger("stat")
 
-SCRIPTS_DIR = (
-    Path(__file__).resolve().parents[4] / "skills" / "statistical-analyst" / "scripts"
-)
+SCRIPTS_DIR = skills_root() / "statistical-analyst" / "scripts"
 WHITELIST = {
     "hypothesis": "hypothesis_tester.py",
     "sample_size": "sample_size_calculator.py",

@@ -1,0 +1,59 @@
+name: CodeQL
+
+# 静态安全扫描：每次推主分支、每个 PR、以及每周一次定时扫描。
+# 结果在仓库 Security → Code scanning 里，能挡住常见的注入、路径穿越、
+# 不安全的反序列化等问题 —— 对「要装进企业内网」的项目是加分项。
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    - cron: "0 2 * * 1" # 每周一 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # security-extended：只跑安全类规则。
+          # 之前用的 security-and-quality 会把「未使用变量 / 空 except / 魔法数字」
+          # 这类质量规则也算进来，一次扫出 471 条告警，其中 309 条与安全无关，
+          # 真正的 critical 被埋在噪音里，Security 面板反而失去参考价值。
+          queries: security-extended
+          # 第三方技能是 vendored 代码，其告警既不归本项目维护，
+          # 也会淹没自己代码里的问题，这里直接排除。
+          config: |
+            paths-ignore:
+              - skills/**
+              - '**/node_modules/**'
+              - '**/dist/**'
+              - '**/__pycache__/**'
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

@@ -5,6 +5,9 @@ on:
     branches: [master, main, develop]
   pull_request:
     branches: [master, main]
+  # 允许在 Actions 页面或通过 gh workflow run 手动触发：
+  # 排查「推送后没有触发流水线」这类问题时，需要一个不依赖 push 事件的入口。
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -52,6 +55,9 @@ jobs:
         with:
           node-version: "18"
           cache: npm
+          # 锁文件在 frontend/ 下，不指定路径时 setup-node 会去仓库根找，
+          # 报 "Dependencies lock file is not found" 并直接失败
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci

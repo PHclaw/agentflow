@@ -7,7 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_setup import get_logger
@@ -18,17 +17,17 @@ from app.schemas import (
     AgentUpdate,
     ChatParams,
 )
+from app.services.adapters.base import ChatResult
 from app.services.agent_serializers import (
     serialize_for_role,
     to_owner,
     to_plaza_item,
     to_public,
 )
-from app.services.adapters.base import ChatResult
 from app.services.model_runtime import run_chat
 from app.services.prompt_utils import extract_variables
 from app.services.skill.compiler import compile_executable_spec
-from app.services.skill.invocation import prepare_call_messages, _resolve_system_text
+from app.services.skill.invocation import _resolve_system_text, prepare_call_messages
 from app.services.skill.store import (
     FileSkill,
     allocate_slug,
@@ -500,12 +499,6 @@ async def call_agent(
     started = time.perf_counter()
 
     from app.services.model_validation import resolve_callable_model
-    from app.services.skill.plus_resolve import apply_plus_to_variables
-    from app.services.skill.stat_pipeline import (
-        format_tool_result,
-        is_statistical_skill,
-        run_statistical_tools,
-    )
     from app.services.skill.capability import (
         INTRO_SYSTEM_ADDENDUM,
         format_intro_tool_result,
@@ -516,6 +509,12 @@ async def call_agent(
         should_intro_only,
     )
     from app.services.skill.intent_gate import _ppt_wizard_busy
+    from app.services.skill.plus_resolve import apply_plus_to_variables
+    from app.services.skill.stat_pipeline import (
+        format_tool_result,
+        is_statistical_skill,
+        run_statistical_tools,
+    )
     from app.services.uploads import format_file_summary, inject_current_files
 
     plus_token, vars_clean = apply_plus_to_variables(variables or {})
@@ -792,7 +791,6 @@ async def call_agent(
         )
         agent.model_name = model
         agent.workflow = _sync_workflow_model(agent.workflow, model)
-        save_skill(agent)
 
     if agent_loop_output and not skip_tools:
         result = ChatResult(output=agent_loop_output, latency_ms=extra_latency)
@@ -841,9 +839,8 @@ async def call_agent(
     wall_ms = int((time.perf_counter() - started) * 1000)
     result.latency_ms = wall_ms
 
-    # 调用计数写回 SKILL.md；usage 可选记库（无 FK）
+    # 内网演示：不在每次调用时写回 SKILL.md，避免 git 脏文件
     agent.total_calls = int(agent.total_calls or 0) + 1
-    save_skill(agent)
     logger.info(
         "call skill=%s skillId=%s specialty=%s version=%s model=%s caller=%s "
         "latencyMs=%s tokensIn=%s tokensOut=%s outChars=%s sysChars=%s userChars=%s",

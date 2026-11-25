@@ -301,6 +301,22 @@ Authorization: Bearer <token>
 
 ---
 
+### Skill 广场
+
+预置技能（Excel / PDF / PPT / 会议纪要 / 统计分析等）的浏览与调用。
+
+| 方法 | 路径 | 说明 |
+|:--|:--|:--|
+| GET | `/skills/plaza` | Skill 广场列表（支持 `specialty` / `category` 过滤） |
+| GET | `/skills/{id}` | Skill 详情（含变量定义） |
+| POST | `/skills/{id}/call` | 调用 Skill（传变量） |
+| POST | `/skills/{id}/call-with-files` | 带文件调用 Skill |
+| POST | `/skills/resolve` | 按任务文本自动选型 Skill |
+
+生成的 xlsx / png / pdf 等产物通过 `/static/generated/` 下载。
+
+---
+
 ### 计费
 
 #### GET /billing/subscription

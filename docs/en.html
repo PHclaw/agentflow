@@ -1,0 +1,153 @@
+---
+title: AgentFlow — Self-hosted AI Agent Platform
+layout: null
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentFlow — Self-hosted AI Agent Platform</title>
+<meta name="description" content="A self-hosted AI Agent platform. Drag-and-drop workflows, knowledge-base RAG, 27 built-in skills. Runs on SQLite with docker compose — your data stays on your machine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#fafbfc; --surface:#fff; --soft:#f5f7fa; --border:#e5e9f0;
+    --text:#1f2937; --muted:#6b7280; --primary:#4f46e5; --primary-soft:#eef2ff;
+    --accent:#0891b2; --green:#059669;
+    --shadow:0 1px 3px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.04);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  header{padding:64px 0 40px;text-align:center}
+  .logo{width:64px;height:64px;border-radius:18px;margin:0 auto 20px;background:linear-gradient(135deg,#4f46e5,#0891b2);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;letter-spacing:-1.5px;box-shadow:0 8px 24px rgba(79,70,229,.2)}
+  h1{font-size:36px;font-weight:700;letter-spacing:-.8px;margin-bottom:10px}
+  .lead{font-size:17px;color:var(--muted);max-width:620px;margin:0 auto 24px}
+  .badges{display:flex;flex-wrap:wrap;gap:9px;justify-content:center}
+  .badge{background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:7px 15px;font-size:13px;font-weight:500;box-shadow:var(--shadow)}
+  .badge:hover{border-color:var(--primary)}
+  .lang{font-size:13px;color:var(--muted);margin-top:16px}
+  .lang a{color:var(--primary);font-weight:600}
+  section{padding:0 0 56px}
+  .sec-h{margin-bottom:22px}
+  .sec-h h2{font-size:23px;font-weight:700;letter-spacing:-.4px}
+  .sec-h p{color:var(--muted);font-size:14px;margin-top:4px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow)}
+  .card-img{background:var(--primary-soft);padding:26px 26px 0;display:flex;justify-content:center}
+  .card-img img{width:100%;max-width:860px;display:block;border-radius:11px 11px 0 0;box-shadow:0 12px 32px rgba(16,24,40,.12)}
+  .card-body{padding:30px 34px 34px}
+  .tags{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+  .tag{font-size:12px;font-weight:600;padding:4px 11px;border-radius:999px;background:var(--primary-soft);color:var(--primary)}
+  .tag.g{background:#ecfdf5;color:var(--green)}
+  .desc{color:var(--muted);font-size:15px;max-width:720px;margin-bottom:22px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px;margin-bottom:24px}
+  .feat{background:var(--soft);border-radius:10px;padding:15px 17px}
+  .feat b{display:block;font-size:14px;margin-bottom:3px}
+  .feat span{font-size:13px;color:var(--muted)}
+  .actions{display:flex;flex-wrap:wrap;gap:9px}
+  .btn{display:inline-flex;align-items:center;padding:10px 19px;border-radius:9px;font-size:14px;font-weight:600;transition:transform .15s}
+  .btn:hover{transform:translateY(-2px)}
+  .btn-p{background:var(--primary);color:#fff;box-shadow:0 6px 18px rgba(79,70,229,.22)}
+  .btn-g{background:var(--surface);border:1px solid var(--border)}
+  .steps{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px 26px;box-shadow:var(--shadow)}
+  pre{background:#1f2937;color:#e5e7eb;border-radius:10px;padding:18px 20px;overflow-x:auto;font-size:13px;line-height:1.7;margin:14px 0}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  p.note{font-size:14px;color:var(--muted);margin-top:12px}
+  .links{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+  .link{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:17px 19px;box-shadow:var(--shadow)}
+  .link b{display:block;font-size:14px;margin-bottom:4px}
+  .link span{font-size:13px;color:var(--muted)}
+  .link:hover{border-color:var(--primary)}
+  footer{padding:32px 0 46px;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:13px}
+  footer a{color:var(--primary)}
+  @media(max-width:760px){.grid,.links{grid-template-columns:1fr}.card-body{padding:22px}h1{font-size:28px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="logo">AF</div>
+    <h1>AgentFlow</h1>
+    <p class="lead">A self-hosted AI Agent platform. Put it on your own machine — drag a workflow together, bring your own documents, and get real files back.</p>
+    <div class="badges">
+      <span class="badge">Apache-2.0 · commercial use OK</span>
+      <a class="badge" href="https://github.com/PHclaw/agentflow" target="_blank">GitHub ★</a>
+      <a class="badge" href="https://github.com/PHclaw/agentflow/releases" target="_blank">Android APK</a>
+      <a class="badge" href="https://phclaw.github.io/agentflow/" target="_blank">Full docs (中文)</a>
+    </div>
+    <p class="lang">中文用户请访问 <a href="https://github.com/PHclaw/agentflow#readme">中文 README</a> · <a href="./">中文文档站</a></p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section>
+    <div class="card">
+      <div class="card-img">
+        <img src="https://raw.githubusercontent.com/PHclaw/agentflow/master/assets/social/agentflow-social-1280x640.png" alt="AgentFlow — ask for a deck, get the files">
+      </div>
+      <div class="card-body">
+        <div class="tags">
+          <span class="tag">Self-hosted</span>
+          <span class="tag">Drag-and-drop workflows</span>
+          <span class="tag">Knowledge-base RAG</span>
+          <span class="tag g">27 built-in skills</span>
+        </div>
+        <p class="desc">One <code>docker compose</code> brings up two containers with a single SQLite file — no PostgreSQL, no Redis, no minimum hardware requirement beyond a modest VM. Swap models from the UI without a restart. Generate spreadsheets, decks and charts and get them back as downloadable attachments, previewed inline.</p>
+        <div class="grid">
+          <div class="feat"><b>Two containers, one file</b><span>Everything persists in <code>./data/agentflow.db</code>; back it up by copying a directory.</span></div>
+          <div class="feat"><b>Models are not locked in</b><span>Any OpenAI-compatible endpoint, including local Ollama. Change it live in Settings.</span></div>
+          <div class="feat"><b>Real deliverables</b><span>xlsx / pptx / png come back as attachments, with images rendered inline in chat.</span></div>
+          <div class="feat"><b>Android client</b><span>A Capacitor build is attached to the GitHub release.</span></div>
+        </div>
+        <div class="actions">
+          <a class="btn btn-p" href="http://159.75.21.251:3000/" target="_blank">Try the live demo →</a>
+          <a class="btn btn-g" href="https://github.com/PHclaw/agentflow" target="_blank">View source</a>
+          <a class="btn btn-g" href="https://github.com/PHclaw/agentflow/blob/master/README.en.md" target="_blank">English README</a>
+          <a class="btn btn-g" href="https://github.com/PHclaw/agentflow/discussions" target="_blank">Discussions</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Quick start</h2><p>Two minutes from clone to a running instance.</p></div>
+    <div class="steps">
+<pre><code>git clone https://github.com/PHclaw/agentflow.git
+cd agentflow
+cp .env.example .env      # set JWT_SECRET_KEY at minimum
+docker compose up -d --build</code></pre>
+      <p class="note">Open <code>http://localhost:3000</code>, sign up, then go to <b>Settings → Model Config</b> and point it at any OpenAI-compatible endpoint. The demo site requires email sign-up (a verification code is sent; temporary email works).</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>When this fits</h2><p>Honest guidance — it is not a replacement for everything.</p></div>
+    <div class="links">
+      <div class="link"><b>Pick this</b><span>Data must stay in your network, you have one modest server, and no dedicated ops team.</span></div>
+      <div class="link"><b>Pick Dify</b><span>You need a plugin marketplace, multi-tenancy and full observability, and have someone to run it.</span></div>
+      <div class="link"><b>Pick a desktop agent</b><span>You mostly want an assistant for one person's local files, not a shared team system.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-h"><h2>Documentation</h2><p>The detailed guides below are currently Chinese-only. The English README covers the essentials.</p></div>
+    <div class="links">
+      <div class="link"><b>English README</b><span>Features, quick start, architecture overview and comparison.</span></div>
+      <div class="link"><b>Wiki</b><span>Getting started and FAQ — Chinese.</span></div>
+      <div class="link"><b>Issues &amp; Discussions</b><span>Questions, bug reports and the three good first issues.</span></div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <div class="wrap">AgentFlow by <a href="https://github.com/PHclaw" target="_blank">PHclaw</a> · Apache-2.0 · built to run on your own machine</div>
+</footer>
+
+</body>
+</html>

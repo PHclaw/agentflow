@@ -3,30 +3,20 @@ AgentFlow 整合 agent-prompt-templates 和 agent-output-parser
 
 Phase 2: Prompt 模板 + 输出解析
 """
-from typing import Dict, Any, List, Optional
 import json
 import re
+from typing import Any, Dict, List, Optional
 
 # agent-prompt-templates 整合
 try:
-    from agent_prompt_templates import (
-        ChainOfThoughtPrompt,
-        ReActPrompt,
-        FewShotPrompt,
-        SystemPrompt
-    )
+    from agent_prompt_templates import ChainOfThoughtPrompt, FewShotPrompt, ReActPrompt, SystemPrompt
     HAS_PROMPT_TEMPLATES = True
 except ImportError:
     HAS_PROMPT_TEMPLATES = False
 
 # agent-output-parser 整合
 try:
-    from agent_output_parser import (
-        JSONParser,
-        MarkdownParser,
-        PydanticParser,
-        RegexParser
-    )
+    from agent_output_parser import JSONParser, MarkdownParser, PydanticParser, RegexParser
     HAS_OUTPUT_PARSER = True
 except ImportError:
     HAS_OUTPUT_PARSER = False

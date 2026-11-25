@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720">
+  <rect width="1600" height="720" fill="#FFFFFF"/>
+
+  <text x="800" y="58" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="34" font-weight="700" fill="#1F2937" text-anchor="middle">AgentFlow 架构总览</text>
+  <text x="800" y="92" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#6B7280" text-anchor="middle">一条 docker compose 起两个容器；默认 SQLite 单机可跑，按需升级 PostgreSQL + pgvector</text>
+
+  
+  <g>
+    <rect x="46" y="130" width="300" height="330" rx="16" fill="#EEF2FF" stroke="#4F46E5" stroke-width="1.5"/>
+    <path d="M 62 130 H 330 A 16 16 0 0 1 346 146 V 176 H 46 V 146 A 16 16 0 0 1 62 130 Z" fill="#4F46E5" opacity="0.14"/>
+    <text x="72" y="162" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="21" font-weight="700" fill="#4F46E5">接入层</text>
+    <text x="72" y="222" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• Web 前端（React + ReactFlow）</text><text x="72" y="258" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• Android App（Capacitor）</text><text x="72" y="294" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 第三方系统（REST API）</text><text x="72" y="330" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• OpenAI 兼容客户端</text>
+  </g>
+
+  
+  <g>
+    <rect x="452" y="130" width="424" height="330" rx="16" fill="#E0F2FE" stroke="#0284C7" stroke-width="1.5"/>
+    <path d="M 468 130 H 860 A 16 16 0 0 1 876 146 V 176 H 452 V 146 A 16 16 0 0 1 468 130 Z" fill="#0284C7" opacity="0.14"/>
+    <text x="478" y="162" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="21" font-weight="700" fill="#0284C7">FastAPI 应用层</text>
+    <text x="478" y="222" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 认证与权限（JWT · 套餐额度）</text><text x="478" y="258" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 工作流引擎（6 类节点编排）</text><text x="478" y="294" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 对话服务（SSE 流式输出）</text><text x="478" y="330" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 知识库（解析 / 分块 / 检索）</text><text x="478" y="366" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 技能调度（skills/ 目录扫描）</text><text x="478" y="402" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 产物回传（附件 + 内联预览）</text>
+  </g>
+
+  
+  <g>
+    <rect x="982" y="130" width="372" height="330" rx="16" fill="#ECFDF5" stroke="#047857" stroke-width="1.5"/>
+    <path d="M 998 130 H 1338 A 16 16 0 0 1 1354 146 V 176 H 982 V 146 A 16 16 0 0 1 998 130 Z" fill="#047857" opacity="0.14"/>
+    <text x="1008" y="162" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="21" font-weight="700" fill="#047857">数据与外部依赖</text>
+    <text x="1008" y="222" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• SQLite（默认，单文件）</text><text x="1008" y="258" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• PostgreSQL + pgvector（可选）</text><text x="1008" y="294" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• Redis（可选 · 验证码/缓存）</text><text x="1008" y="330" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 对话模型端点</text><text x="1008" y="366" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 向量模型端点（独立配置）</text><text x="1008" y="402" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">• 外部只读数据源（ERP 等）</text>
+  </g>
+
+  
+  <g>
+    <line x1="348" y1="280" x2="438" y2="280" stroke="#94A3B8" stroke-width="2.5"/>
+    <polygon points="450,280 437,273 437,287" fill="#94A3B8"/>
+    <text x="399" y="266" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="600" fill="#475569" text-anchor="middle">HTTP</text>
+    <text x="399" y="306" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="14" fill="#6B7280" text-anchor="middle">REST / SSE</text>
+  </g>
+  
+  <g>
+    <line x1="878" y1="280" x2="968" y2="280" stroke="#94A3B8" stroke-width="2.5"/>
+    <polygon points="980,280 967,273 967,287" fill="#94A3B8"/>
+    <text x="929" y="266" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="600" fill="#475569" text-anchor="middle">SQL</text>
+    <text x="929" y="306" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="14" fill="#6B7280" text-anchor="middle">HTTP 调用</text>
+  </g>
+
+  <g>
+    <rect x="46" y="500" width="1308" height="112" rx="16" fill="#FFFBEB" stroke="#B45309" stroke-width="1.5"/>
+    <text x="72" y="540" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="21" font-weight="700" fill="#B45309">部署形态</text>
+    <text x="72" y="576" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">docker compose：backend（FastAPI :8001）＋ frontend（nginx :3000）　·　数据落在 ./data/agentflow.db，容器重建不丢</text>
+    <text x="72" y="602" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="19" fill="#1F2937">技能以目录挂载（skills/）：加一个带 SKILL.md 的文件夹就多一个能力，不需要改代码</text>
+  </g>
+
+  <text x="46" y="652" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16" fill="#6B7280">当前版本没有 worker 容器，异步任务队列在路线图中；Redis 与 PostgreSQL 均为可选项。</text>
+  <text x="1554" y="652" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16" fill="#6B7280" text-anchor="end">github.com/PHclaw/agentflow</text>
+</svg>
