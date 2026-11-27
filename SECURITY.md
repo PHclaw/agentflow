@@ -28,6 +28,15 @@
 
 本项目是个人维护的开源项目，不提供 SLA、赏金计划或付费支持。
 
+## 致谢
+
+感谢以下研究者以负责任的方式披露安全问题，帮助 AgentFlow 变得更好：
+
+- **Capri Security** — 2026-11-26 报告 `tools_memory._calculator_tool` 的
+  eval 注入漏洞（CWE-95），并指出 `workflow_runtime` 中的重复实现缺少防护。
+  修复见 commit `5e66ac3`、`fda903e`；复盘文章见
+  <https://phclaw.github.io/blog/eval-security-disclosure.html>。
+
 ## 部署者请注意
 
 - 仓库不含任何真实密钥、邮箱授权码或用户数据；`.env` 需自行从 `.env.example` 复制并填写
