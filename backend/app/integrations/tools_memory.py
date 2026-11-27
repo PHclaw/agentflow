@@ -6,6 +6,8 @@ Phase 3: 工具注册 + 记忆管理
 import asyncio
 from typing import Any, Callable, Dict, List
 
+from app.core.safe_math import SafeMathError, safe_eval_math
+
 # agent-tool-registry 整合
 try:
     from agent_tool_registry import Tool, ToolRegistry
@@ -160,10 +162,20 @@ class ToolManager:
         return f"搜索结果：{query}"
     
     def _calculator_tool(self, expression: str) -> float:
-        """计算工具"""
+        """计算工具。
+
+        **绝对不能直接 eval**：expression 来自 LLM 的 function-calling 参数，
+        而 LLM 的输入可能被提示注入污染（聊天内容、检索到的文档、网页）。
+        模型只要「以为自己在做数学题」就会调这个工具，比让它主动越权容易得多。
+        一条 ``__import__('os').system(...)`` 就是后端进程的任意代码执行。
+
+        这里走 AST 白名单求值，只允许数字与四则/取余/幂运算。
+        """
         try:
-            return eval(expression)
-        except Exception:
+            return float(safe_eval_math(expression))
+        except (SafeMathError, ArithmeticError, TypeError, ValueError):
+            # ArithmeticError 兜住 ZeroDivisionError / OverflowError：
+            # 任何非法或越界表达式都统一返回 0.0，不让异常穿透到调用方。
             return 0.0
     
     async def _weather_tool(self, location: str) -> str:

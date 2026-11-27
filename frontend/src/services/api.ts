@@ -512,6 +512,8 @@ export type GroupMember = {
   name: string
   description?: string | null
   is_active?: boolean
+  /** 自动招募进来的临时成员，移出时会从账号里彻底删除 */
+  auto_created?: boolean
 }
 
 export type GroupSummary = {
@@ -532,6 +534,8 @@ export type GroupDetail = {
   route_mode: string
   settings: Record<string, any>
   members: GroupMember[]
+  /** 仅移出成员接口返回：自动招募的临时成员是否已被彻底删除 */
+  removed_agent_purged?: boolean
   created_at?: string | null
 }
 
@@ -542,6 +546,9 @@ export type GroupMessageItem = {
   sender_name?: string | null
   content: string
   meta: Record<string, any>
+  is_revoked?: boolean
+  reactions?: Array<{ emoji: string; user_id: string; mine: boolean }>
+  read_by?: string[]
   created_at?: string | null
 }
 
@@ -657,14 +664,50 @@ export const groups = {
   get: (groupId: string) =>
     api.get(`/groups/${groupId}`) as Promise<GroupDetail>,
 
-  update: (groupId: string, data: { name?: string; description?: string; agent_ids?: string[]; route_mode?: string }) =>
+  update: (groupId: string, data: { name?: string; description?: string; agent_ids?: string[]; route_mode?: string; settings?: Record<string, any> }) =>
     api.patch(`/groups/${groupId}`, data) as Promise<GroupDetail>,
 
   remove: (groupId: string) =>
     api.delete(`/groups/${groupId}`),
 
-  messages: (groupId: string, limit = 100) =>
-    api.get(`/groups/${groupId}/messages?limit=${limit}`) as Promise<{ messages: GroupMessageItem[] }>,
+  /** 移出成员；自动招募的成员会从账号里彻底删除 */
+  removeMember: (groupId: string, agentId: string) =>
+    api.delete(`/groups/${groupId}/members/${agentId}`) as Promise<GroupDetail>,
+
+  /** 把自己已有的 Agent 拉进群 */
+  addMembers: (groupId: string, agentIds: string[]) =>
+    api.patch(`/groups/${groupId}`, { agent_ids: agentIds }) as Promise<GroupDetail>,
+
+  messages: (groupId: string, limit = 100, keyword?: string) =>
+    api.get(
+      `/groups/${groupId}/messages?limit=${limit}` +
+      (keyword?.trim() ? `&keyword=${encodeURIComponent(keyword.trim())}` : '')
+    ) as Promise<{ messages: GroupMessageItem[] }>,
+
+  /** 编辑消息（仅自己发的、未撤回的用户消息） */
+  editMessage: (groupId: string, messageId: number, content: string) =>
+    api.patch(`/groups/${groupId}/messages/${messageId}`, { content }) as Promise<GroupMessageItem>,
+
+  /** 撤回消息（软删除，保留引用链） */
+  revokeMessage: (groupId: string, messageId: number) =>
+    api.delete(`/groups/${groupId}/messages/${messageId}`),
+
+  /** 表情回应：同一个表情再点一次取消 */
+  react: (groupId: string, messageId: number, emoji: string) =>
+    api.post(`/groups/${groupId}/messages/${messageId}/reactions`, { emoji }) as Promise<{
+      ok: boolean
+      added: boolean
+      reactions: Array<{ emoji: string; user_id: string; mine: boolean }>
+    }>,
+
+  markRead: (groupId: string, messageId: number) =>
+    api.post(`/groups/${groupId}/messages/${messageId}/read`),
+
+  markAllRead: (groupId: string) =>
+    api.post(`/groups/${groupId}/read-all`),
+
+  unread: (groupId: string) =>
+    api.get(`/groups/${groupId}/unread`) as Promise<{ unread: number }>,
 
   /** 发消息（SSE：routing / route_decision / agent_chunk / done） */
   stream: (
@@ -674,7 +717,8 @@ export const groups = {
     signal?: AbortSignal,
     replyTo?: number,
     executionMode: 'llm' | 'pi' = 'llm',
-    fileNames?: string[]
+    fileNames?: string[],
+    mentionAll?: boolean
   ) =>
     streamSse<GroupStreamEvent>(
       `${API_BASE}/groups/${groupId}/messages`,
@@ -684,6 +728,7 @@ export const groups = {
         reply_to: replyTo,
         execution_mode: executionMode,
         file_names: fileNames || [],
+        mention_all: mentionAll || false,
       },
       signal
     ),

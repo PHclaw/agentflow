@@ -13,6 +13,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
+from ..core.safe_math import SafeMathError, safe_eval_math
 from .knowledge import KnowledgeService
 from .llm import LLMService
 
@@ -585,12 +586,13 @@ class ToolNode(BaseNode):
         expression = params.get("expression", input_data)
         
         try:
-            # 安全计算
-            allowed_chars = set("0123456789+-*/()., ")
-            if all(c in allowed_chars for c in expression):
-                result = eval(expression)
-                return str(result)
-            return "表达式包含非法字符"
+            # 走 AST 白名单，不用字符白名单：
+            # 字符白名单挡得住 __import__，但挡不住 "9**9**9**9" 把 CPU 打满，
+            # 也没法限制结果规模。safe_eval_math 同时管住了这两件事。
+            result = safe_eval_math(str(expression))
+            return str(result)
+        except SafeMathError as e:
+            return f"表达式非法: {e}"
         except Exception as e:
             return f"计算错误: {str(e)}"
     

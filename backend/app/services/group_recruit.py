@@ -25,9 +25,30 @@ from app.models.agent import Agent
 from app.models.group import AgentGroup
 from app.services.llm import LLMService
 
-#: 单群自动补人的上限。超过这个数说明这个群的角色规划本身有问题，
+#: 单群自动补人的默认上限。超过这个数说明这个群的角色规划本身有问题，
 #: 继续加人只会让路由更难判断。
+#: 实际生效的上限可由群设置 auto_recruit_limit 覆盖（见 recruit_member）。
 MAX_AUTO_MEMBERS = 3
+
+#: 可配置上限的边界
+MIN_AUTO_MEMBERS = 1
+MAX_AUTO_MEMBERS_LIMIT = 8
+
+
+def resolve_limit(group_settings: dict | None) -> int:
+    """取这个群实际生效的自动补人上限。
+
+    硬编码 3 太死：用户遇到「路由说没人能做但补不上」时没有余地。
+    群里角色多、需要多种视角时（合规 + 技术 + 数据 + 运营）3 个明显不够。
+    """
+    raw = (group_settings or {}).get("auto_recruit_limit")
+    if raw is None:
+        return MAX_AUTO_MEMBERS
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return MAX_AUTO_MEMBERS
+    return max(MIN_AUTO_MEMBERS, min(n, MAX_AUTO_MEMBERS_LIMIT))
 
 
 def count_auto_created(agents: List[Agent]) -> int:
@@ -63,16 +84,21 @@ async def recruit_member(
     task: str,
     existing: List[Agent],
     user_id: str,
+    role_hint: str | None = None,
 ) -> tuple[Optional[Agent], str]:
     """按任务招一个成员，返回 (新成员, 说明)。招不了时返回 (None, 原因)。
 
     调用方负责把它加进 ``group.agent_ids`` 并提交事务——这里只建 Agent 对象，
     不擅自改群成员，避免两步之间出错留下孤儿。
+
+    role_hint 是接活的人明确说出的「缺什么角色」。它比从任务文本重新推断准得多：
+    任务描述可能很含糊（「你执行吧」），而「数据建模工程师」是确切的。
     """
-    if count_auto_created(existing) >= MAX_AUTO_MEMBERS:
+    limit = resolve_limit(group.settings)
+    if count_auto_created(existing) >= limit:
         return None, (
-            f"这个群已经自动补充了 {MAX_AUTO_MEMBERS} 个成员，不再继续添加。"
-            "建议手动整理一下群成员，或明确指定由谁处理"
+            f"这个群已经自动补充了 {limit} 个成员，不再继续添加。"
+            "可以在群设置里调大上限，或手动整理一下群成员"
         )
 
     # 继承模型配置：新建的 Agent 如果 provider 为空，执行时会直接报未配置
@@ -83,11 +109,18 @@ async def recruit_member(
             inherited = dict(cfg)
             break
 
+    hint_line = (
+        f"\n接活的同事明确指出需要补这类角色：{role_hint}\n"
+        "请优先按这个方向命名和描述。"
+        if role_hint
+        else ""
+    )
+
     prompt = f"""一个多智能体工作群接到了一个任务，但群里的成员都做不了。需要临时招一个人。
 
 任务：
 {task}
-
+{hint_line}
 现有成员（不要重复他们的方向）：
 {chr(10).join(f"- {a.name}：{(a.description or '').strip() or '（未填写）'}" for a in existing)}
 

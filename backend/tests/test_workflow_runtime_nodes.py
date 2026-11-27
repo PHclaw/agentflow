@@ -472,7 +472,10 @@ class TestToolNode:
 
         await node.execute(state)
 
-        assert state.node_outputs["tool1"]["result"] == "表达式包含非法字符"
+        # 不锁死具体文案：求值器从「字符白名单」换成了 AST 白名单，
+        # 拒绝的理由会变（Call / Name / 指数过大等），但必须都是拒绝。
+        result = state.node_outputs["tool1"]["result"]
+        assert "非法" in result, f"应拒绝危险表达式，实际返回: {result}"
 
     @pytest.mark.asyncio
     async def test_text_process_operations(self):

@@ -311,6 +311,87 @@ function UploadChip({
  *  有序列表等），而 rehype-sanitize 会剥掉自定义 class 的 span，
  *  高亮会失效。行内代码是 Markdown 原生语法，渲染后自带底色，效果一致。
  */
+/** 表情回应条：已有表情聚合显示，hover 出快捷表情 */
+function ReactionBar({
+  m,
+  groupId,
+  onReact,
+}: {
+  m: GroupMessageItem
+  groupId: string
+  onReact: (emoji: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const counts = useMemo(() => {
+    const map = new Map<string, { n: number; mine: boolean }>()
+    for (const r of m.reactions || []) {
+      const cur = map.get(r.emoji) || { n: 0, mine: false }
+      map.set(r.emoji, { n: cur.n + 1, mine: cur.mine || r.mine })
+    }
+    return Array.from(map.entries())
+  }, [m.reactions])
+
+  if (!m.reactions?.length && !open) return null
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {counts.map(([emoji, info]) => (
+        <button
+          key={emoji}
+          onClick={() => void onReact(emoji)}
+          className={`rounded-full border px-1.5 py-0.5 text-[11px] transition ${
+            info.mine
+              ? 'border-brand-400 bg-brand-50 text-brand-700'
+              : 'border-gray-200 bg-gray-50 text-gray-600'
+          }`}
+          title={info.mine ? '取消我的回应' : '我的回应'}
+        >
+          {emoji} {info.n}
+        </button>
+      ))}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-full border border-dashed border-gray-300 px-1.5 py-0.5 text-[10px] text-gray-400 hover:border-brand-300 hover:text-brand-600"
+      >
+        {open ? '收起' : '+ 表情'}
+      </button>
+      {open && (
+        <span className="flex gap-0.5">
+          {['👍', '🎉', '❤️', '😂', '👀'].map((e) => (
+            <button
+              key={e}
+              onClick={() => { void onReact(e); setOpen(false) }}
+              className="rounded-md px-1 py-0.5 text-sm hover:bg-gray-100"
+            >
+              {e}
+            </button>
+          ))}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** 编辑消息 */
+async function saveEdit(groupId: string, messageId: number, content: string) {
+  const res = await groupsApi.editMessage(groupId, messageId, content)
+  return res
+}
+
+/** 消息时间：飞书式 HH:MM，跨天的补日期 */
+function formatMessageTime(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const hm = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
+  const today = new Date()
+  const sameDay =
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
+  return sameDay ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`
+}
+
 function markMentions(text: string, names: string[]): string {
   if (!names.length) return text
   const sorted = [...names].sort((a, b) => b.length - a.length)
@@ -335,8 +416,22 @@ export default function GroupChatPage() {
   const [mentionIndex, setMentionIndex] = useState(0)
   const [explicitAgentId, setExplicitAgentId] = useState<string | null>(null)
   const [executionMode, setExecutionMode] = useState<'llm' | 'pi'>('llm')
+  // 协作模式：single = 一人接活；chain = 成员之间接力补充
+  const [collaborationMode, setCollaborationMode] = useState<'single' | 'chain'>('single')
+  const [maxSpeakers, setMaxSpeakers] = useState(4)
+  // 自动补人上限：群里没人能做时可以现场造几个成员
+  const [recruitLimit, setRecruitLimit] = useState(3)
   const [highlightId, setHighlightId] = useState<number | null>(null)
   const messageRefs = useRef<Map<number, HTMLDivElement>>(new Map())
+
+  // 飞书式交互增强：搜索 / 编辑 / 表情 / 已读 / @全体
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
+  const [menuId, setMenuId] = useState<number | null>(null)
+  const [mentionAll, setMentionAll] = useState(false)
+  const QUICK_EMOJIS = ['👍', '🎉', '❤️', '😂', '👀']
 
   // 待发送附件：上传中/成功/失败都在这个列表里，发送成功后清空
   const [uploads, setUploads] = useState<PendingUpload[]>([])
@@ -344,6 +439,7 @@ export default function GroupChatPage() {
 
   // 新建群
   const [showCreate, setShowCreate] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [allAgents, setAllAgents] = useState<Member[]>([])
   const [newName, setNewName] = useState('')
   const [picked, setPicked] = useState<string[]>([])
@@ -386,10 +482,17 @@ export default function GroupChatPage() {
       try {
         const [g, m] = await Promise.all([
           groupsApi.get(activeId),
-          groupsApi.messages(activeId),
+          groupsApi.messages(activeId, 100, searchText),
         ])
         if (cancelled) return
         setDetail(g)
+        // 进群即标已读（不 await，避免拖慢首屏）
+        void groupsApi.markAllRead(activeId).catch(() => {})
+        // 群设置里的协作模式与人数上限要跟着群详情走
+        const gs = (g as any).settings || {}
+        setCollaborationMode(gs.collaboration_mode === 'chain' ? 'chain' : 'single')
+        if (typeof gs.max_speakers === 'number') setMaxSpeakers(gs.max_speakers)
+        if (typeof gs.auto_recruit_limit === 'number') setRecruitLimit(gs.auto_recruit_limit)
         setMessages(m.messages || [])
         setBubbles((m.messages || []).map((x) => ({ kind: 'message', data: x })))
         scrollToBottom()
@@ -400,7 +503,8 @@ export default function GroupChatPage() {
     return () => {
       cancelled = true
     }
-  }, [activeId, scrollToBottom])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, searchText, scrollToBottom])
 
   useEffect(() => {
     if (!showCreate || allAgents.length) return
@@ -577,6 +681,130 @@ export default function GroupChatPage() {
     [activeId, uploads.length, uploadOne]
   )
 
+  /** 切换协作模式：单人接活 ↔ 成员接力补充 */
+  const toggleCollaboration = useCallback(async () => {
+    if (!activeId) return
+    const next = collaborationMode === 'chain' ? 'single' : 'chain'
+    const prev = collaborationMode
+    setCollaborationMode(next)  // 先改 UI，失败再回滚
+    try {
+      await groupsApi.update(activeId, {
+        settings: { collaboration_mode: next, max_speakers: maxSpeakers },
+      })
+      setRoutingHint(
+        next === 'chain'
+          ? `已开启协作接力：最多 ${maxSpeakers} 位成员依次补充`
+          : '已切回单人接活'
+      )
+    } catch (e: any) {
+      setCollaborationMode(prev)
+      setRoutingHint(e?.message || '切换失败')
+    }
+  }, [activeId, collaborationMode, maxSpeakers])
+
+  /** 调整接力人数上限 */
+  const changeMaxSpeakers = useCallback(
+    async (n: number) => {
+      if (!activeId) return
+      const prev = maxSpeakers
+      setMaxSpeakers(n)
+      try {
+        await groupsApi.update(activeId, {
+          settings: { collaboration_mode: collaborationMode, max_speakers: n },
+        })
+      } catch (e: any) {
+        setMaxSpeakers(prev)
+        setRoutingHint(e?.message || '保存失败')
+      }
+    },
+    [activeId, maxSpeakers, collaborationMode]
+  )
+
+  /** 调整自动补人上限 */
+  const changeRecruitLimit = useCallback(
+    async (n: number) => {
+      if (!activeId) return
+      const prev = recruitLimit
+      setRecruitLimit(n)
+      try {
+        await groupsApi.update(activeId, { settings: { auto_recruit_limit: n } })
+        setRoutingHint(`自动补人上限已设为 ${n} 个`)
+      } catch (e: any) {
+        setRecruitLimit(prev)
+        setRoutingHint(e?.message || '保存失败')
+      }
+    },
+    [activeId, recruitLimit]
+  )
+
+  /** 移出成员。自动招募的会被彻底删除，需要明确提示。 */
+  const handleRemoveMember = useCallback(
+    async (agent: Member) => {
+      if (!activeId) return
+      const auto = !!(agent as any).auto_created
+      const msg = auto
+        ? `把「${agent.name}」移出群？它是自动招募的临时成员，会从账号里彻底删除。`
+        : `把「${agent.name}」移出群？Agent 本身会保留，可以再加入别的群。`
+      if (!window.confirm(msg)) return
+      try {
+        const res = await groupsApi.removeMember(activeId, agent.id)
+        setDetail(res)
+        setRoutingHint(
+          res.removed_agent_purged
+            ? `已移出「${agent.name}」，并删除了这个临时成员`
+            : `已移出「${agent.name}」`
+        )
+        await loadList()
+      } catch (e: any) {
+        setRoutingHint(e?.message || '移出失败')
+      }
+    },
+    [activeId, loadList]
+  )
+
+  /** 把账号里已有的 Agent 拉进群 */
+  const handleAddMember = useCallback(
+    async (agentId: string) => {
+      if (!activeId || !detail) return
+      if (detail.members.some((m) => m.id === agentId)) return
+      try {
+        const res = await groupsApi.addMembers(activeId, [
+          ...detail.members.map((m) => m.id),
+          agentId,
+        ])
+        setDetail(res)
+        setRoutingHint(`已把「${res.members.find((m) => m.id === agentId)?.name}」拉进群`)
+        await loadList()
+      } catch (e: any) {
+        setRoutingHint(e?.message || '添加失败')
+      }
+    },
+    [activeId, detail, loadList]
+  )
+
+  /** 删除群聊。记录会一并删除，所以必须二次确认。 */
+  const handleDeleteGroup = useCallback(
+    async (g: { id: string; name: string }) => {
+      if (!window.confirm(`删除群聊「${g.name}」？\n聊天记录会一并删除，无法恢复。`)) {
+        return
+      }
+      try {
+        await groupsApi.remove(g.id)
+        if (activeId === g.id) {
+          setActiveId(null)
+          setDetail(null)
+          setMessages([])
+          setBubbles([])
+        }
+        await loadList()
+        setRoutingHint(`已删除「${g.name}」`)
+      } catch (e: any) {
+        setRoutingHint(e?.message || '删除失败，请重试')
+      }
+    },
+    [activeId, loadList]
+  )
+
   const handleSend = async () => {
     const text = input.trim()
     if (!text || !activeId || sending) return
@@ -638,7 +866,8 @@ export default function GroupChatPage() {
         ctrl.signal,
         quoted?.id && quoted.id > 0 ? quoted.id : undefined,
         executionMode,
-        readyFiles.map((f) => f.stored_name)
+        readyFiles.map((f) => f.stored_name),
+        mentionAll
       )) {
         // 群里没人能做，后端现场招了个人进来
         if (evt.type === 'member_joined') {
@@ -883,9 +1112,9 @@ export default function GroupChatPage() {
   )
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] gap-4">
-      {/* 左：群列表 */}
-      <aside className="w-64 shrink-0 flex flex-col rounded-xl border border-gray-200 bg-white">
+    <div className="flex h-[calc(100vh-8.5rem)] gap-2 px-2 md:h-[calc(100vh-4rem)] md:gap-4 md:px-0">
+      {/* 左：群列表（窄屏隐藏，改用聊天区头部的群选择） */}
+      <aside className="hidden w-56 shrink-0 flex-col rounded-xl border border-gray-200 bg-white md:flex lg:w-64">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <span className="text-sm font-semibold text-gray-900">群聊</span>
           <button
@@ -954,27 +1183,45 @@ export default function GroupChatPage() {
             </p>
           )}
           {list.map((g) => (
-            <button
+            <div
               key={g.id}
+              // 用 div 而不是 button：里面还要放删除按钮，button 不能嵌套
+              role="button"
+              tabIndex={0}
               onClick={() => setActiveId(g.id)}
-              className={`w-full text-left px-4 py-3 border-b border-gray-50 transition ${
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') setActiveId(g.id)
+              }}
+              className={`group/item w-full cursor-pointer px-4 py-3 border-b border-gray-50 transition ${
                 g.id === activeId ? 'bg-brand-50' : 'hover:bg-gray-50'
               }`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-900 truncate">{g.name}</span>
-                <span className="text-[10px] text-gray-400">{g.member_count} 人</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="text-[10px] text-gray-400">{g.member_count} 人</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void handleDeleteGroup(g)
+                    }}
+                    className="text-[11px] text-gray-300 opacity-0 transition hover:text-red-500 group-hover/item:opacity-100"
+                    title="删除这个群聊"
+                  >
+                    ✕
+                  </button>
+                </span>
               </div>
               <p className="text-[11px] text-gray-400 truncate mt-0.5">
                 {g.last_message || '还没有消息'}
               </p>
-            </button>
+            </div>
           ))}
         </div>
       </aside>
 
       {/* 右：聊天区 */}
-      <section className="flex-1 flex flex-col rounded-xl border border-gray-200 bg-white overflow-hidden">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white">
         {!detail ? (
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-gray-400">
@@ -984,27 +1231,42 @@ export default function GroupChatPage() {
         ) : (
           <>
             {/* 头部 */}
-            <header className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-900">{detail.name}</h2>
+            <header className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 py-2.5 md:px-5 md:py-3">
+              <div className="flex min-w-0 items-center gap-2">
+                {/* 窄屏没有群列表，用下拉切群 */}
+                <select
+                  value={activeId || ''}
+                  onChange={(e) => setActiveId(e.target.value)}
+                  className="max-w-[96px] shrink-0 truncate rounded-md border border-gray-200 bg-white px-1.5 py-1 text-[11px] text-gray-700 md:hidden"
+                >
+                  {list.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+                <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-gray-900">{detail.name}</h2>
                 <p className="text-[11px] text-gray-400 mt-0.5">
                   {ROUTE_MODE_LABEL[detail.route_mode] || detail.route_mode} ·{' '}
                   {detail.members.length} 位成员
+                  {collaborationMode === 'chain' && (
+                    <> · <span className="text-brand-600">协作接力（最多 {maxSpeakers} 人）</span></>
+                  )}
                 </p>
                 {detail.members.some((m) => !(m.description || '').trim()) && (
                   <p className="text-[10.5px] text-amber-600 mt-1">
                     有成员未填写能力描述（头像标黄），自动派发不可用 · 请到 Agent 设置补充
                   </p>
                 )}
+                </div>
               </div>
-              <div className="flex -space-x-1.5">
+              <div className="flex shrink-0 -space-x-1.5">
                 {detail.members.slice(0, 5).map((m) => {
                   const noDesc = !(m.description || '').trim()
                   return (
                     <div
                       key={m.id}
                       title={noDesc ? `${m.name}（未填写能力描述，无法自动派发）` : m.name}
-                      className={`w-7 h-7 rounded-full text-white text-[11px] flex items-center justify-center ring-2 ring-white ${
+                      className={`hidden w-7 h-7 rounded-full text-white text-[11px] items-center justify-center ring-2 ring-white sm:flex ${
                         noDesc
                           ? 'bg-amber-400 ring-amber-100'
                           : 'bg-gradient-to-br from-brand-500 to-blue-500'
@@ -1014,8 +1276,35 @@ export default function GroupChatPage() {
                     </div>
                   )
                 })}
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="ml-3 self-center rounded-md border border-gray-200 px-2 py-0.5 text-[10.5px] text-gray-500 transition hover:border-brand-300 hover:text-brand-600"
+                  title="群设置：成员管理、协作模式、自动补人"
+                >
+                  群设置
+                </button>
               </div>
             </header>
+
+            {/* 搜索：按关键词过滤历史消息 */}
+            {searchOpen && (
+              <div className="mx-3 mt-3 flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2">
+                <input
+                  autoFocus
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  placeholder="搜索聊天记录…"
+                  className="flex-1 bg-transparent text-xs outline-none placeholder:text-brand-400"
+                />
+                <span className="text-[10px] text-brand-500">{messages.length} 条结果</span>
+                <button
+                  onClick={() => { setSearchOpen(false); setSearchText('') }}
+                  className="text-xs text-brand-500 hover:text-brand-700"
+                >
+                  关闭
+                </button>
+              </div>
+            )}
 
             {/* 消息流 */}
             <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -1141,13 +1430,18 @@ export default function GroupChatPage() {
                       <div className="max-w-[75%]">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-medium text-gray-700">{name}</span>
+                          <span className="text-[10px] text-gray-400">{formatMessageTime(m.created_at)}</span>
                           {m.meta?.reply_to && (
                             <span className="text-[10px] text-gray-400">引用回复</span>
                           )}
                         </div>
                         {quoteBlock}
                         <div className="rounded-xl rounded-tl-sm bg-gray-50 border border-gray-100 px-3.5 py-2.5 text-sm text-gray-800">
-                          <Markdown content={markMentions(m.content, memberNames)} />
+                          {m.is_revoked ? (
+                            <span className="text-gray-400 italic">消息已撤回</span>
+                          ) : (
+                            <Markdown content={markMentions(m.content, memberNames)} />
+                          )}
                         </div>
                         {Array.isArray(m.meta?.files) && m.meta.files.length > 0 && (
                           <div className="mt-2 space-y-1.5">
@@ -1180,6 +1474,14 @@ export default function GroupChatPage() {
                         >
                           ↩ 回复这条
                         </button>
+                        <ReactionBar m={m} groupId={detail.id} onReact={async (emoji) => {
+                          const res = await groupsApi.react(detail.id, m.id, emoji)
+                          setBubbles((prev) => prev.map((b) =>
+                            b.kind === 'message' && b.data.id === m.id
+                              ? { ...b, data: { ...b.data, reactions: res.reactions } }
+                              : b
+                          ))
+                        }} />
                         {m.meta?.route_reason && (
                           <p className="text-[10px] text-gray-400 mt-0.5">
                             指派理由：{m.meta.route_reason}
@@ -1202,7 +1504,11 @@ export default function GroupChatPage() {
                     <div className="max-w-[75%]">
                       {quoteBlock}
                       <div className="rounded-xl rounded-tr-sm bg-brand-600 px-3.5 py-2.5 text-sm text-white [&_*]:!text-white [&_code]:!bg-white/20">
-                        <Markdown content={markMentions(m.content, memberNames)} />
+                        {m.is_revoked ? (
+                          <span className="opacity-70 italic">消息已撤回</span>
+                        ) : (
+                          <Markdown content={markMentions(m.content, memberNames)} />
+                        )}
                       </div>
                       {Array.isArray(m.meta?.files) && m.meta.files.length > 0 && (
                         <div className="mt-1.5 flex flex-wrap justify-end gap-1.5">
@@ -1213,12 +1519,91 @@ export default function GroupChatPage() {
                           )}
                         </div>
                       )}
-                      <button
-                        onClick={() => setReplyTo(m)}
-                        className="mt-1 block ml-auto text-[10.5px] text-gray-400 opacity-0 transition group-hover:opacity-100 hover:text-brand-600"
-                      >
-                        ↩ 回复这条
-                      </button>
+                      {/* @全体标记 */}
+                      {m.meta?.mention_all && (
+                        <p className="mt-1 text-right text-[10.5px] font-medium text-brand-600">
+                          @全体成员
+                        </p>
+                      )}
+                      {/* 表情回应 */}
+                      <ReactionBar m={m} groupId={detail.id} onReact={async (emoji) => {
+                        const res = await groupsApi.react(detail.id, m.id, emoji)
+                        setBubbles((prev) => prev.map((b) =>
+                          b.kind === 'message' && b.data.id === m.id
+                            ? { ...b, data: { ...b.data, reactions: res.reactions } }
+                            : b
+                        ))
+                      }} />
+                      {/* 编辑态 */}
+                      {editingId === m.id ? (
+                        <div className="mt-1.5 flex justify-end gap-1.5">
+                          <input
+                            autoFocus
+                            value={editText}
+                            onChange={(e) => setEditText(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter' && editText.trim() && detail) {
+                                const updated = await saveEdit(detail.id, m.id, editText.trim())
+                                setBubbles((prev) => prev.map((b) =>
+                                  b.kind === 'message' && b.data.id === m.id
+                                    ? { ...b, data: updated }
+                                    : b
+                                ))
+                                setEditingId(null)
+                              }
+                              if (e.key === 'Escape') setEditingId(null)
+                            }}
+                            className="flex-1 rounded-md border border-brand-300 px-2 py-1 text-xs outline-none"
+                          />
+                          <button onClick={() => setEditingId(null)} className="text-[10.5px] text-gray-400">取消</button>
+                        </div>
+                      ) : null}
+                      {/* 消息操作 */}
+                      <div className="mt-0.5 flex justify-end items-center gap-2">
+                        {m.meta?.edited && <span className="text-[10px] text-gray-400">已编辑</span>}
+                        <button
+                          onClick={() => { setMenuId(menuId === m.id ? null : m.id) }}
+                          className="text-[10.5px] text-gray-400 opacity-0 transition group-hover:opacity-100 hover:text-brand-600"
+                        >
+                          ⋯
+                        </button>
+                        <button
+                          onClick={() => setReplyTo(m)}
+                          className="text-[10.5px] text-gray-400 hover:text-brand-600"
+                        >
+                          ↩ 回复这条
+                        </button>
+                      </div>
+                      {menuId === m.id && detail && (
+                        <div className="mt-1 flex justify-end gap-2 rounded-md border border-gray-200 bg-white px-2 py-1 text-[10.5px]">
+                          <button
+                            onClick={() => { setEditingId(m.id); setEditText(m.content); setMenuId(null) }}
+                            className="text-gray-600 hover:text-brand-600"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm('撤回这条消息？')) return
+                              await groupsApi.revokeMessage(detail.id, m.id)
+                              setBubbles((prev) => prev.map((b) =>
+                                b.kind === 'message' && b.data.id === m.id
+                                  ? { ...b, data: { ...b.data, is_revoked: true, content: '' } }
+                                  : b
+                              ))
+                              setMenuId(null)
+                            }}
+                            className="text-gray-600 hover:text-red-600"
+                          >
+                            撤回
+                          </button>
+                        </div>
+                      )}
+                      {m.read_by && m.read_by.length > 0 && (
+                        <p className="mt-0.5 text-right text-[10px] text-gray-400">
+                          {m.read_by.length} 人已读
+                        </p>
+                      )}
                     </div>
                   </div>
                 )
@@ -1226,7 +1611,28 @@ export default function GroupChatPage() {
             </div>
 
             {/* 输入区 */}
-            <div className="relative border-t border-gray-100 px-4 py-3">
+            {/* @全体成员与搜索入口 */}
+          <div className="flex items-center gap-2 px-2 pt-2 md:px-4">
+            <button
+              onClick={() => setMentionAll((v) => !v)}
+              className={`rounded-md border px-2 py-0.5 text-[10.5px] transition ${
+                mentionAll
+                  ? 'border-brand-400 bg-brand-50 text-brand-700'
+                  : 'border-gray-200 text-gray-500 hover:border-brand-300'
+              }`}
+              title="标记这条消息为 @全体成员"
+            >
+              @全体成员{mentionAll ? ' ✓' : ''}
+            </button>
+            <button
+              onClick={() => setSearchOpen((v) => !v)}
+              className="rounded-md border border-gray-200 px-2 py-0.5 text-[10.5px] text-gray-500 hover:border-brand-300 hover:text-brand-600"
+              title="搜索聊天记录"
+            >
+              搜索记录
+            </button>
+          </div>
+          <div className="relative border-t border-gray-100 px-2 py-2.5 md:px-4 md:py-3">
               {routingHint && (
                 <p className="text-[11px] text-amber-600 mb-2">{routingHint}</p>
               )}
@@ -1397,6 +1803,175 @@ export default function GroupChatPage() {
           </>
         )}
       </section>
+
+      {/* 群设置：成员管理 + 协作参数集中在这里 */}
+      {showSettings && detail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+          onClick={() => setShowSettings(false)}
+        >
+          <div
+            className="w-[520px] max-h-[80vh] overflow-y-auto rounded-xl bg-white shadow-xl border border-gray-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">群设置</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">{detail.name}</p>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-5">
+              {/* 成员 */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-gray-700">
+                    群成员 · {detail.members.length}
+                  </p>
+                  <span className="text-[10px] text-gray-400">
+                    自动招募的可移出并彻底删除
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {detail.members.map((m) => {
+                    const auto = !!(m as any).auto_created
+                    return (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-2 rounded-md border border-gray-100 px-2.5 py-1.5"
+                      >
+                        <div className="w-6 h-6 rounded-md bg-brand-50 text-brand-700 flex items-center justify-center text-[11px] font-semibold">
+                          {m.name.slice(0, 1)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-800 truncate">
+                            {m.name}
+                            {auto && (
+                              <span className="ml-1.5 text-[9.5px] text-amber-600">
+                                自动招募
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-gray-400 truncate">
+                            {(m.description || '未填写能力描述').slice(0, 46)}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => void handleRemoveMember(m)}
+                          disabled={detail.members.length <= 1}
+                          className="text-[10.5px] text-gray-400 hover:text-red-600 disabled:opacity-30"
+                        >
+                          移出
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* 拉已有 Agent 进群 */}
+                {allAgents.filter(
+                  (a) => !detail.members.some((m) => m.id === a.id)
+                ).length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-[10.5px] text-gray-400 mb-1">拉入已有 Agent</p>
+                    <div className="flex flex-wrap gap-1">
+                      {allAgents
+                        .filter((a) => !detail.members.some((m) => m.id === a.id))
+                        .map((a) => (
+                          <button
+                            key={a.id}
+                            onClick={() => void handleAddMember(a.id)}
+                            className="text-[10.5px] px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:border-brand-300 hover:text-brand-600"
+                          >
+                            + {a.name}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 协作 */}
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-700">协作方式</p>
+                <label className="flex items-center justify-between">
+                  <span>
+                    <span className="text-xs text-gray-700">协作接力</span>
+                    <span className="block text-[10px] text-gray-400 mt-0.5">
+                      关 = 一人接活；开 = 成员之间依次补充对方的结论
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => void toggleCollaboration()}
+                    className={`relative w-9 h-5 rounded-full transition ${
+                      collaborationMode === 'chain' ? 'bg-brand-600' : 'bg-gray-300'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                        collaborationMode === 'chain' ? 'left-4.5' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </label>
+                {collaborationMode === 'chain' && (
+                  <label className="flex items-center justify-between">
+                    <span className="text-xs text-gray-600">最多几位成员接力</span>
+                    <select
+                      value={maxSpeakers}
+                      onChange={(e) => void changeMaxSpeakers(Number(e.target.value))}
+                      className="text-xs border border-gray-200 rounded-md px-2 py-1"
+                    >
+                      {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+                        <option key={n} value={n}>
+                          {n} 人
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="flex items-center justify-between">
+                  <span>
+                    <span className="text-xs text-gray-600">自动补人上限</span>
+                    <span className="block text-[10px] text-gray-400 mt-0.5">
+                      没人能做时最多现场创建几个成员
+                    </span>
+                  </span>
+                  <select
+                    value={recruitLimit}
+                    onChange={(e) => void changeRecruitLimit(Number(e.target.value))}
+                    className="text-xs border border-gray-200 rounded-md px-2 py-1"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 8].map((n) => (
+                      <option key={n} value={n}>
+                        {n} 个
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* 危险操作 */}
+              <div className="border-t border-gray-100 pt-4">
+                <button
+                  onClick={() => {
+                    setShowSettings(false)
+                    void handleDeleteGroup(detail)
+                  }}
+                  className="text-[11px] text-red-500 hover:text-red-700"
+                >
+                  删除这个群聊（含全部聊天记录）
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

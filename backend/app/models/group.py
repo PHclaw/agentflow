@@ -14,7 +14,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Column, DateTime, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String, Text, UniqueConstraint
 
 from app.core.base import Base
 
@@ -72,6 +72,43 @@ class GroupMessage(Base):
     #   confidence    —— 路由置信度
     #   tokens        —— 本次消耗
     #   mentions      —— 被 @ 的成员名列表
+    #   mention_all   —— @ 全体成员
+    #   edited_at     —— 最后编辑时间（编辑后显示「已编辑」）
     meta = Column(JSON, nullable=False, default=dict)
 
+    # 撤回：保留行、清空内容，历史链路不塌
+    is_revoked = Column(Boolean, nullable=False, default=False, index=True)
+    revoked_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+
+class MessageReaction(Base):
+    """消息表情回应。同一个人对同一消息同一表情只有一条。"""
+
+    __tablename__ = "message_reactions"
+    __table_args__ = (
+        UniqueConstraint("message_id", "user_id", "emoji", name="uq_reaction_user_emoji"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message_id = Column(Integer, nullable=False, index=True)
+    group_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), nullable=False)
+    emoji = Column(String(16), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MessageRead(Base):
+    """已读回执。用户进群/看到消息时写入。"""
+
+    __tablename__ = "message_reads"
+    __table_args__ = (
+        UniqueConstraint("message_id", "user_id", name="uq_message_read_user"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    message_id = Column(Integer, nullable=False, index=True)
+    group_id = Column(String(36), nullable=False, index=True)
+    user_id = Column(String(36), nullable=False)
+    read_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

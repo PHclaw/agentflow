@@ -134,6 +134,20 @@ async def route_task(
 判断哪一个成员最适合处理这个任务。判断依据是任务需要的能力与成员描述是否匹配，
 不要因为名字听起来相关就选。
 
+【重要】宁可返回 null，也不要赌。
+如果任务需要的能力在成员的描述里找不到明确对应——比如成员只写了
+「软件方面的东西」「我的助手」这类模糊描述，而你需要的能力它是否覆盖并不确定——
+说明现有成员里没有真正能接这个的人。把 assignee 填 null，系统会按任务补一位
+描述清晰的新成员，这比让一个不确定的人硬答可靠得多。
+
+反过来，如果你确实能根据描述确认某位成员覆盖了任务所需能力，就选他，
+并把 confidence 给足。
+
+如果输入里带了【补充说明】，说明有成员已经看过任务并表示做不了。这时要分清两种情况：
+· 别人更合适 → 填那位成员的名字
+· 现有成员都不具备所需能力（缺这个方向的人）→ assignee 填 null，
+  系统会按任务自动补一位新成员
+
 只输出 JSON，不要别的内容：
 {{"assignee": "成员名字（没有合适的就填 null）", "reason": "一句话理由", "confidence": 0.0~1.0}}"""
 
@@ -188,37 +202,64 @@ async def route_task(
     ), confidence
 
 
+#: 协作接力提示词。协作模式下才发——single 模式下让它主动交接，
+#: 用户看到的仍是「一个人答完」，反而变啰嗦。
+COLLAB_BLOCK = (
+    "【关于协作接力】\n"
+    "如果你已经把自己负责的部分做好了，但这个任务还有明显该由别人补的部分"
+    "（例如你给的是数据结论，还需要有人补技术可行性；你给的是文案，"
+    "还需要有人核事实），不要自己硬包办。在最后单独一行输出：\n"
+    "[[NEXT: 成员名 | 要他补充什么，如 补充技术可行性评估]]\n"
+    "系统会把你已经得出的结论一起转给他，由他接着补完。\n"
+    "注意：优先交给**不同方向**的成员，不要把活原样交回上一位——"
+    "两个人来回弹同样的内容对用户没有价值。\n"
+    "只有真的需要别人补时才用；你一个人能做完就自己做完。\n\n"
+)
+
+
+def _roster_block(agent: Agent, peers: Optional[List[Agent]]) -> str:
+    """列出群里其他成员。
+
+    转交与协作接力都要求模型知道能交给谁——不列的话它只能编一个
+    群里并不存在的名字（实测出现过「已转给数据分析同事」这种）。
+    """
+    others = [p for p in (peers or []) if p.id != agent.id]
+    if not others:
+        return ""
+    lines = [
+        f"- {p.name}：{(p.description or '（未填写能力描述）').strip() or '（未填写能力描述）'}"
+        for p in others
+    ]
+    return (
+        "\n群里的其他成员（只能交给他们，不能编造别的名字）：\n"
+        + "\n".join(lines)
+        + "\n"
+    )
+
+
 def build_reply_message(
     agent: Agent,
     question: str,
     asked_by: str,
     peers: Optional[List[Agent]] = None,
+    collaboration: bool = False,
 ) -> str:
     """构造发给 agent 的输入。
 
-    四件事要说清楚：
+    五件事要说清楚：
     1. 它是谁（角色与能力边界）—— 群里只说「请回答」会让它越界答别人的活
     2. 群里还有谁（否则它想转交却不知道该转给谁，只能编一个名字）
     3. 这是群聊、什么任务、谁派的
     4. 输出要求：直接给结论，不要复述，缺信息就问
+    5. collaboration=True 时额外告诉它可以「接力」——把自己那部分做完，
+       再点名请别人补上另一部分。这是协作，不是推诿。
     """
     role = (agent.description or "").strip()
     role_line = f"你的角色：{agent.name}。{role}\n" if role else f"你的角色：{agent.name}。\n"
 
     # 列出其他成员：转交协议要能落地，前提是它知道可选的人有哪些。
     # 不列的话模型会写出「已转给数据分析同事」这种群里并不存在的人。
-    roster = ""
-    others = [p for p in (peers or []) if p.id != agent.id]
-    if others:
-        lines = [
-            f"- {p.name}：{(p.description or '（未填写能力描述）').strip() or '（未填写能力描述）'}"
-            for p in others
-        ]
-        roster = (
-            "\n群里的其他成员（只能转给他们，不能编造别的名字）：\n"
-            + "\n".join(lines)
-            + "\n"
-        )
+    roster = _roster_block(agent, peers)
 
     return (
         role_line
@@ -230,7 +271,8 @@ def build_reply_message(
         "如果任务缺少必要信息，明确说明缺什么，不要猜。\n"
         "回复要短：能一两句说清就不要展开成三段。"
         "文件已经收到时不要再说「我已收到文件」，直接给结果。\n\n"
-        "【转交协议｜必须遵守】\n"
+        + (COLLAB_BLOCK if collaboration else "")
+        + "【转交协议｜必须遵守】\n"
         "如果这个任务超出你的职责，光说「不在我职责范围内」是不够的——"
         "那会让任务停在你这里，用户拿不到结果。\n"
         "你必须做两件事：\n"
@@ -240,6 +282,12 @@ def build_reply_message(
         "例如：[[HANDOFF: 数据分析师 | 涉及表格计算与汇总，超出文案职责]]\n"
         "系统识别到这一行才会真的把任务转给他，并带上你上面写的内容。\n"
         "只在确实做不了时使用；能做就自己做，不要为了省事而转交。\n\n"
+        "【关于缺人】\n"
+        "如果你判断是「群里根本没人能接这个任务」——不是别人更适合，"
+        "而是没有这个方向的人——不要转给任何现有成员，转来转去也解决不了。"
+        "这时在最后单独一行输出：\n"
+        "[[NEED_MEMBER: 需要补什么角色，如 数据建模工程师]]\n"
+        "系统会按这个描述创建一位新成员并交给他。\n\n"
         "【重要】如果群里的其他成员也都不适合（比如没有做数据的人），"
         "不要硬答，也不要假装转交，直接说清楚：「群里没有擅长 X 的成员」，"
         "并建议用户补充成员或自己确认。硬答会给出不可靠的结论，比不答更糟。"
@@ -265,6 +313,28 @@ def parse_handoff(text: str) -> Tuple[Optional[str], str]:
     return m.group(1).strip(), m.group(2).strip()
 
 
+#: 「群里没人能做」的显式标记 ``[[NEED_MEMBER: 能力描述]]``。
+#: 比关键词猜测可靠得多：模型明确表达了缺人，系统照做即可。
+_NEED_MEMBER_RE = re.compile(
+    r"\[\[\s*NEED_MEMBER\s*[:：]\s*([^\]]+?)\s*\]\]",
+    re.IGNORECASE,
+)
+
+
+def parse_need_member(text: str) -> Optional[str]:
+    """解析「群里缺人」标记，返回需要补的角色描述。
+
+    没有标记时返回 None——这是最可靠的触发信号，比从自然语言里猜准得多。
+    """
+    if not text:
+        return None
+    m = _NEED_MEMBER_RE.search(text)
+    if not m:
+        return None
+    desc = m.group(1).strip()
+    return desc or "该任务所需的专职角色"
+
+
 def strip_handoff(text: str) -> str:
     """去掉协议标记，留下真正要给用户看的内容。
 
@@ -273,23 +343,51 @@ def strip_handoff(text: str) -> str:
     """
     if not text:
         return ""
-    return _HANDOFF_RE.sub("", text).strip()
+    out = _HANDOFF_RE.sub("", text)
+    out = _NEED_MEMBER_RE.sub("", out)
+    return out.strip()
 
 
 #: 模型经常「说了不归我管」但忘了输出协议标记，任务就卡在它这里。
 #: 用这组词做兜底识别；只在回复很短时才认定为推辞——长回复通常已经
 #: 给了实质内容，不该被误判成拒绝。
 _REFUSAL_RE = re.compile(
-    r"(不在我(的)?职责|不属于我(的)?(职责|范围)|超出我(的)?(职责|能力)"
-    r"|请转给|建议(由|转给)|需要转交给|无法处理这类)"
+    r"(不在.{0,6}职责|不属于.{0,4}(职责|范围)|超出.{0,4}(职责|能力)"
+    r"|请转给|建议(由|转给)|需要转交给|无法处理这类|我不负责|不负责这块)"
+)
+
+#: 「群里没人能做」的强信号。这类话通常出现在长回复里（先说能做什么，
+#: 再说缺人），所以不受长度限制——它指向的是人力不足，不是信息不足。
+_NOBODY_RE = re.compile(
+    r"(群里没有|群内没有|没有擅长|缺少(擅长|相关|对口)"
+    r"|建议(补充|添加|增加|引入)[^，。；\n]{0,10}(成员|同事|人))"
 )
 
 
 def looks_like_refusal(text: str) -> bool:
     body = (text or "").strip()
-    if not body or len(body) > 260:
+    if not body:
+        return False
+    # 明确说「群里没人能做」时不看长度：这种回复往往先讲了能做的部分，
+    # 真正关键的「缺人」在末尾一句，按长度过滤会把它们全漏掉。
+    if _NOBODY_RE.search(body):
+        return True
+    # 弱拒绝词（「不归我管」这类）只在短回复里认。
+    # 长回复通常已经给了实质内容，只是顺带提了一句边界，
+    # 那种情况转交等于把已经答好的内容丢掉重来。
+    if len(body) > 150:
         return False
     return bool(_REFUSAL_RE.search(body))
+
+
+def says_nobody(text: str) -> bool:
+    """回复里是否明确说了「群里没人能做」。
+
+    这个判断比路由模型更可信：回答的人刚读完成员列表和任务原文，
+    而路由模型只看成员描述，遇到空泛的描述（如「软件方面的东西」）
+    会硬选一个不合适的，于是「缺人」被误处理成「转交」。
+    """
+    return bool(_NOBODY_RE.search(text or ""))
 
 
 def find_agent_by_name(agents: List[Agent], name: str) -> Optional[Agent]:
@@ -305,6 +403,135 @@ def find_agent_by_name(agents: List[Agent], name: str) -> Optional[Agent]:
         if target in a.name or a.name in target:
             return a
     return None
+
+
+def build_recruit_prompt(
+    agent: Agent,
+    task: str,
+    asked_by: str,
+    files_note: str = "",
+    collaboration: bool = False,
+    peers: Optional[List[Agent]] = None,
+) -> str:
+    """新成员接手时的开场。
+
+    新成员不知道自己是「被临时招来的」，也不知道前面发生了什么。
+    不说清楚的话，它会像普通成员那样回答，缺的信息也不会主动要。
+    """
+    role = (agent.description or "").strip()
+    role_line = f"你的角色：{agent.name}。{role}\n" if role else f"你的角色：{agent.name}。\n"
+
+    parts = [
+        role_line,
+        _roster_block(agent, peers),
+        f"\n你刚被加入这个多智能体工作群。{asked_by} 提了一个任务，"
+        "群里原有成员都表示做不了，所以由你接手。\n\n",
+        f"任务内容：\n{task}\n\n",
+    ]
+    if files_note:
+        parts.append(files_note + "\n\n")
+    if collaboration:
+        parts.append(COLLAB_BLOCK)
+    parts.append(
+        "请直接开始处理：能确定的就给结论，缺什么就明确说缺什么，"
+        "不要复述任务、不要说明你是新加入的。"
+    )
+    return "".join(parts)
+
+
+def build_reroute_message(original: str, agent_name: str, refusal: str) -> str:
+    """给「重新派活」的路由补上下文。
+
+    路由第一次只看用户那句话（常常是「你执行吧」这种），根本看不出
+    需要什么能力，于是随便挑一个。把接活的人说「做不了」的原文喂回去，
+    路由才判断得出「这个方向群里根本没人」。
+
+    这是从关键词猜测升级到语义判断的关键一步。
+    """
+    return (
+        f"{original}\n\n"
+        f"【补充说明】{agent_name} 看过任务后表示无法承担，它的说明是：\n"
+        f"{refusal.strip()[:400]}\n\n"
+        "请据此重新判断：群里有没有成员能真正完成这个任务？\n"
+        "注意区分两种情况：\n"
+        "· 只是别人更合适 → 选出那位成员的名字\n"
+        "· 缺的是这个方向的人（现有成员都不具备所需能力）→ assignee 填 null，"
+        "系统会按任务补一位新成员"
+    )
+
+
+#: 协作接力标记 ``[[NEXT: 成员名 | 要补充什么]]``。
+#: 与 ``[[HANDOFF: ...]]`` 的区别很关键：
+#:   HANDOFF = 「我做不了，换人」（推诿，用户看到的是甩锅）
+#:   NEXT    = 「我这块做完了，请他补上另一半」（协作，用户看到的是接力）
+_NEXT_RE = re.compile(
+    r"\[\[\s*NEXT\s*[:：]\s*([^|\]|]+?)\s*\|\s*([^\]|]*?)\s*\]\]",
+    re.IGNORECASE,
+)
+
+
+def parse_next(text: str) -> tuple[Optional[str], str]:
+    """解析协作接力标记，返回 (下一个成员名, 要补充的内容)。
+
+    没有标记时返回 (None, "")。
+    """
+    if not text:
+        return None, ""
+    m = _NEXT_RE.search(text)
+    if not m:
+        return None, ""
+    return m.group(1).strip(), m.group(2).strip()
+
+
+def strip_protocol(text: str) -> str:
+    """去掉所有协议标记，留下给用户看的正文。"""
+    if not text:
+        return ""
+    out = _HANDOFF_RE.sub("", text)
+    out = _NEED_MEMBER_RE.sub("", out)
+    out = _NEXT_RE.sub("", out)
+    return out.strip()
+
+
+def build_chain_prompt(
+    next_agent: Agent,
+    original_task: str,
+    contributions: List[tuple[str, str]],
+    focus: str,
+    asked_by: str,
+    peers: Optional[List[Agent]] = None,
+) -> str:
+    """接力给下一位时的任务描述。
+
+    要带上**所有**前序成员的发言，而不只是上一位——协作是链式的，
+    只给最后一个人的发言，第三位就看不到第一位的结论了。
+
+    focus 是上一位点名要这位补充的内容。
+    """
+    if contributions:
+        history = "\n\n".join(
+            f"【{name} 的部分】\n{text}" for name, text in contributions
+        )
+        history_block = f"同事们已经完成的部分：\n{history}\n\n"
+    else:
+        history_block = ""
+
+    focus_line = (
+        f"上一位点名请你补充：{focus}\n请聚焦这部分，不要重复别人已经做过的。\n\n"
+        if focus
+        else ""
+    )
+
+    return (
+        f"原始任务（{asked_by} 提出）：\n{original_task}\n\n"
+        + _roster_block(next_agent, peers)
+        + history_block
+        + focus_line
+        + "请接着完成你负责的部分。\n"
+        "可以直接引用同事已经得出的结论，不要推翻重做；"
+        "如果发现他们的结论有问题，明确指出并说明理由。\n"
+        "回复要短，能一两句说清就不要展开成三段。"
+    )
 
 
 def build_handoff_prompt(

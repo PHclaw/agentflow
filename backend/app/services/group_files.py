@@ -257,6 +257,22 @@ def copy_to_workspace(group_id: str, stored_names: Iterable[str], workspace: Pat
     return copied
 
 
+def purge_group_dir(group_id: str) -> None:
+    """删群时清掉它的文件目录。
+
+    不清理的话磁盘上会留下再也没人访问的孤儿文件——
+    数据库记录没了，用户也没有入口去删，只能靠运维手工翻目录。
+    """
+    import shutil
+
+    try:
+        d = group_dir(group_id)
+    except GroupFileError:
+        return
+    if d.exists():
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def new_batch_id() -> str:
     return uuid.uuid4().hex
 
