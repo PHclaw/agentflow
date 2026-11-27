@@ -449,7 +449,6 @@ The full comparison lives in **[How it differs from Dify / Coze](docs/COMPARISON
 | [FAQ](docs/FAQ.md) | Models · RAG · self-hosting · billing |
 | [Changelog](docs/CHANGELOG.md) | Version history and roadmap |
 | [Security policy](SECURITY.md) | Vulnerability reporting · responsible disclosure credits |
-| [Security write-up](https://phclaw.github.io/blog/eval-security-disclosure.html) | eval injection (CWE-95): reproduction and fix |
 
 > The detailed guides below are written in Chinese. For an English overview, see the [English landing page](https://phclaw.github.io/agentflow/en.html) and the [English README](README.en.md).
 

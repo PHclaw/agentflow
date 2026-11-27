@@ -34,8 +34,7 @@
 
 - **Capri Security** — 2026-11-26 报告 `tools_memory._calculator_tool` 的
   eval 注入漏洞（CWE-95），并指出 `workflow_runtime` 中的重复实现缺少防护。
-  修复见 commit `5e66ac3`、`fda903e`；复盘文章见
-  <https://phclaw.github.io/blog/eval-security-disclosure.html>。
+  修复见 commit `5e66ac3`、`fda903e`。
 
 ## 部署者请注意
 

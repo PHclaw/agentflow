@@ -442,7 +442,6 @@ agentflow/
 | [常见问题](docs/FAQ.md) | 模型 · RAG · 自托管 · 计费 |
 | [更新日志](docs/CHANGELOG.md) | 版本变更记录与路线图 |
 | [安全政策](SECURITY.md) | 漏洞报告流程 · 负责任披露致谢 |
-| [安全复盘](https://phclaw.github.io/blog/eval-security-disclosure.html) | eval 注入漏洞（CWE-95）的复现与修复 |
 
 启动后可直接访问在线接口文档：http://localhost:8001/docs （Swagger）· http://localhost:8001/redoc
 
