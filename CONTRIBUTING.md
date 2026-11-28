@@ -1,6 +1,6 @@
 # 贡献指南 / Contributing
 
-欢迎 Issue、文档修正和代码贡献。仓库包含完整应用代码、界面截图与演示素材，以及 `skills/` 下的 26 个技能目录；不含任何用户数据。第三方技能的许可与归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+欢迎 Issue、文档修正和代码贡献。仓库包含完整应用代码、界面截图与演示素材，以及 `skills/` 下的 28 个技能目录；不含任何用户数据。第三方技能的许可与归属见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 环境要求
 
@@ -32,7 +32,7 @@ npm run dev                                          # http://localhost:5173
 
 ## 关于 skills/
 
-`skills/` 下自带 26 个技能目录，服务启动时扫描加载，删除某个目录即等于下线该技能（广场随之不再显示）。
+`skills/` 下自带 28 个技能目录，服务启动时扫描加载，删除某个目录即等于下线该技能（广场随之不再显示）。
 
 这些技能来自不同社区，**许可证各不相同**（Apache-2.0 / MIT / 无声明 / 保留所有权利），不能整体按本仓库协议再分发。归属与许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)；格式说明见 [skills/README.md](skills/README.md)。
 
